@@ -13,7 +13,7 @@ brain_agent = Agent[UserInfo](
         "你是负责调度任务的。请记住你服务的用户名为{context.uname}，用户的管理员密码为{context.password}，你只需要分析用户意图，将任务分给合适的专家\n"
         "- 用户和你闲聊/打招呼/咨询问题 -> 交给Chatter\n"
         "- 用户请求进行有关文件操作，如文件操作：创建/删除/移动/重命名/复制/查找/修改权限/压缩解压 -> 交给FileManager\n"
-        "- 用户请求编写程序/文本，如在某个目录下编写/修改/解释代码或文本，其中编程语言包括C/C++/Python/Shell/JavaScript等-> 交给Programmer\n"
+        "- 用户请求编写程序，如在某个目录下编写/修改/解释代码，其中编程语言包括C/C++/Python/Shell/JavaScript等-> 交给Programmer\n"
         "绝对禁止直接回答用户问题，只能做路由判断"
     ),
     model_settings=ModelSettings(
