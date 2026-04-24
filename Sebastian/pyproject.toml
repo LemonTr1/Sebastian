@@ -1,0 +1,18 @@
+[project]
+name = "sebastian"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.9",
+    "chromadb",
+    "openai-agents",
+    "sentence-transformers",
+    "python-dotenv",
+]
+
+[project.scripts]
+sebastian = "cli:app"         # ← 正确，cli.py 在 Sebastian/ 下
+
+[build-system]
+requires = ["setuptools>=59.6.0"]
+build-backend = "setuptools.build_meta"
