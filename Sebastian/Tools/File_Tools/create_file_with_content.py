@@ -5,7 +5,7 @@ from agents import function_tool
 @function_tool
 def create_file_with_content(path: str, filename: str, text: str)->bool:
     """
-    在path路径下建立新文件，路径错误，路径不存在或建立文件夹失败会返回False，否则返回True
+    在path路径下建立名为filename的新文件，路径错误，路径不存在或建立文件夹失败会返回False，否则返回True
     Args:
         path: 路径字符串
         filename: 文件名（包含后缀）
