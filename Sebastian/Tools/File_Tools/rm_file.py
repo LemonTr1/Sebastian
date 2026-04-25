@@ -18,8 +18,9 @@ def rm(path: str, filename: str)->bool:
     if not os.path.exists(file_path):
         typer.echo(typer.style("[Warn]文件或路径不存在",fg=typer.colors.YELLOW))
         return False
-    confirmed = typer.confirm(f"确定要删除文件：{file_path}吗？")
+    confirmed = typer.confirm(typer.style(f"[Warn]确定要删除文件系统对象：{file_path}吗？", fg=typer.colors.YELLOW))
     if not confirmed:
+        typer.echo("已终止本次操作")
         return False
 
     try:
@@ -32,9 +33,9 @@ def rm(path: str, filename: str)->bool:
             shutil.rmtree(file_path)
             print(f"文件夹已删除: {file_path}")
     except PermissionError:
-        print(f"权限不足，无法删除: {file_path}")
+        print(f"权限不足，禁止删除: {file_path}")
         return False
     except Exception as e:
-        print(f"删除失败: {e}")
+        print(f"删除操作失败: {e}")
         return False
     return True

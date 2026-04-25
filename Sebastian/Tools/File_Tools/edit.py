@@ -14,7 +14,7 @@ def edit(path: str, filename: str, context: str)->bool:
         True/False: 表示是否修改成功
     """
     file_path = os.path.join(path, filename)
-    confirmed = typer.confirm(typer.style(f"[Warn]你确定要修改文件{file_path}的内容吗", fg=typer.colors.RED))
+    confirmed = typer.confirm(typer.style(f"[Warn]你确定要修改文件{file_path}的内容吗", fg=typer.colors.YELLOW))
     if not confirmed:
         typer.echo("已终止本次操作")
         return False

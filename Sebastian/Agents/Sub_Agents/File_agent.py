@@ -3,6 +3,9 @@ import typer
 from agents import *
 
 from Interface.UserInfo import UserInfo
+from Tools.File_Tools.read_file import read_file
+from Tools.File_Tools.rm_file import rm
+from Tools.File_Tools.create_file import create_file
 from Tools.File_Tools.ls_tool import ls
 from Tools.File_Tools.which_tool import which
 
@@ -24,7 +27,7 @@ file_agent = Agent[UserInfo](
         "3. 严格进行思考判断：仔细思考用户的需求并合理调用工具\n"
         "#严格记住以下定义：\n"
         "- 文件系统对象的定义：文件系统对象只分为文件（包括快捷方式）和目录（文件夹）\n"
-        "- 文件操作的定义：对文件系统对象进行：创建/删除/移动/重命名/复制/查找/修改权限/压缩解压操作\n"
+        "- 文件操作的定义：对文件系统对象进行：读取/创建/删除/移动/重命名/复制/查找/修改权限/压缩解压操作\n"
         "- 文件内容修改的定义：只有对文件里的主体内容产生改动才算对文件内容修改，对文件本身进行删除/移动/重命名/复制/修改权限/压缩均不算内容修改\n"
         "#工作流（严格按照此决策树执行）\n"
         "步骤1： 分析用户输入，判断出用户的意图：\n"
@@ -41,5 +44,5 @@ file_agent = Agent[UserInfo](
         "   执行：提取出只涉及文件系统对象操作的部分，利用工具完成后将剩下的文件内容修改部分整理好后转交给Programmer执行 -> Programmer\n"
     ),
     handoffs=[program_agent],
-    tools=[ls, which]
+    tools=[ls, which, create_file, rm, read_file]
 )
