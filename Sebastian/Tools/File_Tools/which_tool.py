@@ -8,10 +8,11 @@ def which(path: str, filename: str)->bool:
     """
     判断用户给出的路径和文件是否存在
     Args:
-        path: 路径字符串
-        filename: 文件名
+        path: 父目录路径字符串
+        filename: 目标文件/目录名
     Returns:
-        True/False
+        True: 表示存在目标文件/目录
+        False: 表示不存在目标文件/目录
     """
     file_path = os.path.join(path, filename)
     typer.echo(f"[执行中]正在执行：which {file_path}")

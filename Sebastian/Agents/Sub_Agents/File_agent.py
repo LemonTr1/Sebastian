@@ -8,9 +8,10 @@ from Tools.File_Tools.rm_file import rm
 from Tools.File_Tools.create_file import create_file
 from Tools.File_Tools.ls_tool import ls
 from Tools.File_Tools.which_tool import which
-
+from Tools.File_Tools.mkdir_tool import mkdir
+from Tools.File_Tools.rename_file import rename
+from Tools.File_Tools.edit import edit
 from cli import deepseek_model
-from Agents.Sub_Agents.Program_agent import program_agent
 
 file_agent = Agent[UserInfo](
     name = "FileManager",
@@ -26,6 +27,7 @@ file_agent = Agent[UserInfo](
         "2. 绝不幻觉：只能基于工具返回的真实结果回答，不知道就说不知道。\n"
         "3. 严格进行思考判断：仔细思考用户的需求并合理调用工具\n"
         "#严格记住以下定义：\n"
+        "- 如果用户给的路径是'~'，那表示/home/[用户名]"
         "- 文件系统对象的定义：文件系统对象只分为文件（包括快捷方式）和目录（文件夹）\n"
         "- 文件操作的定义：对文件系统对象进行：读取/创建/删除/移动/重命名/复制/查找/修改权限/压缩解压操作\n"
         "- 文件内容修改的定义：只有对文件里的主体内容产生改动才算对文件内容修改，对文件本身进行删除/移动/重命名/复制/修改权限/压缩均不算内容修改\n"
@@ -34,15 +36,14 @@ file_agent = Agent[UserInfo](
         "- 动作类型：【仅进行文件系统对象操作，不涉及文件内容的修改】，【不涉及文件系统对象操作，涉及文件内容的修改】，【既涉及文件系统对象操作，又涉及文件内容的修改】\n"
         "- 是否有路径：用户是否明确提供了目标路径和文件名\n"
         "步骤2： 判断路径的可达性\n"
-        "- 使用ls和which工具来判断用户路径的是否正确，如果不存在路径，则委婉提示用户注意路径的正确性，结束对话；如果路径可达，则进入步骤3\n"
+        "- 使用ls,which工具来判断用户路径的是否正确，如果不存在路径，则委婉提示用户注意路径的正确性，结束对话；如果路径可达，则进入步骤3\n"
         "步骤3：利用用户提供的路径，选择其中一个分支执行：\n"
         " - 分支1：【仅进行文件系统对象操作，不涉及文件内容的修改】\n"
         "   执行：仔细思考用户需求，利用提供的工具完成用户的需求\n"
         " - 分支2：【不涉及文件系统对象操作，涉及文件内容的修改】\n"
-        "   执行：直接转交给Programmer执行 -> Programmer\n"
+        "   执行：使用工具read_file，edit进行文件内容的读取和修改\n"
         " - 分支3：【既涉及文件系统对象操作，又涉及文件内容的修改】\n"
-        "   执行：提取出只涉及文件系统对象操作的部分，利用工具完成后将剩下的文件内容修改部分整理好后转交给Programmer执行 -> Programmer\n"
+        "   执行：自行决定执行顺序，合理搭配工具完成\n"
     ),
-    handoffs=[program_agent],
-    tools=[ls, which, create_file, rm, read_file]
+    tools=[ls, which, create_file, rm, read_file, mkdir, rename, edit]
 )

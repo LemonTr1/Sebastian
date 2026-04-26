@@ -7,14 +7,16 @@ def read_file(path: str, filename: str):
     """
     以字符串形式返回目标文件内的文本内容
     Args:
-        path: 文件所在路径
-        filename: 文件名
+        path: 父目录路径字符串
+        filename: 文件名（包含扩展名）
     Returns:
-        content：字符串形式的文件的文本内容，如果目标文件不存在则返回None
+        content：字符串形式的文件的文本内容
+        None: 目标文件不存在
     """
     file_path = os.path.join(path, filename)
 
     if not os.path.exists(file_path):
+        typer.echo(typer.style(f"[ERROR]目标文件路径不存在",fg=typer.colors.RED))
         return None
 
     typer.echo(f"[执行中]正在读取 {file_path} 的文件内容")

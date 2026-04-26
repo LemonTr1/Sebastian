@@ -2,7 +2,6 @@ from agents import *
 from cli import deepseek_model
 from Agents.Sub_Agents.Chat_agent import chat_agent
 from Agents.Sub_Agents.File_agent import file_agent
-from Agents.Sub_Agents.Program_agent import program_agent
 from Interface.UserInfo import UserInfo
 import typer
 
@@ -12,8 +11,7 @@ brain_agent = Agent[UserInfo](
     instructions=(
         "你是负责调度任务的。请记住用户名为{context.uname}，这也是用户系统名称，你只需要分析用户意图，将任务分给合适的专家\n"
         "- 用户和你闲聊/打招呼/咨询问题 -> 交给Chatter\n"
-        "- 用户请求在某个文件夹下编写/修改/解释/查看文件内容，其中文本语言包括英语/简体中文/繁体中文/日语/俄语/法语，编程语言包括C/C++/Python/Shell/JavaScript等-> 交给Programmer\n"
-        "- 用户请求进行有关文件系统对象操作，如文件操作：创建/删除/移动/重命名/复制/查找/修改权限/压缩解压 -> 交给FileManager\n"
+        "- 用户请求进行有关文件系统对象操作，如对文件系统对象操作：创建/删除/移动/重命名/复制/查找/修改权限/压缩解压，或者用户请求在某个目录下编写/修改/解释/查看文件内容，其中文本语言包括英语/简体中文/繁体中文/日语/俄语/法语，编程语言包括C/C++/Python/Shell/JavaScript等 -> 交给FileManager\n"
         "- 用户请求下载操作 -> 交给Downloader\n"
         "绝对禁止直接回答用户问题，只能做路由判断"
     ),
@@ -21,7 +19,7 @@ brain_agent = Agent[UserInfo](
         temperature=0.2,
         max_tokens=1000
     ),
-    handoffs=[chat_agent, file_agent, program_agent]
+    handoffs=[chat_agent, file_agent]
 )
 
 def chat():
@@ -34,13 +32,13 @@ def chat():
             typer.echo(typer.style("Bye", fg=typer.colors.BLUE, bold=True))
             raise typer.Exit(code=0)
         history.append({"role":"user", "content":question})
-        typer.echo(typer.style("[AI]: ", fg=typer.colors.BLUE, bold=True), nl=False)
         try:
             result = Runner.run_sync(brain_agent, input=history, context=UserInfo(uname))
             typer.echo(typer.style(f"\n[DEBUG]最后执行的Agent: {result.last_agent.name}\n", fg=typer.colors.YELLOW),
                        nl=False)
         except Exception as e:
-            typer.echo(typer.style("This does not align with my aesthetic", fg=typer.colors.RED, bold=True))
+            typer.echo(typer.style(f"This does not align with my aesthetic：{e}", fg=typer.colors.RED, bold=True))
             raise typer.Exit(code=1)
         history = result.to_input_list()
+        typer.echo(typer.style("[AI]: ", fg=typer.colors.BLUE, bold=True), nl=False)
         typer.echo(typer.style(result.final_output, fg=typer.colors.BLUE))

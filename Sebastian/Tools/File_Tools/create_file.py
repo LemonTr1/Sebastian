@@ -3,17 +3,20 @@ import typer
 from agents import function_tool
 
 @function_tool
-def create_file(path: str, filename: str)->bool:
+def create_file(path: str, filename: str)->str:
     """
-    在path路径下建立名为filename的空文件，路径错误
-    如果目录不存在，询问用户是否创建；如果文件已存在，询问是否覆盖（清空内容）
+    在指定路径下建立新的空文件
     Args:
-        path: 路径字符串
-        filename: 文件名（包含后缀）
+        path: 父目录路径（若不存在，可交互确认后自动创建）
+        filename: 文件名（包含扩展名）
     Returns:
-        True: 文件创建成功（新建或覆盖已有文件）
-        False: 用户取消操作，或目录/文件创建失败
+        成功时返回：“新文件创建成功！{file_path}已创建/覆盖”
+        失败时返回：“父路径{path}已存在且为文件，无法在其中创建文件”/“用户终止了创建路径的操作”/“创建路径{path}失败”/“用户终止了创建新文件的操作”/“创建文件{file_path}失败”
     """
+    if os.path.isfile(path):
+        typer.echo(typer.style(f"[ERROR]父路径{path}已存在且为文件，无法在其中创建文件",fg=typer.colors.RED))
+        return f"父路径{path}已存在且为文件，无法在其中创建文件"
+
     #拼接完整路径
     file_path = os.path.join(path, filename)
 
@@ -21,27 +24,27 @@ def create_file(path: str, filename: str)->bool:
         confirmed = typer.confirm(typer.style(f"[Warn]{path}路径不存在，你确定要建立该路径吗", fg=typer.colors.YELLOW))
         if not confirmed:
             typer.echo(f"已终止本次操作")
-            return False
+            return f"用户终止了创建路径的操作"
         try:
             os.makedirs(path, exist_ok=True)
             typer.echo(f"[执行中]文件路径{path}已创建")
         except OSError as e:
             typer.echo(typer.style(f"[Error]创建路径{path}失败:{e}",fg=typer.colors.RED))
-            return False
+            return f"创建路径{path}失败：{e}"
 
     if os.path.exists(file_path):
         confirmed = typer.confirm(typer.style(f"[Warn]文件{file_path}已经存在，覆盖会清空内容，确定吗", fg=typer.colors.YELLOW))
         if not confirmed:
             typer.echo("已终止本次操作")
-            return False
+            return f"用户终止了创建新文件的操作"
 
     try:
         #创建空文件
         with open(file_path, 'w') as f:
             pass
         typer.echo(f"[执行中]文件{file_path}已创建/覆盖")
-        return True
+        return f"新文件创建成功！{file_path}已创建/覆盖"
     except OSError as e:
         typer.echo(typer.style(f"[Error] 创建文件 {file_path} 失败: {e}", fg=typer.colors.RED))
-        return False
+        return f"创建文件{file_path}失败"
 
