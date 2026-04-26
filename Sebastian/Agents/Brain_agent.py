@@ -26,7 +26,7 @@ brain_agent = Agent[UserInfo](
 
 def chat():
     uname = typer.prompt("您的姓名是(当前系统的用户名)")
-    typer.echo("Hello.I'm Sebastian.What can I do for you? [Press 'quit' to exit]")
+    typer.echo(typer.style("Hello.I'm Sebastian.What can I do for you? [Press 'quit' to exit]", fg=typer.colors.BLUE))
     history = []
     while True:
         question = typer.prompt(typer.style("[You]", fg=typer.colors.GREEN, bold=True))
