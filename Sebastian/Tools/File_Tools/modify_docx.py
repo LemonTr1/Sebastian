@@ -1,6 +1,8 @@
 from docx import Document
 import typer
+from agents import function_tool
 
+@function_tool
 async def modify_docx(
         file_path: str,
         new_content: str,

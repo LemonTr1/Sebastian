@@ -14,6 +14,10 @@ async def create_docx(file_path: str) -> str:
         操作结果说明（成功或失败）
     """
     try:
+        confirmed = typer.confirm(typer.style(f"[Warn]确定创建/覆盖文档{file_path}吗？",fg=typer.colors.YELLOW))
+        if not confirmed:
+            typer.echo("已终止此操作")
+            return f"用户阻止了本次操作"
         # 创建一个空白的 Document 对象
         doc = Document()
         # 直接保存，不添加任何内容
