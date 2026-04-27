@@ -19,7 +19,7 @@ def read_file(path: str, filename: str):
         typer.echo(typer.style(f"[ERROR]目标文件路径不存在",fg=typer.colors.RED))
         return None
 
-    typer.echo(f"[执行中]正在读取 {file_path} 的文件内容")
+    typer.echo(typer.style(f"[执行中]正在读取 {file_path} 的文件内容", fg=typer.colors.WHITE))
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()   # 整个文件 → 一个字符串
     return content

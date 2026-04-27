@@ -25,7 +25,7 @@ def mkdir(path: str, folder: str)->str:
 
     try:
         os.makedirs(dict_path, exist_ok=True)
-        typer.echo(f"[执行中]正在创建目录：{dict_path}")
+        typer.echo(typer.style(f"[执行中]正在创建目录：{dict_path}", fg=typer.colors.WHITE))
         return f"创建目录成功：{dict_path}"
     except OSError as e:
         typer.echo(typer.style(f"[Error]创建目录{dict_path}失败:{e}", fg=typer.colors.RED))

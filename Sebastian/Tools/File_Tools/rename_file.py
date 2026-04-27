@@ -36,7 +36,7 @@ def rename(src: str, dst: str) -> str:
     try:
         os.rename(src, dst)
         msg = f"重命名成功：{src} -> {dst}"
-        typer.echo(f"[执行中] {msg}")
+        typer.echo(typer.style(f"[执行中] {msg}", fg=typer.colors.WHITE))
         return msg
     except FileNotFoundError:
         typer.echo(typer.style(f"[ERROR] 源路径不存在：{src}", fg=typer.colors.RED))

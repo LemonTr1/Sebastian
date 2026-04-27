@@ -27,7 +27,7 @@ def create_file(path: str, filename: str)->str:
             return f"用户终止了创建路径的操作"
         try:
             os.makedirs(path, exist_ok=True)
-            typer.echo(f"[执行中]文件路径{path}已创建")
+            typer.echo(typer.style(f"[执行中]文件路径{path}已创建", fg=typer.colors.WHITE))
         except OSError as e:
             typer.echo(typer.style(f"[Error]创建路径{path}失败:{e}",fg=typer.colors.RED))
             return f"创建路径{path}失败：{e}"
@@ -42,7 +42,7 @@ def create_file(path: str, filename: str)->str:
         #创建空文件
         with open(file_path, 'w') as f:
             pass
-        typer.echo(f"[执行中]文件{file_path}已创建/覆盖")
+        typer.echo(typer.style(f"[执行中]文件{file_path}已创建/覆盖", fg=typer.colors.WHITE))
         return f"新文件创建成功！{file_path}已创建/覆盖"
     except OSError as e:
         typer.echo(typer.style(f"[Error] 创建文件 {file_path} 失败: {e}", fg=typer.colors.RED))

@@ -33,15 +33,15 @@ def rm(path: str, filename: str)->str:
     try:
         if os.path.islink(file_path):
             os.unlink(file_path)
-            typer.echo(f"[执行中]符号链接已删除：{file_path}")
+            typer.echo(typer.style(f"[执行中]符号链接已删除：{file_path}", fg=typer.colors.WHITE))
         elif os.path.isfile(file_path):
             #删除文件
             os.remove(file_path)
-            typer.echo(f"[执行中]文件已删除: {file_path}")
+            typer.echo(typer.style(f"[执行中]文件已删除: {file_path}", fg=typer.colors.WHITE))
         elif os.path.isdir(file_path):
             #删除文件夹
             shutil.rmtree(file_path)
-            typer.echo(f"[执行中]文件夹已删除: {file_path}")
+            typer.echo(typer.style(f"[执行中]文件夹已删除: {file_path}", fg=typer.colors.WHITE))
     except PermissionError as e:
         typer.echo(typer.style(f"[ERROR]权限不足，禁止删除: {file_path}", fg=typer.colors.RED))
         return f"权限不足，禁止删除：{e}"

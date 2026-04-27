@@ -9,8 +9,6 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 from openai import AsyncOpenAI #引入异步客户端
 from agents import *
-
-import typer
 from Agents import Brain_agent
 
 #创建指向 DeepSeek 的异步客户端（Agents SDK 底层基于 AsyncOpenAI）
@@ -28,6 +26,9 @@ deepseek_model = OpenAIChatCompletionsModel(
     openai_client=client,
 )
 
+import typer
+import asyncio
+
 app = typer.Typer(no_args_is_help=False ,help="AutomaticTaskAssistant")
 
 @app.callback(invoke_without_command=True)
@@ -36,7 +37,11 @@ def setup(version: bool = typer.Option(False, "--version", "-v", help="Show vers
         typer.echo("Automatic Task Assistant V 0.1")
         raise typer.Exit(code=0)
     else:
-        Brain_agent.chat()
+        try:
+            asyncio.run(Brain_agent.chat())
+        except Exception as e:
+            typer.echo(f"Error: {str(e)}", err=True)
+            raise typer.Exit(code=1)
 
 if __name__ == "__main__":
     app()

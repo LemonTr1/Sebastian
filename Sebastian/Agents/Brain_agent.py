@@ -1,6 +1,5 @@
 from agents import *
 from cli import deepseek_model
-from Agents.Sub_Agents.Chat_agent import chat_agent
 from Agents.Sub_Agents.File_agent import file_agent
 from Interface.UserInfo import UserInfo
 import typer
@@ -9,20 +8,40 @@ brain_agent = Agent[UserInfo](
     name="Triage",
     model=deepseek_model,
     instructions=(
-        "你是负责调度任务的。请记住用户名为{context.uname}，这也是用户系统名称，你只需要分析用户意图，将任务分给合适的专家\n"
-        "- 用户和你闲聊/打招呼/咨询问题 -> 交给Chatter\n"
-        "- 用户请求进行有关文件系统对象操作，如对文件系统对象操作：创建/删除/移动/重命名/复制/查找/修改权限/压缩解压，或者用户请求在某个目录下编写/修改/解释/查看文件内容，其中文本语言包括英语/简体中文/繁体中文/日语/俄语/法语，编程语言包括C/C++/Python/Shell/JavaScript等 -> 交给FileManager\n"
-        "- 用户请求下载操作 -> 交给Downloader\n"
-        "绝对禁止直接回答用户问题，只能做路由判断"
+        """
+        你是 Sebastian 的主控大脑，负责理解用户意图，调度底层专家 Agent 完成任务，并给出最终回答。
+        
+        ## 1. 路由边界（必须严格遵守）
+        - 纯闲聊/打招呼/无实际操作需求的对话 -> 直接回复，禁止调用任何工具。
+        - 执行代码/运行脚本/进行数学计算 -> Code_Agent_Tool
+        - 对文件系统对象的查看/创建/删除/移动/重命名/复制/查找/修改权限/压缩解压，以及对文件内容的读取/修改 -> File_Agent_Tool
+        - 公网实时信息搜索/网页内容抓取 -> Web_Agent_Tool
+        - 查询用户私有文档/本地知识库 -> Knowledge_Agent_Tool
+        - 发送系统通知/消息推送 -> Notify_Agent_Tool
+        （注意：绝对禁止跨界！比如禁止用 Web_Agent 查本地笔记，禁止用 Code_Agent 读文件内容）
+        
+        ## 2. 工作流
+        - 拆解任务，按需调用工具。如果多个工具之间没有依赖关系（如同时搜两个网页、同时查文件和知识库），请务必并行调用。
+        - 拿到工具结果后，由你进行提炼、对比、总结，必须用人类友好的自然语言输出，禁止直接把工具的原始返回结果（如 JSON、代码块、大段无格式文本）甩给用户。
+        
+        ## 3. 交互规范
+        - 涉及高危操作（如批量删除、覆盖重要文件、执行不可逆脚本），你必须先用自然语言向用户解释你的具体执行计划，等用户明确同意后，再调用对应的工具。
+        - （注：底层工具自身带有强制确认机制，但作为大脑，你应该主动承担前期的沟通与预警责任，避免发出无效的危险指令。）
+        """
     ),
     model_settings=ModelSettings(
         temperature=0.2,
-        max_tokens=1000
+        max_tokens=30000
     ),
-    handoffs=[chat_agent, file_agent]
+    tools=[
+        file_agent.as_tool(
+            tool_name="File_Agent_Tool",
+            tool_description="负责对文件系统对象进行：查看/创建/删除/移动/重命名/复制/查找/修改权限/压缩解压操作，以及对文件内容的读取/修改"
+        ),
+    ]
 )
 
-def chat():
+async def chat():
     uname = typer.prompt("您的姓名是(当前系统的用户名)")
     typer.echo(typer.style("Hello.I'm Sebastian.What can I do for you? [Press 'quit' to exit]", fg=typer.colors.BLUE))
     history = []
@@ -33,11 +52,9 @@ def chat():
             raise typer.Exit(code=0)
         history.append({"role":"user", "content":question})
         try:
-            result = Runner.run_sync(brain_agent, input=history, context=UserInfo(uname))
-            typer.echo(typer.style(f"\n[DEBUG]最后执行的Agent: {result.last_agent.name}\n", fg=typer.colors.YELLOW),
-                       nl=False)
+            result = await Runner.run(brain_agent, input=history, context=UserInfo(uname))
         except Exception as e:
-            typer.echo(typer.style(f"This does not align with my aesthetic：{e}", fg=typer.colors.RED, bold=True))
+            typer.echo(typer.style(f"Ops！机器人出现故障了：{e}", fg=typer.colors.RED, bold=True))
             raise typer.Exit(code=1)
         history = result.to_input_list()
         typer.echo(typer.style("[AI]: ", fg=typer.colors.BLUE, bold=True), nl=False)

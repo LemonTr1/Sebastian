@@ -15,7 +15,7 @@ def which(path: str, filename: str)->bool:
         False: 表示不存在目标文件/目录
     """
     file_path = os.path.join(path, filename)
-    typer.echo(f"[执行中]正在执行：which {file_path}")
+    typer.echo(typer.style(f"[执行中]正在执行：which {file_path}", fg=typer.colors.WHITE))
     if os.path.exists(file_path):
         return True
     typer.echo(typer.style("[ERROR]不存在目标文件/目录", fg=typer.colors.RED))
