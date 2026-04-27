@@ -22,7 +22,7 @@ file_agent = Agent[UserInfo](
     model = deepseek_model,
     model_settings=ModelSettings(
         temperature=0.2,
-        max_tokens=10000
+        max_tokens=30000
     ),
     instructions=(
         "#角色： 你是一个严格高效的文件管理助手。你的核心任务是根据用户的指令，高效地进行文件操作\n"
