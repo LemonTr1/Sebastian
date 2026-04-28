@@ -19,7 +19,7 @@ async def modify_docx(
     Returns:
         操作结果说明（字符串）
     """
-    typer.echo(typer.style("[执行中] 正在修改 docx 文档内容", fg=typer.colors.WHITE))
+    typer.echo(typer.style(f"[执行中] 正在修改{file_path}文档内容", fg=typer.colors.WHITE))
 
     try:
         doc = Document(file_path)

@@ -15,6 +15,7 @@ from Tools.File_Tools.read_docx import read_docx
 from Tools.File_Tools.modify_docx import modify_docx
 from Tools.File_Tools.create_docx import create_docx
 from Tools.File_Tools.which_tool import which
+from Tools.File_Tools.archive import make_archive, unpack_archive
 from cli import deepseek_model
 
 file_agent = Agent[UserInfo](
@@ -49,5 +50,9 @@ file_agent = Agent[UserInfo](
         " - 分支3：【既涉及文件系统对象操作，又涉及文件内容的修改】\n"
         "   执行：自行决定执行顺序，合理搭配工具完成\n"
     ),
-    tools=[which, ls, create_file, rm, read_file, mkdir, rename, edit, extract, read_docx, modify_docx, create_docx]
+    tools=[
+        which, ls, create_file, rm, read_file,
+        mkdir, rename, edit, extract, read_docx, 
+        modify_docx, create_docx, make_archive, unpack_archive
+    ]
 )

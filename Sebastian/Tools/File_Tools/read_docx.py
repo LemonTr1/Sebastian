@@ -10,10 +10,11 @@ async def read_docx(file_path: str) -> str:
     Args:
         file_path: docx文件的完整路径
     Returns:
-        文档的纯文本内容
+        成功时返回：文档的纯文本内容
+        错误时返回：报错信息
     """
     try:
-        typer.echo(typer.style(f"[执行中]正在读取docx文档...",fg=typer.colors.WHITE))
+        typer.echo(typer.style(f"[执行中]正在读取{file_path}文档内容...",fg=typer.colors.WHITE))
         loop = asyncio.get_running_loop()
         doc = await loop.run_in_executor(None, Document, file_path)
         # 收集所有段落的文本
