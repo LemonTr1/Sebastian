@@ -9,9 +9,9 @@ from Tools.File_Tools.mkdir_tool import mkdir
 from Tools.File_Tools.rename_file import rename
 from Tools.File_Tools.edit import edit
 from Tools.File_Tools.extract_document import extract
-from Tools.File_Tools.read_docx import read_docx
-from Tools.File_Tools.modify_docx import modify_docx
-from Tools.File_Tools.create_docx import create_docx
+from Tools.File_Tools.docx import read_docx
+from Tools.File_Tools.docx import modify_docx
+from Tools.File_Tools.docx import create_docx
 from Tools.File_Tools.which_tool import which
 from Tools.File_Tools.archive import *
 from cli import deepseek_model
