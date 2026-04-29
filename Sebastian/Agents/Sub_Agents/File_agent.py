@@ -14,6 +14,7 @@ from Tools.File_Tools.docx import modify_docx
 from Tools.File_Tools.docx import create_docx
 from Tools.File_Tools.which_tool import which
 from Tools.File_Tools.archive import *
+from Tools.File_Tools.copy_tool import *
 from cli import deepseek_model
 
 file_agent = Agent[UserInfo](
@@ -52,6 +53,6 @@ file_agent = Agent[UserInfo](
         which, ls, create_file, rm, read_file,
         mkdir, rename, edit, extract, read_docx, 
         modify_docx, create_docx, make_archive, unpack_archive,
-        unpack_7z_archive, make_7z_archive
+        unpack_7z_archive, make_7z_archive, cp_file, cp_dict
     ]
 )
