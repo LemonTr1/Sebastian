@@ -5,6 +5,7 @@ from Tools.Web_Tools.Web_Search.text_search import text_search
 from Tools.Web_Tools.Web_Search.web_extract import web_extract
 from Tools.Web_Tools.Web_Search.news_search import news_search
 from Tools.Web_Tools.correct_time_tool import get_current_datetime
+from Tools.Web_Tools.Web_Fetch.download_file import download_file
 
 web_agent = Agent[UserInfo](
     name = "Web_Agent_Tool",
@@ -41,5 +42,5 @@ web_agent = Agent[UserInfo](
         temperature=0.2,
         max_tokens=10000
     ),
-    tools=[get_current_datetime, text_search, web_extract, news_search]
+    tools=[get_current_datetime, text_search, web_extract, news_search, download_file]
 )

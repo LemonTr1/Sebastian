@@ -12,7 +12,7 @@ def ddgs_search(word: str, max_results: int):
 @function_tool
 def text_search(word: str, max_results: int = 5, timeout: int = 20) -> str:
     """
-    DuckDuckGo文本搜索工具
+    网络信息搜索工具
     Args:
         word: 查询内容
         max_results: 最大返回内容数（默认为5条结果）
