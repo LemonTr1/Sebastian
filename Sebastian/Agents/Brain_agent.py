@@ -1,6 +1,7 @@
 from agents import *
 from cli import deepseek_model
 from Agents.Sub_Agents.File_agent import file_agent
+from Agents.Sub_Agents.Web_agent import web_agent
 from Interface.UserInfo import UserInfo
 import typer
 
@@ -15,7 +16,7 @@ brain_agent = Agent[UserInfo](
         - 纯闲聊/打招呼/无实际操作需求的对话 -> 直接回复，禁止调用任何工具。
         - 执行代码/运行脚本/进行数学计算 -> Code_Agent_Tool
         - 对文件系统对象的查看/创建/删除/移动/重命名/复制/查找/修改权限/压缩解压，以及对文件内容的读取/修改 -> File_Agent_Tool
-        - 公网实时信息搜索/网页内容抓取 -> Web_Agent_Tool
+        - 公网实时信息搜索/网页内容抓取/网络资源下载 -> Web_Agent_Tool
         - 查询用户私有文档/本地知识库 -> Knowledge_Agent_Tool
         - 发送系统通知/消息推送 -> Notify_Agent_Tool
         （注意：绝对禁止跨界！比如禁止用 Web_Agent 查本地笔记，禁止用 Code_Agent 读文件内容）
@@ -37,6 +38,10 @@ brain_agent = Agent[UserInfo](
         file_agent.as_tool(
             tool_name="File_Agent_Tool",
             tool_description="负责对文件系统对象进行：查看/创建/删除/移动/重命名/复制/查找/修改权限/压缩解压操作，以及对文件内容的读取/修改"
+        ),
+        web_agent.as_tool(
+            tool_name="Web_Agent_Tool",
+            tool_description="负责网络搜索，网页内容获取，网络资源下载"
         ),
     ]
 )
