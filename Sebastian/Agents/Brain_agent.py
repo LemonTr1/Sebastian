@@ -3,6 +3,7 @@ from cli import deepseek_model
 from Agents.Sub_Agents.File_agent import file_agent
 from Agents.Sub_Agents.Web_agent import web_agent
 from Interface.UserInfo import UserInfo
+from Tools.Web_Tools.correct_time_tool import get_current_datetime
 import typer
 
 brain_agent = Agent[UserInfo](
@@ -35,6 +36,7 @@ brain_agent = Agent[UserInfo](
         max_tokens=30000
     ),
     tools=[
+        get_current_datetime,
         file_agent.as_tool(
             tool_name="File_Agent_Tool",
             tool_description="负责对文件系统对象进行：查看/创建/删除/移动/重命名/复制/查找/修改权限/压缩解压操作，以及对文件内容的读取/修改"

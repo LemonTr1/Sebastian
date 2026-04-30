@@ -5,6 +5,7 @@ import typer
 from agents import function_tool
 
 def ddgs_search(word: str, max_results: int):
+    typer.echo(typer.style(f"[执行中]正在进行文本搜索：{word}",fg=typer.colors.WHITE))
     with DDGS() as ddgs:
         return list(ddgs.text(word, max_results=max_results))
 

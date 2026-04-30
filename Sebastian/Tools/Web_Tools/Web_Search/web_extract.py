@@ -16,7 +16,7 @@ def ddgs_extract(url: str)->dict:
             typer.echo(typer.style(f"提取成功",fg=typer.colors.WHITE))
             return {"success": True, "content": str(extracted)}
     except Exception as e:
-        typer.echo(typer.style(f"[ERROR]出现错误：{e}",fg=typer.colors.RED))
+        typer.echo(typer.style(f"[ERROR]提取出现错误：{e}",fg=typer.colors.RED))
         return {"success": False, "content": f"出现错误：{e}"}
 
 @function_tool
@@ -43,5 +43,5 @@ def web_extract(url: str, timeout: int = 20)->str:
         typer.echo(typer.style(f"[ERROR]提取超时：{e}", fg=typer.colors.RED))
         return json.dumps({"success": False, "content": "错误:提取超时"}, ensure_ascii=False)
     except Exception as e:
-        typer.echo(typer.style(f"[ERROR]出现错误：{e}",fg=typer.colors.RED))
+        typer.echo(typer.style(f"[ERROR]出现未知错误：{e}",fg=typer.colors.RED))
         return json.dumps({"success": False, "content": f"错误：{e}"}, ensure_ascii=False)

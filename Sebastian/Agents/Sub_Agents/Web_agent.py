@@ -3,6 +3,8 @@ from Interface.UserInfo import UserInfo
 from cli import deepseek_model
 from Tools.Web_Tools.Web_Search.text_search import text_search
 from Tools.Web_Tools.Web_Search.web_extract import web_extract
+from Tools.Web_Tools.Web_Search.news_search import news_search
+from Tools.Web_Tools.correct_time_tool import get_current_datetime
 
 web_agent = Agent[UserInfo](
     name = "Web_Agent_Tool",
@@ -27,10 +29,10 @@ web_agent = Agent[UserInfo](
     
         ## 约束与安全
         - 绝对不允许访问内网环境
+        - 查询时效性信息时，比如用户询问“今天天气如何”/“最近有哪些新闻”等，必须先调用get_current_datetime工具查询时间。
         - 遵守法律法规，不尝试绕过付费墙、不下载侵权内容、不访问被屏蔽的网站。
         - 不执行任何可能对目标网站造成压力的操作（如大量并发请求）。
         - 若用户请求敏感内容（个人隐私、非法信息），礼貌拒绝并说明原因。
-        - 无法确认时效性的信息时，标注日期或询问用户。
     
         请始终以清晰、高效的方式响应用户。
         """
@@ -39,5 +41,5 @@ web_agent = Agent[UserInfo](
         temperature=0.2,
         max_tokens=10000
     ),
-    tools=[text_search, web_extract]
+    tools=[get_current_datetime, text_search, web_extract, news_search]
 )
