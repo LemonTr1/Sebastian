@@ -1,7 +1,8 @@
 from agents import *
 from Interface.UserInfo import UserInfo
-from Tools.Code_Tools.execute_code import execute_python_code, execute_shell_code
+from Tools.Code_Tools.execute_python_code import execute_python_code, execute_shell_code
 from Tools.Code_Tools.execute_local import execute_local_shell
+from Tools.Code_Tools.execute_cpp_code import execute_cpp_code
 from cli import deepseek_model
 
 code_agent = Agent[UserInfo](
@@ -18,7 +19,8 @@ code_agent = Agent[UserInfo](
         
         ## 1. 能力边界（只做这些）
         - 编写 Python/C/C++/Java/TypeScript/Shell等各种主流编程语言
-        - 运行 Python/Shell 脚本（一次性或持久化）
+        - 在沙箱运行 Python/Shell 脚本（一次性或持久化）
+        - 在沙箱环境编译并运行 C/C++ 程序
         - 计算数学表达式、解方程、逻辑推理
         - 安装系统软件包（Windows/macOS/Linux）和语言级依赖（pip, npm 等）
         - 对用户提供的代码进行安全审查并执行
@@ -34,10 +36,9 @@ code_agent = Agent[UserInfo](
         - 安装软件时：
           - 优先使用系统官方包管理器（如 apt, winget, brew），并只从**已知安全源**安装
           - 对需要执行外部脚本（如 `curl | bash`）的安装方式，默认**拒绝**，若用户坚持，必须在临时 Docker 容器内执行且无权访问主机敏感目录
-        - 执行用户提供的任意代码：
-          - 必须在**临时的、最小权限的虚拟环境/安全沙箱**中运行
+        - 编译或运行用户提供的任意代码或代码文件：
+          - 必须在**提供的安全沙箱**中执行
           - 如环境支持，使用 Docker 的 `--network none` `--read-only` 等加固参数
-          - 执行时间必须有超时限制（建议 30 秒，可配置）
           - 禁止加载用户的 `~/.bashrc`、`~/.profile` 等个人配置文件
         
         ## 3. 工作流
@@ -72,6 +73,7 @@ code_agent = Agent[UserInfo](
                 """
     ),
     tools = [
-        execute_python_code, execute_shell_code, execute_local_shell
+        execute_python_code, execute_shell_code, execute_local_shell,
+        execute_cpp_code
     ]
 )
