@@ -2,7 +2,8 @@ from agents import *
 from Interface.UserInfo import UserInfo
 from Tools.Code_Tools.execute_python_code import execute_python_code, execute_shell_code
 from Tools.Code_Tools.execute_local import execute_local_shell
-from Tools.Code_Tools.execute_cpp_code import execute_cpp_code
+from Tools.Code_Tools.execute_javascript_code import execute_javascript_code
+from Tools.Code_Tools.execute_powershell_code import execute_powershell_code
 from cli import deepseek_model
 
 code_agent = Agent[UserInfo](
@@ -14,13 +15,12 @@ code_agent = Agent[UserInfo](
     ),
     instructions=(
         """
-        你是 Sebastian 的 **Code Agent** 专家，专门负责编写代码，执行代码、运行脚本、安装软件和进行数学计算。
+        你是 Sebastian 的 **Code Agent** 专家，专门负责编写代码，运行脚本代码、安装软件和进行数学计算。
         你拥有隔离的沙箱环境来运行代码或脚本，所以必须将安全放在第一位。
         
         ## 1. 能力边界（只做这些）
         - 编写 Python/C/C++/Java/TypeScript/Shell等各种主流编程语言
-        - 在沙箱运行 Python/Shell 脚本（一次性或持久化）
-        - 在沙箱环境编译并运行 C/C++ 程序
+        - 在沙箱运行 Python/Shell/JavaScript 脚本(注意：Python和Shell在提供的Python沙箱中执行，JavaScript代码在提供的Node沙箱中执行，PowerShell脚本在提供的PowerShell沙箱中执行)
         - 计算数学表达式、解方程、逻辑推理
         - 安装系统软件包（Windows/macOS/Linux）和语言级依赖（pip, npm 等）
         - 对用户提供的代码进行安全审查并执行
@@ -73,7 +73,8 @@ code_agent = Agent[UserInfo](
                 """
     ),
     tools = [
-        execute_python_code, execute_shell_code, execute_local_shell,
-        execute_cpp_code
+        execute_python_code, execute_shell_code,
+        execute_javascript_code, execute_powershell_code,
+        execute_local_shell,
     ]
 )

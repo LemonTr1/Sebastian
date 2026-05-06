@@ -36,7 +36,12 @@ def create_file(path: str, filename: str)->str:
         confirmed = typer.confirm(typer.style(f"[Warn]文件{file_path}已经存在，覆盖会清空内容，确定吗", fg=typer.colors.YELLOW))
         if not confirmed:
             typer.echo("已终止本次操作")
-            return f"用户终止了创建新文件的操作"
+            return f"用户主动终止了创建新文件的操作"
+    else:
+        confirmed = typer.confirm(typer.style(f"[Warn]文件{file_path}不存在，确定要创建吗", fg=typer.colors.YELLOW))
+        if not confirmed:
+            typer.echo("已终止本次操作")
+            return f"用户主动终止了创建新文件的操作"
 
     try:
         #创建空文件

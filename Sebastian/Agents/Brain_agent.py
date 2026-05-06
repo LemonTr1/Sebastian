@@ -1,4 +1,6 @@
 from agents import *
+from openai.types.responses import ResponseTextDeltaEvent
+
 from cli import deepseek_model
 from Agents.Sub_Agents.File_agent import file_agent
 from Agents.Sub_Agents.Web_agent import web_agent
@@ -64,10 +66,13 @@ async def chat():
             raise typer.Exit(code=0)
         history.append({"role":"user", "content":question})
         try:
-            result = await Runner.run(brain_agent, input=history, context=UserInfo(uname))
+            result = Runner.run_streamed(brain_agent, input=history, context=UserInfo(uname))
         except Exception as e:
             typer.echo(typer.style(f"Ops！机器人出现故障了：{e}", fg=typer.colors.RED, bold=True))
             raise typer.Exit(code=1)
         history = result.to_input_list()
         typer.echo(typer.style("[AI]: ", fg=typer.colors.BLUE, bold=True), nl=False)
-        typer.echo(typer.style(result.final_output, fg=typer.colors.BLUE))
+        async for event in result.stream_events():
+            if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                typer.echo(typer.style(event.data.delta, fg=typer.colors.BLUE), nl=False)
+        typer.echo()

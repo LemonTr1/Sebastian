@@ -15,7 +15,7 @@ def execute_local_shell(command: str, timeout: int = 30)->str:
         json字符串，里面包含了执行结果和返回信息
     """
 
-    typer.echo(typer.style(f"[执行中]正在终端执行命令：{command[:15]}...",fg=typer.colors.WHITE))
+    typer.echo(typer.style(f"[执行中]正在终端执行命令：{command[:20]}...",fg=typer.colors.WHITE))
     try:
         result = subprocess.run(
             command,
@@ -26,7 +26,7 @@ def execute_local_shell(command: str, timeout: int = 30)->str:
         )
         return json.dumps({
             "success": result.returncode == 0,
-            "output": result.stdout +result.stderr,
+            "output": result.stdout+result.stderr,
             "exit_code": result.returncode
         })
     except subprocess.TimeoutExpired:

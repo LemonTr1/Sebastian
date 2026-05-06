@@ -16,7 +16,7 @@ def execute_python_code(
         cpu_limit: float = 1.0
 )->str:
     """
-    在隔离的 Docker 容器中执行 Python 代码，返回输出和状态。
+    在隔离的Python沙箱中执行Python代码，返回输出和状态。
     Args:
         code: 要执行的 Python 代码字符串
         timeout: 最长执行时间（秒）
@@ -30,7 +30,7 @@ def execute_python_code(
             "error": str | None # 错误信息
         }
     """
-    typer.echo(typer.style(f"[执行中]正在将python代码放入沙箱执行...",fg=typer.colors.WHITE))
+    typer.echo(typer.style(f"[执行中]正在将python代码：`{code[:20]}`放入沙箱执行...",fg=typer.colors.WHITE))
     result = {
         "success": False,
         "output": "",
@@ -79,6 +79,7 @@ def execute_python_code(
                 stdout=True, stderr=True,
             )
         except ImageNotFound as e:
+            typer.echo(typer.style(f"[执行中]镜像 python:3.11-slim 不存在，正在拉取镜像...", fg=typer.colors.WHITE))
             #首次需要拉取镜像
             client.images.pull("python:3.11-slim")
             #再重新在Docker中运行Python代码
@@ -144,7 +145,7 @@ def execute_shell_code(
         cpu_limit: float = 1.0
 ) -> str:
     """
-    在隔离的 Docker 容器中执行 Shell 脚本，返回输出和状态。
+    在隔离的Python沙箱中执行Shell脚本，返回输出和状态。
     Args:
         code: 要执行的 Shell 脚本字符串
         timeout: 最长执行时间（秒）
@@ -158,7 +159,7 @@ def execute_shell_code(
             "error": str | None # 错误信息
         }
     """
-    typer.echo(typer.style(f"[执行中]正在将Shell脚本放入沙箱中执行...",fg=typer.colors.WHITE))
+    typer.echo(typer.style(f"[执行中]正在将Shell脚本：`{code[:20]}`放入沙箱中执行...",fg=typer.colors.WHITE))
     result = {
         "success": False,
         "output": "",
@@ -204,6 +205,7 @@ def execute_shell_code(
                 stdout=True, stderr=True,
             )
         except ImageNotFound:
+            typer.echo(typer.style(f"[执行中]镜像 python:3.11-slim 不存在，正在拉取镜像...", fg=typer.colors.WHITE))
             # 首次需要拉取镜像（非常见情况，因为 python 镜像已用于 Python 沙箱）
             client.images.pull("python:3.11-slim")
             container = client.containers.run(

@@ -22,7 +22,7 @@ set_tracing_disabled(True)
 
 #将DeepSeek封装成Agents SDK可用的模型对象
 deepseek_model = OpenAIChatCompletionsModel(
-    model="deepseek-chat",
+    model="deepseek-reasoner",
     openai_client=client,
 )
 
