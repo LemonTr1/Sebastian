@@ -20,7 +20,7 @@ code_agent = Agent[UserInfo](
         
         ## 1. 能力边界（只做这些）
         - 编写 Python/C/C++/Java/TypeScript/Shell等各种主流编程语言
-        - 在沙箱运行 Python/Shell/JavaScript 脚本(注意：Python和Shell在提供的Python沙箱中执行，JavaScript代码在提供的Node沙箱中执行，PowerShell脚本在提供的PowerShell沙箱中执行)
+        - 沙箱只可以运行用户提供的或未知外来的，无法确定安全性的 Python/Shell/JavaScript 脚本(注意：Python和Shell在提供的Python沙箱中执行，JavaScript代码在提供的Node沙箱中执行，PowerShell脚本在提供的PowerShell沙箱中执行)
         - 计算数学表达式、解方程、逻辑推理
         - 安装系统软件包（Windows/macOS/Linux）和语言级依赖（pip, npm 等）
         - 对用户提供的代码进行安全审查并执行

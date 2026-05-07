@@ -62,7 +62,7 @@ def mv(
         try:
             typer.echo(typer.style(f"[执行中]正在将{src}重命名为：{dst}",fg=typer.colors.WHITE))
             shutil.move(src, dst)
-            typer.echo(typer.style(f"[执行中]已成功将{src}重命名为：{dst}",fg=typer.colors.WHITE))
+            typer.echo(typer.style(f"[Success]已成功将{src}重命名为：{dst}",fg=typer.colors.GREEN))
             result["success"] = True
             result["message"] = f"成功将{src}重命名为{dst}"
             return json.dumps(result, ensure_ascii=False, indent=2)

@@ -72,6 +72,7 @@ def _download_file(url: str, save_dir: str) -> dict:
         save_path = Path(save_dir) / filename
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
+        typer.echo()
         with client.stream("GET", url) as response:
             response.raise_for_status()
             downloaded = 0
@@ -90,7 +91,7 @@ def _download_file(url: str, save_dir: str) -> dict:
                             return {"success": False, "error": f"文件超过 {MAX_FILE_SIZE} 字节，已中断"}
             actual_size = downloaded
 
-        typer.echo(typer.style(f"[执行中]下载完成",fg=typer.colors.WHITE))
+        typer.echo(typer.style(f"[Success]下载完成",fg=typer.colors.GREEN))
         return {
             "success": True,
             "filename": filename,

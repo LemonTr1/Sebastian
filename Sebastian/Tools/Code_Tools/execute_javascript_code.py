@@ -16,7 +16,7 @@ def execute_javascript_code(
         cpu_limit: float = 1.0
 )->str:
     """
-    在隔离的JavaScript沙箱中执行JavaScript代码，返回输出和状态。
+    在隔离的JavaScript沙箱中执行用户提供的或未知外来的JavaScript代码，返回输出和状态。
     Args:
         code: 要执行的 JavaScript 代码字符串
         timeout: 最长执行时间（秒）

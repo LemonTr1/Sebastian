@@ -186,7 +186,7 @@ def make_7z_archive(
             archive.writeall(source_path, arcname=source_path)
         result["success"] = True
         result['message'] = f"压缩{source_path}成功到：{output_path}"
-        typer.echo(typer.style(f"[执行中]压缩{source_path}成功到：{output_path}",fg=typer.colors.WHITE))
+        typer.echo(typer.style(f"[Success]压缩{source_path}成功到：{output_path}",fg=typer.colors.GREEN))
         return json.dumps(result, ensure_ascii=False, indent=2)
     except ValueError as e:
         typer.echo(typer.style(f"[ERROR]格式错误",fg=typer.colors.RED))

@@ -16,7 +16,7 @@ def execute_python_code(
         cpu_limit: float = 1.0
 )->str:
     """
-    在隔离的Python沙箱中执行Python代码，返回输出和状态。
+    在隔离的Python沙箱中执行用户提供的或未知外来的Python代码，返回输出和状态。
     Args:
         code: 要执行的 Python 代码字符串
         timeout: 最长执行时间（秒）
@@ -145,7 +145,7 @@ def execute_shell_code(
         cpu_limit: float = 1.0
 ) -> str:
     """
-    在隔离的Python沙箱中执行Shell脚本，返回输出和状态。
+    在隔离的Python沙箱中执行用户提供的或未知外来的Shell脚本，返回输出和状态。
     Args:
         code: 要执行的 Shell 脚本字符串
         timeout: 最长执行时间（秒）
@@ -159,6 +159,12 @@ def execute_shell_code(
             "error": str | None # 错误信息
         }
     """
+    # 命令黑名单
+    FORBIDDEN_COMMANDS = ["git", "rm", "which", "ls", "cp", "mv", "mkdir", "chmod"]
+    if any(code.strip().startswith(cmd) for cmd in FORBIDDEN_COMMANDS):
+        return json.dumps(
+            {"success": False, "output": "", "exit_code": -1 ,"error": "Error: 该命令被禁止，请使用专用工具（如 Git_Agent_Tool或File_Agent_Tool）"}
+        )
     typer.echo(typer.style(f"[执行中]正在将Shell脚本：`{code[:20]}`放入沙箱中执行...",fg=typer.colors.WHITE))
     result = {
         "success": False,

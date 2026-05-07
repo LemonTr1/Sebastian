@@ -55,7 +55,7 @@ def cp_file(src: str, dst: str)->str:
     try:
         typer.echo(typer.style(f"[执行中]正在将源文件：{src} 复制到 {dst} 目录下...",fg=typer.colors.WHITE))
         shutil.copy2(src, dst)
-        typer.echo(typer.style(f"[执行中]复制成功！",fg=typer.colors.WHITE))
+        typer.echo(typer.style(f"[Success]复制成功！",fg=typer.colors.GREEN))
         result["success"] = True
         result["message"] = "复制成功"
         return json.dumps(result, ensure_ascii=False, indent=2)
@@ -110,7 +110,7 @@ def cp_dict(src: str, dst: str):
             return json.dumps(result, ensure_ascii=False, indent=2)
         try:
             os.makedirs(dst)
-            typer.echo(typer.style(f"[执行中]已创建路径：{dst}",fg=typer.colors.WHITE))
+            typer.echo(typer.style(f"[Success]已创建路径：{dst}",fg=typer.colors.GREEN))
         except FileExistsError as e:
             typer.echo(typer.style(f"[ERROR]目标目录:{dst}已经存在：{e}",fg=typer.colors.RED))
             result["message"] = f"目标目录:{dst}已经存在：{e}"
@@ -123,7 +123,7 @@ def cp_dict(src: str, dst: str):
     try:
         typer.echo(typer.style(f"[执行中]正在将源目录：{src} 复制到 {dst} 目录下...",fg=typer.colors.WHITE))
         shutil.copytree(src, os.path.join(dst, os.path.basename(src)), dirs_exist_ok=True)
-        typer.echo(typer.style(f"[执行中]复制成功！",fg=typer.colors.WHITE))
+        typer.echo(typer.style(f"[Success]复制成功！",fg=typer.colors.GREEN))
         result["success"] = True
         result["message"] = "复制成功"
         return json.dumps(result, ensure_ascii=False, indent=2)
