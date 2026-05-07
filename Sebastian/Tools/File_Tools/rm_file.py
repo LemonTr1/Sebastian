@@ -22,7 +22,7 @@ def rm(path: str, filename: str)->str:
     confirmed = typer.confirm(typer.style(f"[Warn]确定要删除文件系统对象：{file_path}吗？", fg=typer.colors.YELLOW))
     if not confirmed:
         typer.echo("已终止本次操作")
-        return f"用户终止了本次操作"
+        return f"用户确认终止了本次操作"
 
     if os.path.isdir(file_path):
         double_confirmed = typer.confirm(typer.style(f"[Warn] '{file_path}' 是目录，删除将清空所有内容，继续吗？", fg=typer.colors.YELLOW))

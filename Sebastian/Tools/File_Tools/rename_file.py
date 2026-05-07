@@ -21,7 +21,7 @@ def rename(src: str, dst: str) -> str:
     )
     if not confirmed:
         typer.echo("用户已取消该操作")
-        return "用户取消本次操作"
+        return "用户确认取消本次操作"
 
     # 目标路径存在则再次确认
     if os.path.exists(dst):
@@ -31,7 +31,7 @@ def rename(src: str, dst: str) -> str:
         )
         if not overwrite_confirmed:
             typer.echo("用户已取消该操作")
-            return "用户取消本次操作"
+            return "用户确认取消本次操作"
 
     try:
         os.rename(src, dst)

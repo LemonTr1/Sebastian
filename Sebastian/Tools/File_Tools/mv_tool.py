@@ -57,7 +57,7 @@ def mv(
             confirmed = typer.confirm(typer.style(f"[Warn]{dst}文件已存在，是否要覆盖？",fg=typer.colors.YELLOW))
             if not confirmed:
                 typer.echo("操作已终止")
-                result["message"] = f"用户已终止该操作，无需询问第二遍"
+                result["message"] = f"用户确认终止该操作，无需询问第二遍"
                 return json.dumps(result, ensure_ascii=False, indent=2)
         try:
             typer.echo(typer.style(f"[执行中]正在将{src}重命名为：{dst}",fg=typer.colors.WHITE))
