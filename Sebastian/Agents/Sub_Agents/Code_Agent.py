@@ -1,9 +1,7 @@
 from agents import *
 from Interface.UserInfo import UserInfo
-from Tools.Code_Tools.execute_python_code import execute_python_code, execute_shell_code
-from Tools.Code_Tools.execute_local import execute_local_shell
-from Tools.Code_Tools.execute_javascript_code import execute_javascript_code
-from Tools.Code_Tools.execute_powershell_code import execute_powershell_code
+from Tools.Code_Tools.execute_python_code import execute_python_code
+from Tools.Code_Tools.Bash import execute_local_shell
 from cli import deepseek_model
 
 code_agent = Agent[UserInfo](
@@ -19,6 +17,7 @@ code_agent = Agent[UserInfo](
         你拥有隔离的沙箱环境来运行代码或脚本，所以必须将安全放在第一位。
         
         ## 1. 能力边界（只做这些）
+        - 执行常见的Bash命令
         - 编写 Python/C/C++/Java/TypeScript/Shell等各种主流编程语言
         - 沙箱只可以运行用户提供的或未知外来的，无法确定安全性的 Python/Shell/JavaScript 脚本(注意：Python和Shell在提供的Python沙箱中执行，JavaScript代码在提供的Node沙箱中执行，PowerShell脚本在提供的PowerShell沙箱中执行)
         - 计算数学表达式、解方程、逻辑推理
@@ -73,8 +72,6 @@ code_agent = Agent[UserInfo](
                 """
     ),
     tools = [
-        execute_python_code, execute_shell_code,
-        execute_javascript_code, execute_powershell_code,
-        execute_local_shell,
+        execute_python_code, execute_local_shell,
     ]
 )

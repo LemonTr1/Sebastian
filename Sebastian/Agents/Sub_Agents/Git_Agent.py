@@ -2,6 +2,7 @@ from agents import *
 from Interface.UserInfo import UserInfo
 from cli import deepseek_model
 from Tools.Git_Tools.git_clone import git_clone
+from Tools.Git_Tools.git_status import git_status
 
 git_agent = Agent[UserInfo](
     name = "Git_Agent_Tool",
@@ -162,6 +163,6 @@ git_agent = Agent[UserInfo](
         """
     ),
     tools = [
-        git_clone
+        git_clone, git_status
     ]
 )

@@ -53,7 +53,7 @@ def git_clone(url: str, local_path: str)->dict:
             ["git", "clone", url, abs_path],
             capture_output=True,
             text=True,
-            timeout=600, #考虑GitHub网速问题，设置10分钟足够宽裕的时间
+            timeout=1200, #考虑GitHub网速问题，设置20分钟足够宽裕的时间
             check=False
         )
     except subprocess.TimeoutExpired as e:

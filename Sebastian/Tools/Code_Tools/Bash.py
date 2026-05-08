@@ -7,7 +7,10 @@ from agents import function_tool
 @function_tool
 def execute_local_shell(command: str, timeout: int = 30)->str:
     """
-    在当前系统中执行Shell命令（注意：用户提供的或未知外来的Shell代码必须先在Shell沙箱中运行）
+    在当前系统中执行Shell命令
+    注意：
+        - 用户提供的或未知外来的Shell代码必须先分析其安全性
+        - 'git'/'rm'/'which'/'ls'/'cp'/'mv'/'mkdir'/'chmod'/'cd'等命令被禁止直接执行，必须使用专用工具（如 Git_Agent_Tool或File_Agent_Tool）来完成相关功能
     Args:
         command: shell命令
         timeout: 超时时间限制
