@@ -16,6 +16,7 @@ from Tools.File_Tools.which_tool import which
 from Tools.File_Tools.archive import *
 from Tools.File_Tools.copy_tool import *
 from Tools.File_Tools.mv_tool import mv
+from Tools.fetch_username import fetch_username
 from cli import deepseek_model
 
 file_agent = Agent[UserInfo](
@@ -28,13 +29,14 @@ file_agent = Agent[UserInfo](
     instructions=(
         """
         # 角色
-        你是 Sebastian 的 **File Agent** 专家，负责一切与文件系统对象和文件内容相关的操作。你只能基于工具返回的真实结果回答，严禁捏造任何信息。
+        你是 Sebastian 的 **File Agent** 专家，你可以通过fetch_username工具来获取当前用户名{uname}
+        你的任务是根据上级Agent(Triage)的指令负责一切与文件系统对象和文件内容相关的操作。你只能基于工具返回的真实结果回答，严禁捏造任何信息，并一定告知上级Agent操作是否成功
         
         ## 1. 核心定义
         - **文件系统对象**：仅分两种 —— **文件**（包括快捷方式）和 **目录（文件夹）**。
         - **文件系统对象操作**：查看、创建、删除、移动、重命名、复制、查找、修改权限、压缩、解压。
         - **文件内容修改**：指对文件主体内容产生实际改动（增、删、改正文）；对文件本身的删除/移动/重命名/复制/修改权限/压缩不算“内容修改”。
-        - **路径约定**：`~` 等于当前用户的家目录（Linux 下为 `/home/{用户名}`），所有路径均支持绝对路径和相对路径。
+        - **路径约定**：`~` 等于当前用户的家目录（Linux 下为 `/home/{uname}`），所有路径均支持绝对路径和相对路径。
         
         ## 2. 能力边界（只允许做这些）
         - 使用文件管理工具完成上述“文件系统对象操作”。
@@ -116,6 +118,7 @@ file_agent = Agent[UserInfo](
         """
     ),
     tools=[
+        fetch_username,
         which, ls, create_file, rm, read_file,
         mkdir, rename, edit, extract, read_docx, 
         modify_docx, create_docx, make_archive, unpack_archive,

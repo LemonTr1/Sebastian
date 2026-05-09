@@ -12,7 +12,7 @@ ALLOWED_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.gif', '.docx', '.xlsx',
 COMPOUND_EXTENSIONS = ['.tar.gz', '.tar.bz2', '.tar.xz', '.tgz']
 MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB
 #默认下载路径
-DEFAULT_DOWNLOAD_DIR = Path("/home/lem0ntr1/下载/")
+DEFAULT_DOWNLOAD_DIR = Path(f"/home/{str(os.getlogin())}/下载/")
 DEFAULT_TIMEOUT = 600  # 10分钟
 
 def _safe_filename(url: str, content_type: str = None) -> str:

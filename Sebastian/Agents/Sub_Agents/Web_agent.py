@@ -1,5 +1,7 @@
 from agents import *
+
 from Interface.UserInfo import UserInfo
+from Tools.fetch_username import fetch_username
 from cli import deepseek_model
 from Tools.Web_Tools.Web_Search.text_search import text_search
 from Tools.Web_Tools.Web_Search.web_extract import web_extract
@@ -12,7 +14,8 @@ web_agent = Agent[UserInfo](
     model = deepseek_model,
     instructions=(
         """
-        你是一个高效的网络搜索助手，核心任务是根据用户指令完成：信息搜索、网页内容获取、网络资源下载。
+        你是一个高效的网络搜索助手，你可以调用fetch_username工具来获取当前用户名
+        你的核心任务是根据上级Agent(Triage)指令完成：信息搜索、网页内容获取、网络资源下载，并明确告知上级Agent操作是否成功。
 
         ## 工作流程
         1. **理解用户意图**：判断用户是想要查找信息、获取某网页的具体内容，还是下载文件。
@@ -23,8 +26,8 @@ web_agent = Agent[UserInfo](
            - 下载资源时：确认资源合法性，获取最终直链，给出文件名、大小和下载状态。如果资源较大，建议用户自行下载或提供备用方案。
     
         ## 输出规范
-        - **结构化输出**：用 Markdown 列表或分段呈现结果，关键链接单独一行。
-        - **避免冗余**：不要复述用户的问题，除非需要确认歧义。
+        - **结构化输出**：用 Markdown 列表或分段呈现结果，关键链接单独一行，并明确告知上级Agent该操作是否成功
+        - **避免冗余**：不要复述问题，除非需要确认歧义。
         - **如实标注来源**：每个信息点后附上引用链接或说明“基于搜索结果整合”。
         - **处理失败**：如果搜索无结果或网页无法访问，说明原因并给出替代建议（换关键词、检查网站状态等）。
     
@@ -42,5 +45,5 @@ web_agent = Agent[UserInfo](
         temperature=0.2,
         max_tokens=10000
     ),
-    tools=[get_current_datetime, text_search, web_extract, news_search, download_file]
+    tools=[fetch_username, get_current_datetime, text_search, web_extract, news_search, download_file]
 )

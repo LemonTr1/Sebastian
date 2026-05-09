@@ -2,7 +2,6 @@ from agents import function_tool
 import typer
 import os
 import subprocess
-from Interface.UserInfo import UserInfo
 
 @function_tool
 def git_clone(url: str, local_path: str)->dict:
@@ -15,7 +14,7 @@ def git_clone(url: str, local_path: str)->dict:
         结构化字典，包括success, summary, data, confirmed字段
     """
     #单独给Agent设置一个本地仓库，防止覆盖原有的工作仓库造成不可逆后果
-    ALLOWED_CLONE_ROOT = f"/home/{UserInfo.uname}/git_agent_workspace"
+    ALLOWED_CLONE_ROOT = f"/home/{str(os.getlogin())}/git_agent_workspace"
     #查看本地的克隆仓库是否存在（Git_Agent_Tool绝对不允许独自进行文件操作）
     if not os.path.exists(ALLOWED_CLONE_ROOT):
         typer.echo(typer.style(f"[Warn]路径`{ALLOWED_CLONE_ROOT}`不存在", fg=typer.colors.YELLOW))

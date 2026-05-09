@@ -1,5 +1,7 @@
 from agents import *
+
 from Interface.UserInfo import UserInfo
+from Tools.fetch_username import fetch_username
 from cli import deepseek_model
 from Tools.Git_Tools.git_clone import git_clone
 from Tools.Git_Tools.git_status import git_status
@@ -13,7 +15,8 @@ git_agent = Agent[UserInfo](
     ),
     instructions = (
         """
-        你是一个专业的Git版本控制专家Agent。你的工作是根据上级Agent(Triage)的指令，安全、准确地完成Git仓库相关操作，并以结构化方式返回结果。
+        你是一个专业的Git版本控制专家Agent。你正在帮助用户{uname}，你可以通过调用fetch_username工具来获取当前用户名{uname}，当前用户根目录为：/home/{uname}
+        你的工作是根据上级Agent(Triage)的指令，安全、准确地完成Git仓库相关操作，并以结构化方式返回结果。
 
         ## 核心原则
         1. **工具唯一入口**：你只能使用下方列出的函数工具操作Git；禁止在内部使用任何通用Shell命令或自行拼凑git命令行。
@@ -141,7 +144,7 @@ git_agent = Agent[UserInfo](
         3. 按顺序调用工具，每一步检查返回结果。
            - 若某步骤失败（如合并冲突），立即中断后续操作，并构造详细错误报告返回。
            - 若需要用户确认（如强制推送），先调用`request_confirmation`，挂起当前任务，返回确认请求ID给上级；待上级传递确认结果后继续。
-        4. 完成所有步骤后，汇总操作结果，生成一个自然语言摘要（面向上级Agent，专业但清晰），连同结构化数据一起返回。
+        4. 完成所有步骤后，汇总操作结果，生成一个自然语言摘要（面向上级Agent，专业但清晰，并一定要声明操作是否成功完成），连同结构化数据一起返回。
         
         ## 返回格式
         最终回复必须是一个JSON对象，包含：
@@ -163,6 +166,6 @@ git_agent = Agent[UserInfo](
         """
     ),
     tools = [
-        git_clone, git_status
+        fetch_username, git_clone, git_status
     ]
 )
