@@ -3,6 +3,7 @@
 .env.local
 .env.*.local
 TODO
+test.py
 
 # Python
 __pycache__/

@@ -12,9 +12,12 @@ HOME = str(Path.home())
 def bash(command: str, allowed_dir: str, allow_network: bool = False, extra_ro_binds: Optional[List[str]] = None) -> dict:
     """
     在隔离的沙箱环境中执行一条 Shell 命令。
+    注意：allowed_dir 目录在沙箱内是只读的，Agent 可以读取其中的所有文件，但不能修改。
+          若需创建或修改文件，请使用当前工作目录 /workspace（临时可写区，沙箱退出后内容消失）。
+
     Args:
         command: Shell命令
-        allowed_dir: 允许读写的目录（会被可读写挂载），必须位于 /home/{uname}/ 下
+        allowed_dir: 宿主机用户家目录（只读暴露），必须位于 /home/{uname}/ 下
         allow_network: 是否允许网络访问（默认 False）
         extra_ro_binds: 额外只读挂载的文件或目录，用于暴露沙箱外资源。
                        推荐用法：
@@ -30,7 +33,9 @@ def bash(command: str, allowed_dir: str, allow_network: bool = False, extra_ro_b
     if not Path(abs_path).is_relative_to(Path(HOME)):
         typer.echo(typer.style(f"[Error]安全限制：只能访问用户主目录下的路径:{HOME}，禁止访问 {abs_path}", fg=typer.colors.RED))
         return {"success": False, "error": "安全限制", "details": f"只能访问当前用户主目录下的路径，禁止访问 {abs_path}"}
-    typer.echo(typer.style(f"[执行中]正在隔离的{abs_path}目录下执行Shell命令：{command[:20]}，网络访问权限：{'允许' if allow_network else '禁止'}",fg=typer.colors.WHITE))
+
+    typer.echo(typer.style(f"[执行中]正在隔离的{abs_path}目录下执行Shell命令：{command[:20]}，网络访问权限：{'允许' if allow_network else '禁止'}", fg=typer.colors.WHITE))
+
     executor = BubblewrapExecutor(
         allowed_dir=abs_path,
         allow_network=allow_network,
@@ -49,41 +54,48 @@ def bash(command: str, allowed_dir: str, allow_network: bool = False, extra_ro_b
         typer.echo(typer.style(f"[Error]未知错误：{str(e)}", fg=typer.colors.RED))
         return {"success": False, "error": "未知错误", "details": str(e)}
 
-        # ---- 新增：分析 stderr，推断缺失的只读绑定 ----
+    # ---- 分析 stderr，推断缺失的只读绑定 ----
     suggested_binds = []
     stderr_text = result.stderr or ""
     stdout_text = result.stdout or ""
 
-    # 匹配动态库缺失： "error while loading shared libraries: libXXX.so: cannot open shared object file"
+    # 1. 动态库缺失
     match = re.search(r"error while loading shared libraries: (.+?):", stderr_text)
     if match:
         lib = match.group(1)
-        # 尝试用 ldconfig 或 find 查找，但沙箱内可能没有这些工具；更稳健的做法是提示用户挂载整个 /usr/lib 相关目录
         suggested_binds.append(f"/usr/lib (因为缺少库 {lib})")
 
-    # 匹配 docker socket 缺失
+    # 2. Docker socket 缺失
     if "docker" in command and "Cannot connect to the Docker daemon" in stderr_text:
         suggested_binds.append("/var/run/docker.sock")
         if not allow_network:
             stderr_text += "\n[提示] Docker命令还需要 allow_network=True"
 
-    # 匹配 nvidia 相关错误
+    # 3. NVIDIA 相关错误
     if ("nvidia" in command or "cuda" in command) and ("libcuda" in stderr_text or "libnvidia" in stderr_text):
-        suggested_binds.extend(["/dev/nvidia0", "/dev/nvidiactl", "/dev/nvidia-modeset", "/dev/nvidia-uvm",
-                                "/usr/lib/x86_64-linux-gnu/libcuda*"])
+        suggested_binds.extend([
+            "/dev/nvidia0", "/dev/nvidiactl", "/dev/nvidia-modeset",
+            "/dev/nvidia-uvm", "/usr/lib/x86_64-linux-gnu/libcuda*"
+        ])
 
-    # 匹配外部命令未找到（但 /usr/bin 已挂载，一般不会是此问题）
-    if "command not found" in stderr_text:
-        missing_cmd = re.search(r"([^:]+): command not found", stderr_text)
-        if missing_cmd:
-            suggested_binds.append(f"{missing_cmd.group(1)} 所在目录（可能需挂载）")
+    # 4. 命令未找到（修正正则，匹配如 "xxx: command not found"）
+    no_cmd_match = re.search(r"(\S+): command not found", stderr_text)
+    if no_cmd_match:
+        missing_cmd = no_cmd_match.group(1)
+        suggested_binds.append(f"{missing_cmd} 所在目录（可能需挂载）")
 
-    # 通用文件未找到（比如访问了宿主机特定路径）
-    nofile_match = re.findall(r"No such file or directory: (.+)", stderr_text)
+    # 5. 通用文件未找到
+    nofile_match = re.findall(r"No such file or directory: [\"']?([^\"'\n]+?)[\"']?", stderr_text)
     for p in nofile_match:
-        # 只提示真实路径，且避免重复
+        p = p.strip()
         if p.startswith("/") and p not in suggested_binds:
             suggested_binds.append(os.path.dirname(p) if not os.path.isdir(p) else p)
+
+    # 6. 只读文件系统错误 -> 提示写入 /workspace
+    if "Read-only file system" in stderr_text:
+        # 将提示加入 hints
+        if not hasattr(stderr_text, 'hint'):
+            pass  # will be added below
 
     # 去重并限制数量
     suggested_binds = list(dict.fromkeys(suggested_binds))[:5]
@@ -102,16 +114,28 @@ def bash(command: str, allowed_dir: str, allow_network: bool = False, extra_ro_b
         return_dict["suggested_extra_ro_binds"] = suggested_binds
         return_dict["hint"] = "请用 extra_ro_binds 参数重试，并检查 allow_network 是否需要打开"
 
+    # 追加写入提示
+    if "Read-only file system" in stderr_text:
+        write_hint = "需要写入文件？请使用当前工作目录 /workspace（可写临时区）。"
+        if "hint" in return_dict:
+            return_dict["hint"] += " " + write_hint
+        else:
+            return_dict["hint"] = write_hint
+
     return return_dict
+
 
 @function_tool
 def python3(code: str, allowed_dir: str, allow_network: bool = False,
             extra_ro_binds: Optional[List[str]] = None) -> dict:
     """
     在隔离的沙箱环境中执行 Python 代码。
+    注意：allowed_dir 目录在沙箱内是只读的，Agent 可以读取其中的所有文件，但不能修改。
+          若需创建或修改文件，请使用当前工作目录 /workspace（临时可写区，沙箱退出后内容消失）。
+
     Args:
         code: Python代码
-        allowed_dir: 允许读写的目录（会被可读写挂载），必须位于 /home/{uname}/ 下
+        allowed_dir: 宿主机用户家目录（只读暴露），必须位于 /home/{uname}/ 下
         allow_network: 是否允许网络访问（默认 False）
         extra_ro_binds: 额外只读挂载的文件或目录，用于暴露沙箱外资源。
                        推荐用法：
@@ -173,13 +197,13 @@ def python3(code: str, allowed_dir: str, allow_network: bool = False,
         ])
 
     # 4. 命令未找到（Python的 subprocess 错误等）
-    if "command not found" in stderr_text:
-        missing_cmd = re.search(r"([^\s:]+): command not found", stderr_text)
-        if missing_cmd:
-            suggested_binds.append(f"{missing_cmd.group(1)} 所在目录（可能需挂载）")
+    no_cmd_match = re.search(r"(\S+): command not found", stderr_text)
+    if no_cmd_match:
+        missing_cmd = no_cmd_match.group(1)
+        suggested_binds.append(f"{missing_cmd} 所在目录（可能需挂载）")
 
     # 5. 通用文件未找到
-    nofile_matches = re.findall(r"No such file or directory: '?([^'\n]+?)'?", stderr_text)
+    nofile_matches = re.findall(r"No such file or directory: [\"']?([^\"'\n]+?)[\"']?", stderr_text)
     for p in nofile_matches:
         p = p.strip()
         if p.startswith("/") and p not in suggested_binds:
@@ -201,5 +225,13 @@ def python3(code: str, allowed_dir: str, allow_network: bool = False,
     if suggested_binds:
         return_dict["suggested_extra_ro_binds"] = suggested_binds
         return_dict["hint"] = "请用 extra_ro_binds 参数重试，并检查 allow_network 是否需要打开"
+
+    # 追加写入提示
+    if "Read-only file system" in stderr_text:
+        write_hint = "需要写入文件？请使用当前工作目录 /workspace（可写临时区）。"
+        if "hint" in return_dict:
+            return_dict["hint"] += " " + write_hint
+        else:
+            return_dict["hint"] = write_hint
 
     return return_dict
