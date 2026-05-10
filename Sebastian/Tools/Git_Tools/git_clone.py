@@ -11,7 +11,7 @@ def git_clone(url: str, local_path: str)->dict:
         url: 远程仓库地址
         local_path：本地目标路径（必须在ALLOW_CLONE_ROOT下）
     Returns:
-        结构化字典，包括success, summary, data, confirmed字段
+        结构化字典，包括success, summary, data, need_confirmed字段
     """
     #单独给Agent设置一个本地仓库，防止覆盖原有的工作仓库造成不可逆后果
     ALLOWED_CLONE_ROOT = f"/home/{str(os.getlogin())}/git_agent_workspace"
@@ -22,7 +22,7 @@ def git_clone(url: str, local_path: str)->dict:
             "success": False,
             "summary": f"不存在路径{ALLOWED_CLONE_ROOT}，请调用File_Agent_Tool创建该目录",
             "data":{},
-            "confirmed": True
+            "need_confirmed": True
         }
 
     #路径安全检查
@@ -33,7 +33,7 @@ def git_clone(url: str, local_path: str)->dict:
             "success": False,
             "summary": f"路径越权：只能克隆到 {ALLOWED_CLONE_ROOT} 下",
             "data":{},
-            "confirmed": False
+            "need_confirmed": False
         }
 
     #检查本地路径是否存在，避免覆盖
@@ -43,7 +43,7 @@ def git_clone(url: str, local_path: str)->dict:
             "success": False,
             "summary": f"路径已存在：{abs_path} 已存在，无法克隆",
             "data":{},
-            "confirmed": False
+            "need_confirmed": False
         }
 
     try:
@@ -61,7 +61,7 @@ def git_clone(url: str, local_path: str)->dict:
             "success": False,
             "summary": f"错误：克隆超时，请检查网络或仓库大小：{e}",
             "data":{},
-            "confirmed": False
+            "need_confirmed": False
         }
     except Exception as e:
         typer.echo(typer.style(f"[Error]执行git命令时产生异常：{e}", fg=typer.colors.RED))
@@ -69,7 +69,7 @@ def git_clone(url: str, local_path: str)->dict:
             "success": False,
             "summary": f"执行git命令时产生异常：{e}",
             "data":{},
-            "confirmed": False
+            "need_confirmed": False
         }
 
     #如果执行成功
@@ -82,6 +82,7 @@ def git_clone(url: str, local_path: str)->dict:
                 "clone_to": abs_path,
                 "stdout": result.stdout.strip()
             },
+            "need_confirmed": False
         }
     else:
         typer.echo(typer.style(f"[Error]克隆失败：{result.stderr.strip()}", fg=typer.colors.RED))
@@ -91,6 +92,7 @@ def git_clone(url: str, local_path: str)->dict:
             "data":{
                 "exit_code": result.returncode,
                 "stderr": result.stderr.strip()
-            }
+            },
+            "need_confirmed": False
         }
 

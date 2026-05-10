@@ -1,5 +1,4 @@
 from agents import *
-
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
 from models import deepseek_model
@@ -149,14 +148,14 @@ git_agent = Agent[UserInfo](
         ## 返回格式
         最终回复必须是一个JSON对象，包含：
         {
-          "success": True/False,
-          "summary": "人类可读的操作摘要",
+          "success": 工具是否执行成功，成功为True，失败为False,
+          "summary": "<自然语言描述的操作摘要>",
           "data": {
             // 具体操作的相关数据，如提交hash、PR链接、冲突文件列表等
           },
-          "confirmed": "仅当需要用户确认时提供，需要确认为True,否则为False"
+          "need_confirmed": "需要用户确认为True,否则为False"
         }
-        如果过程中需要用户确认，则`success`字段为`false`（表示任务未完全完成），并附带`confirmed`为`true`。
+        如果过程中需要用户确认，则`success`字段为`False`（表示任务未完全完成），并`need_confirmed`为`True`。
         
         ## 限制与约束
         - 你永远不得修改Git全局配置或系统配置。

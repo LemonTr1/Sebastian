@@ -2,6 +2,8 @@ import os
 os.environ['http_proxy'] = ''
 os.environ['https_proxy'] = ''
 os.environ['all_proxy'] = ''
+from dotenv import load_dotenv
+load_dotenv()
 from openai import AsyncOpenAI #引入异步客户端
 from agents import *
 
@@ -16,6 +18,6 @@ set_tracing_disabled(True)
 
 #将DeepSeek封装成Agents SDK可用的模型对象
 deepseek_model = OpenAIChatCompletionsModel(
-    model="deepseek-reasoner",
+    model=str(os.getenv("DEEPSEEK_MODEL")),
     openai_client=client,
 )

@@ -10,14 +10,16 @@ def git_status(repo_path: str)->dict:
     Args:
         repo_path: 仓库路径(必须为绝对路径)
     Returns:
-        结构化字典，包括success, summary, data字段
+        结构化字典，包括success, summary, data, need_confirmed字段
     """
+    repo_path = os.path.abspath(repo_path)
     if not os.path.exists(repo_path):
         typer.echo(typer.style(f"[Error]路径不存在：{repo_path} 不存在", fg=typer.colors.RED))
         return {
             "success": False,
             "summary": f"路径不存在：{repo_path} 不存在",
-            "data":{}
+            "data":{},
+            "need_confirmed": False
         }
 
     try:
@@ -34,7 +36,8 @@ def git_status(repo_path: str)->dict:
             return {
                 "success": False,
                 "summary": f"执行失败：{result.stderr}",
-                "data":{}
+                "data":{},
+                "need_confirmed": False
             }
 
         # 解析输出，构建状态列表
@@ -48,19 +51,22 @@ def git_status(repo_path: str)->dict:
         return {
             "success": True,
             "summary": f"成功获取仓库状态，共 {len(changes)} 个变更",
-            "data":{"changes": changes}
+            "data":{"changes": changes},
+            "need_confirmed": False
         }
     except subprocess.TimeoutExpired as e:
         typer.echo(typer.style(f"[Error]执行超时：{e}", fg=typer.colors.RED))
         return {
             "success": False,
             "summary": f"执行超时：{e}",
-            "data":{}
+            "data":{},
+            "need_confirmed": False
         }
     except Exception as e:
         typer.echo(typer.style(f"[Error]执行时发生异常：{e}", fg=typer.colors.RED))
         return {
             "success": False,
             "summary": f"执行时发生异常：{e}",
-            "data":{}
+            "data":{},
+            "need_confirmed": False
         }

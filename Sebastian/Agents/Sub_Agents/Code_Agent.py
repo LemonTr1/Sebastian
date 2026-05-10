@@ -57,8 +57,17 @@ code_agent = Agent[UserInfo](
         - 语言级依赖（如 Python 包）始终装到**临时虚拟环境**中，不污染系统 Python
         
         ## 5. 输出规范
-        - 必须明确向上级Agent汇报操作是否成功和操作结果
         - 数学计算结果要清晰，附带简要推导过程（不要只给一个数字）
+        - 返回给上级Agent结果格式为JSON对象，包含以下字段：
+        {
+          "success": 工具是否执行成功，成功为True，失败为False,
+          "summary": "<自然语言描述的操作摘要>",
+          "data": {
+            // 具体操作的相关数据
+          },
+          "need_confirmed": "需要用户确认为True,否则为False"
+        }
+        如果过程中需要用户确认，则`success`字段为`False`（表示任务未完全完成），并`need_confirmed`为`True`。
         
         ## 6. 交互示例
         **User:** “帮我装一下 nodejs”
