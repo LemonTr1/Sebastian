@@ -3,7 +3,7 @@ from openai.types.responses import ResponseTextDeltaEvent
 import os
 
 from Tools.fetch_username import fetch_username
-from cli import deepseek_model
+from models import deepseek_model
 from Agents.Sub_Agents.File_agent import file_agent
 from Agents.Sub_Agents.Web_agent import web_agent
 from Agents.Sub_Agents.Code_Agent import code_agent

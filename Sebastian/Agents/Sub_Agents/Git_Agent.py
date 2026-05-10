@@ -2,7 +2,7 @@ from agents import *
 
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
-from cli import deepseek_model
+from models import deepseek_model
 from Tools.Git_Tools.git_clone import git_clone
 from Tools.Git_Tools.git_status import git_status
 

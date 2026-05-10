@@ -17,7 +17,7 @@ from Tools.File_Tools.archive import *
 from Tools.File_Tools.copy_tool import *
 from Tools.File_Tools.mv_tool import mv
 from Tools.fetch_username import fetch_username
-from cli import deepseek_model
+from models import deepseek_model
 
 file_agent = Agent[UserInfo](
     name = "File_Agent_Tool",

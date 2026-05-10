@@ -3,7 +3,7 @@ from agents import *
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
 from Tools.Code_Tools.execute_in_sanbox import bash, python3
-from cli import deepseek_model
+from models import deepseek_model
 
 code_agent = Agent[UserInfo](
     name = "Code_Agent_Tool",

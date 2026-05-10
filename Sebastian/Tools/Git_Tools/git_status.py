@@ -21,6 +21,7 @@ def git_status(repo_path: str)->dict:
         }
 
     try:
+        typer.echo(typer.style(f"[执行中]正在获取仓库状态：{repo_path}", fg=typer.colors.WHITE))
         result = subprocess.run(
             ["git", "-C", repo_path, "status", "--porcelain"],
             capture_output=True,

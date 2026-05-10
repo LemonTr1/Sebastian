@@ -2,7 +2,7 @@ from agents import *
 
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
-from cli import deepseek_model
+from models import deepseek_model
 from Tools.Web_Tools.Web_Search.text_search import text_search
 from Tools.Web_Tools.Web_Search.web_extract import web_extract
 from Tools.Web_Tools.Web_Search.news_search import news_search
