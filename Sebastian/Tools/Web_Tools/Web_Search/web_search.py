@@ -5,17 +5,17 @@ import typer
 from agents import function_tool
 
 def ddgs_search(word: str, max_results: int):
-    typer.echo(typer.style(f"[执行中]正在进行文本搜索：{word}",fg=typer.colors.WHITE))
+    typer.echo(typer.style(f"[执行中]正在进行网页搜索：{word}",fg=typer.colors.WHITE))
     with DDGS() as ddgs:
         return list(ddgs.text(word, max_results=max_results))
 
 @function_tool
-def text_search(word: str, max_results: int = 5, timeout: int = 20) -> str:
+def web_search(word: str, max_results: int = 10, timeout: int = 20) -> str:
     """
     网络信息搜索工具
     Args:
         word: 查询内容
-        max_results: 最大返回内容数（默认为5条结果）
+        max_results: 最大返回内容数（默认为10条结果）
         timeout: 最大超时限制时间（默认为20s）
     Returns:
         json字符串：{ 

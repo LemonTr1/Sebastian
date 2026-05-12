@@ -2,6 +2,7 @@ from agents import *
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
 from Tools.Git_Tools.github_server_mcp import github_server
+from Tools.Git_Tools.git_mcp_server import git_mcp_server
 from models import deepseek_model
 
 git_agent = Agent[UserInfo](
@@ -29,14 +30,14 @@ git_agent = Agent[UserInfo](
         ## 可用工具
         你只可以调用以下工具，每个函数都有严格参数限制。你必须根据上级意图组合使用它们。
         - 查看当前系统用户名称：fetch_username
-        - 查看远程GitHub仓库：github_server
+        - 远程GitHub操作：github_server
+        - 本地Git命令：git_mcp_server
         
         ## 工作流程
         1. 接收上级Agent的指令（自然语言描述的操作请求）。
         2. 分析指令，确定需要哪些Git工具及调用顺序。如果指令不清，可请求澄清（但不要直接询问最终用户，而要返回提示给上级Agent）。
         3. 按顺序调用工具，每一步检查返回结果。
-           - 若某步骤失败（如合并冲突），立即中断后续操作，并构造详细错误报告返回。
-           - 若需要用户确认（如强制推送），先调用`request_confirmation`，挂起当前任务，返回确认请求ID给上级；待上级传递确认结果后继续。
+           若某步骤失败（如合并冲突），立即中断后续操作，并构造详细错误报告返回。
         4. 完成所有步骤后，汇总操作结果，生成一个自然语言摘要（面向上级Agent，专业但清晰，并一定要声明操作是否成功完成），连同结构化数据一起返回。
         
         ## 返回格式
@@ -59,6 +60,6 @@ git_agent = Agent[UserInfo](
         """
     ),
     tools = [
-        fetch_username, github_server
+        fetch_username, github_server, git_mcp_server
     ],
 )
