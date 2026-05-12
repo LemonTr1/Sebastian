@@ -12,8 +12,7 @@ def mkdir(path: str, folder: str)->dict:
     Returns:
         结构化字典：{
             "success"：操作成功返回True,失败返回False,
-            "summary": 操作摘要,
-            "need_confirmed": 是否需要用户确认，是则为True，否则为False
+            "summary": 操作摘要
         }
     """
     path = os.path.abspath(path)
@@ -23,7 +22,6 @@ def mkdir(path: str, folder: str)->dict:
         return {
             "success": False,
             "summary": f"文件夹已存在：{dict_path}，不需要创建了",
-            "need_confirmed": False
         }
 
     confirmed = typer.confirm(typer.style(f"[Warn]目录{dict_path}不存在，是否要创建？",fg=typer.colors.YELLOW))
@@ -32,7 +30,6 @@ def mkdir(path: str, folder: str)->dict:
         return {
             "success": False,
             "summary": "用户确认终止了创建新文件夹的操作",
-            "need_confirmed": False
         }
 
     try:
@@ -41,12 +38,10 @@ def mkdir(path: str, folder: str)->dict:
         return {
             "success": True,
             "summary": f"创建目录成功：{dict_path}",
-            "need_confirmed": False
         }
     except OSError as e:
         typer.echo(typer.style(f"[Error]创建目录{dict_path}失败:{e}", fg=typer.colors.RED))
         return {
             "success": False,
             "summary": f"创建目录{dict_path}失败",
-            "need_confirmed": False
         }

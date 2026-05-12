@@ -1,27 +1,43 @@
 from kreuzberg import extract_file
 import typer
 from agents import function_tool
+import os
 
 @function_tool
-async def extract(file_path: str) -> str:
+async def extract(file_path: str) -> dict:
     """
     提取PDF，DOCX类型文件的内容
     Args:
-        file_path：文件的路径
+        file_path：文件的路径（必须为绝对路径）
     Returns:
-        提取成功返回：文件内容字符串
-        提取失败返回：报错信息字符串：'文件路径不存在：{e}'/'权限不足，无法读取：{e}'/'出现错误：{e}'
+        结构化字典 {
+            "success": 提取成功为True, 失败为False
+            "summary": 操作概要
+        }
     """
+    file_path = os.path.abspath(file_path)
     typer.echo(typer.style(f"[执行中]正在提取{file_path}文件内容",fg=typer.colors.WHITE))
     try:
         result = await extract_file(file_path)
-        return result.content
+        return {
+            "success": True,
+            "summary": result.content
+        }
     except FileNotFoundError as e:
         typer.echo(typer.style(f"[ERROR]文件不存在：{e}",fg=typer.colors.RED))
-        return f"文件路径不存在：{e}"
+        return {
+            "success": False,
+            "summary": f"文件路径不存在：{e}"
+        }
     except PermissionError as e:
         typer.echo(typer.style(f"[ERROR]读取{file_path}文件的权限不足：{e}",fg=typer.colors.RED))
-        return f"权限不足，无法读取：{e}"
+        return {
+            "success": False,
+            "summary": f"权限不足，无法读取：{e}"
+        }
     except Exception as e:
         typer.echo(typer.style(f"[ERROR]出现错误：{e}", fg=typer.colors.RED))
-        return f"出现错误：{e}"
+        return {
+            "success": False,
+            "summary": f"出现错误：{e}"
+        }

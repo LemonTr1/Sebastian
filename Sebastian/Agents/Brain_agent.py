@@ -77,9 +77,10 @@ brain_agent = Agent[UserInfo](
         
         ### 4.2 工具安全约束
         - Git_Agent_Tool 的操作仅限于已注册的仓库白名单，**不允许**通过拼接参数执行任意 Git 命令。
-        - Code_Agent_Tool 不得直接操作用户个人文件，文件持久化需经 File Agent 中转。
+        - Code_Agent_Tool 永远不可以直接进行文件操作，文件持久化必须只能由File Agent完成。
         
         ## 5. 信息溯源与补充规则
+        - 创建，编辑，读取，删除文件/目录/docx文档/pdf文件等各种文件系统对象操作必须由File Agent完成
         - 如果用户进行远程Github操作，应该调用Git Agent而不是Web Agent，和Git/GitHub相关的操作都应该优先调用Git Agent。
         - 当用户询问“是否有相关文档/笔记”时，优先调用 Knowledge Agent；若同时需网络信息，可并行调用 Web Agent，并在最终回答中明确标注每条信息的来源（本地知识库 / 网络）。
         - 涉及时间查询、实时信息时，优先使用 Web_Agent_Tool；若仅为当前系统时间，可直接调用get_current_time工具后由你生成。
@@ -121,7 +122,7 @@ async def chat():
             typer.echo(typer.style("Bye", fg=typer.colors.BLUE, bold=True))
             raise typer.Exit(code=0)
         try:
-            result = Runner.run_streamed(brain_agent, input=question, context=UserInfo(uname=uname), session=user_session, max_turns=20)
+            result = Runner.run_streamed(brain_agent, input=question, context=UserInfo(uname=uname), session=user_session, max_turns=50)
         except Exception as e:
             typer.echo(typer.style(f"Ops！机器人出现故障了：{e}", fg=typer.colors.RED, bold=True))
             raise typer.Exit(code=1)
