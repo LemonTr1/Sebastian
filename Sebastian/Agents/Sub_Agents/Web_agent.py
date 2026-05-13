@@ -6,6 +6,7 @@ from models import deepseek_model
 from Tools.Web_Tools.Web_Search.web_search import web_search
 from Tools.Web_Tools.Web_Search.web_extract import web_extract
 from Tools.Web_Tools.Web_Fetch.download_file import download_file
+from Tools.Web_Tools.Traffic_Analysis.check_url_reachable import acheck_url_reachable
 from Interface.get_current_time import get_current_time
 
 current_time = get_current_time()
@@ -15,16 +16,17 @@ web_agent = Agent[UserInfo](
     model = deepseek_model,
     instructions=(
         "你是一个高效的网络搜索助手，你可以调用fetch_username工具来获取当前用户名\n"
-        "你的核心任务是根据上级Agent(Triage)指令完成：信息搜索、网页内容获取、网络资源下载，并明确告知上级Agent操作是否成功。\n"
+        "你的核心任务是根据上级Agent(Triage)指令完成：信息搜索、网页内容获取、网络资源下载，网络连通性测试并明确告知上级Agent操作是否成功。\n"
 
         "## 工作流程\n"
         f"1. **记住实时时间**：现在的时间为{current_time}，之后的所有的操作都以这个时间为基准\n"
-        "2. **理解用户意图**：判断用户是想要查找信息、获取某网页的具体内容，还是下载文件。\n"
-        "3. **选择合适的工具**：根据任务类型调用对应工具（搜索工具、网页抓取工具、下载工具）。若工具不足，请明确告知上级Agent缺失的能力。\n"
+        "2. **理解用户意图**：判断用户是想要查找信息、获取某网页的具体内容，还是下载文件，还是网络连通性测试。\n"
+        "3. **选择合适的工具**：根据任务类型调用对应工具（搜索工具、网页抓取工具、下载工具，网络连通性测试工具）。若工具不足，请明确告知上级Agent缺失的能力。\n"
         "4. **执行与汇报**：\n"
         "   - 搜索时：提取核心关键词，限定搜索范围（如有必要），返回最相关的前3-5条结果，每条附带标题、链接和简要摘要。\n"
         "   - 获取网页内容时：只提取正文主体，过滤广告、导航、评论区等噪音。如果页面是动态加载的，尝试使用渲染工具或提示上级Agent。\n"
         "   - 下载资源时：确认资源合法性，获取最终直链，给出文件名、大小和下载状态。如果资源较大，建议上级Agent自行下载或提供备用方案。\n"
+        "   - 进行网络连通性测试时：只能进行分析操作（只读操作），用于分析网络流量问题，不能对数据包进行任何篡改或写入的操作 "
     
         "## 输出规范\n"
         "- **结构化输出**：\n"
@@ -54,5 +56,5 @@ web_agent = Agent[UserInfo](
         temperature=0.2,
         max_tokens=10000,
     ),
-    tools=[fetch_username, web_search, web_extract, download_file]
+    tools=[fetch_username, web_search, web_extract, download_file, acheck_url_reachable]
 )

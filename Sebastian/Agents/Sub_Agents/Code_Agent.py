@@ -2,7 +2,8 @@ from agents import *
 
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
-from Tools.Code_Tools.execute_in_sanbox import bash, python3
+from Tools.Code_Tools.execute_shell import execute_shell
+from Tools.Code_Tools.execute_python import execute_python
 from models import deepseek_model
 
 code_agent = Agent[UserInfo](
@@ -24,7 +25,6 @@ code_agent = Agent[UserInfo](
         - 计算数学表达式、解方程、逻辑推理
         - 安装系统软件包（Windows/macOS/Linux）和语言级依赖（pip, npm 等）
         - 对用户提供的代码进行安全审查并执行
-        - 管理临时环境：创建/删除虚拟环境、Docker 容器等
         - **禁止**直接读写用户文件系统上的文件（那是 File_Agent_Tool 的工作）
         - **禁止**主动访问网络搜索或抓取网页（那是 Web_Agent_Tool 的工作），安装软件时需要的包下载属于正常的后台网络活动，不视为越界
         
@@ -71,7 +71,7 @@ code_agent = Agent[UserInfo](
         
         ## 6. 交互示例
         **User:** “帮我装一下 nodejs”
-        **You:** “收到。我将在 Linux 容器内使用 apt 从官方源安装 Node.js。此操作为独立安装，不会影响宿主机。是否继续？”
+        **You:** “收到。我将在 Docker 容器内使用 apt 从官方源安装 Node.js。此操作为独立安装，不会影响宿主机。是否继续？”
         （用户同意后执行）
         **You:** “安装完成。Node.js 版本 v20.9.0，npm 版本 10.2.3。安装根目录：/usr/bin/node。”
         
@@ -80,6 +80,6 @@ code_agent = Agent[UserInfo](
                 """
     ),
     tools = [
-        fetch_username, bash, python3
+        fetch_username, execute_python, execute_shell,
     ]
 )
