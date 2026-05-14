@@ -1,6 +1,9 @@
 import typer
 import os
 from agents import function_tool
+from pathlib import Path
+
+HOME = Path.home()
 
 @function_tool
 def edit(path: str, filename: str, context: str)->dict:
@@ -17,6 +20,11 @@ def edit(path: str, filename: str, context: str)->dict:
         }
     """
     path = os.path.abspath(path)
+    if not Path(path).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"操作必须在{str(HOME)}目录下"
+        }
     file_path = os.path.join(path, filename)
     confirmed = typer.confirm(typer.style(f"[Warn]你确定要修改文件{file_path}的内容吗", fg=typer.colors.YELLOW))
     if not confirmed:

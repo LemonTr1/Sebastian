@@ -1,6 +1,9 @@
 import os
 import typer
 from agents import function_tool
+from pathlib import Path
+
+HOME = Path.home()
 
 @function_tool
 def create_file(path: str, filename: str)->dict:
@@ -16,6 +19,11 @@ def create_file(path: str, filename: str)->dict:
         }
     """
     path = os.path.abspath(path)
+    if not Path(path).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"操作被拒绝：路径{path}不在用户主目录{str(HOME)}下，无法创建文件",
+        }
     if os.path.isfile(path):
         typer.echo(typer.style(f"[ERROR]父路径{path}已存在且为文件，无法在其中创建文件",fg=typer.colors.RED))
         return {

@@ -1,6 +1,9 @@
 import os
 import typer
 from agents import function_tool
+from pathlib import Path
+
+HOME = Path.home()
 
 @function_tool
 def mkdir(path: str, folder: str)->dict:
@@ -16,6 +19,11 @@ def mkdir(path: str, folder: str)->dict:
         }
     """
     path = os.path.abspath(path)
+    if not Path(path).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"操作必须在{str(HOME)}目录下"
+        }
     dict_path = os.path.join(path, folder)
     if os.path.isdir(dict_path):
         typer.echo(typer.style(f"[Warn]目录{dict_path}已存在", fg=typer.colors.YELLOW))

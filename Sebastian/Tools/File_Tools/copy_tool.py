@@ -3,6 +3,9 @@ import json
 import typer
 import os
 from agents import function_tool
+from pathlib import Path
+
+HOME = Path.home()
 
 @function_tool
 def cp_file(src: str, dst: str)->str:
@@ -14,6 +17,13 @@ def cp_file(src: str, dst: str)->str:
     Returns:
         json字符串：{"success": bool, "message": str}
     """
+    src = os.path.abspath(src)
+    dst = os.path.abspath(dst)
+    if not Path(src).is_relative_to(HOME) or not Path(dst).is_relative_to(HOME):
+        return json.dumps({
+            "success": False,
+            "message": f"路径必须在用户主目录 {str(HOME)} 内，当前src: {src}, dst: {dst}"
+        }, ensure_ascii=False, indent=2)
     result = {"success": False, "message": ""}
     #源文件是否存在
     if not os.path.exists(src):
@@ -82,6 +92,13 @@ def cp_dict(src: str, dst: str):
     Returns:
         json字符串：{"success": bool, "message": str}
     """
+    src = os.path.abspath(src)
+    dst = os.path.abspath(dst)
+    if not Path(src).is_relative_to(HOME) or not Path(dst).is_relative_to(HOME):
+        return json.dumps({
+            "success": False,
+            "message": f"路径必须在用户主目录 {str(HOME)} 内，当前src: {src}, dst: {dst}"
+        }, ensure_ascii=False, indent=2)
     result = {"success": False, "message": ""}
     #源目录是否存在
     if not os.path.exists(src):

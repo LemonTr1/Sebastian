@@ -1,13 +1,16 @@
 from agents import function_tool
 import typer
 import os
+from pathlib import Path
+
+HOME = Path.home()
 
 @function_tool
 def read_file(path: str, filename: str):
     """
     读取并以字符串形式返回目标文件内的文本内容
     Args:
-        path: 父目录路径字符串
+        path: 父目录路径字符串（必须为绝对路径）
         filename: 文件名（包含扩展名）
     Returns:
         结构化字典 {
@@ -17,6 +20,12 @@ def read_file(path: str, filename: str):
         }
     """
     path = os.path.abspath(path)
+    if not Path(path).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"路径必须必须在用户主目录{str(HOME)}下",
+            "content": None
+        }
     file_path = os.path.join(path, filename)
 
     if not os.path.isfile(file_path):

@@ -3,6 +3,9 @@ from agents import function_tool
 import typer
 import os
 import asyncio
+from pathlib import Path
+
+HOME = Path.home()
 
 #创建空docx文档
 @function_tool
@@ -20,6 +23,11 @@ async def create_docx(file_path: str) -> dict:
         }
     """
     file_path = os.path.abspath(file_path)
+    if not Path(file_path).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"操作必须在{str(HOME)}目录下"
+        }
     suffix = file_path[-5:]
     if suffix != ".docx":
         return {
@@ -74,6 +82,11 @@ async def read_docx(file_path: str) -> dict:
         }
     """
     file_path = os.path.abspath(file_path)
+    if not Path(file_path).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"操作必须在{str(HOME)}目录下"
+        }
     try:
         typer.echo(typer.style(f"[执行中]正在读取{file_path}文档内容...",fg=typer.colors.WHITE))
         loop = asyncio.get_running_loop()
@@ -134,8 +147,13 @@ async def modify_docx(
             "summary"：操作摘要
         }
     """
-    typer.echo(typer.style(f"[执行中] 正在修改{file_path}文档内容", fg=typer.colors.WHITE))
     file_path = os.path.abspath(file_path)
+    if not Path(file_path).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"操作必须在{str(HOME)}目录下"
+        }
+    typer.echo(typer.style(f"[执行中] 正在修改{file_path}文档内容", fg=typer.colors.WHITE))
     try:
         doc = Document(file_path)
 

@@ -1,6 +1,9 @@
 import os
 import typer
 from agents import function_tool
+from pathlib import Path
+
+HOME = Path.home()
 
 @function_tool
 def rename(src: str, dst: str) -> dict:
@@ -17,6 +20,11 @@ def rename(src: str, dst: str) -> dict:
     """
     src = os.path.abspath(src)
     dst = os.path.abspath(dst)
+    if not Path(src).is_relative_to(HOME) or not Path(dst).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"拒绝，操作必须在{str(HOME)}目录下"
+        }
     # 初始确认
     confirmed = typer.confirm(
         typer.style(f"[Warn] 确定将 '{src}' 重命名为 '{dst}' 吗？", fg=typer.colors.YELLOW)

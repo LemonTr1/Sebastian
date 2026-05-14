@@ -2,6 +2,9 @@ import shutil
 import typer
 from agents import function_tool
 import os
+from pathlib import Path
+
+HOME = Path.home()
 
 @function_tool
 def rm(path: str, filename: str)->dict:
@@ -17,6 +20,11 @@ def rm(path: str, filename: str)->dict:
         }
     """
     path = os.path.abspath(path)
+    if not Path(path).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"操作必须在{str(HOME)}目录下"
+        }
     file_path = os.path.join(path, filename)
     if not os.path.exists(file_path):
         typer.echo(typer.style("[ERROR]文件路径不存在",fg=typer.colors.RED))

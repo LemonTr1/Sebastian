@@ -7,11 +7,12 @@ def ls(path:str):
     """
     列出path路径下所有的文件和目录
     Args:
-        path: 路径字符串
+        path: 路径字符串(必须为绝对路径)
     Returns:
         file_list: path路径下的所有文件和目录
         None: 路径不存在或不是一个目录
     """
+    path = os.path.abspath(path)
     typer.echo(typer.style(f"[执行中]正在执行ls {path}", fg=typer.colors.WHITE))
     if not os.path.isdir(path):
         #如果路径不存在或指向文件

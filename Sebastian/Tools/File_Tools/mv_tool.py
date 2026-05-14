@@ -5,6 +5,8 @@ import os
 from agents import function_tool
 import typer
 
+HOME = Path.home()
+
 @function_tool
 def mv(
         src: str,
@@ -20,6 +22,13 @@ def mv(
     Returns:
         json字符串：{"success": bool, "message": str}
     """
+    src = os.path.abspath(src)
+    dst = os.path.abspath(dst)
+    if not Path(src).is_relative_to(HOME) or not Path(dst).is_relative_to(HOME):
+        return json.dumps({
+            "success": False,
+            "message": f"拒绝，操作必须在{str(HOME)}目录下"
+        }, ensure_ascii=False, indent=2)
     result = {"success": False, "message": ""}
     #如果源文件/目录不存在
     if not os.path.exists(src):

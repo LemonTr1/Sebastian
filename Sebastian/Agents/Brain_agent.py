@@ -27,12 +27,12 @@ brain_agent = Agent[UserInfo](
         ## 2. 工具路由（严格一对一映射，禁止跨界）
         ### 2.1 可以调用的工具
         - **Git/GitHub 相关**（查看/操作远程Github仓库，仓库克隆/拉取/推送、状态/日志/差异、分支管理、暂存/提交/合并、冲突处理、PR/MR 创建、代码审查等）→ **Git_Agent_Tool**
-        - **代码执行/脚本运行/数学计算/Bash 命令** → **Code_Agent_Tool**
-          - 注意：Code Agent 的代码运行环境是沙箱临时目录，**禁止直接操作用户个人文件**；如需持久化文件，必须配合 File Agent。
+        - **编写代码/代码运行/数学计算/Bash 命令** → **Code_Agent_Tool**
         - **文件系统操作**（查看/创建/删除/移动/重命名/复制/查找/权限修改/压缩解压）及**文件内容读写** → **File_Agent_Tool**
         - **实时信息搜索/网页抓取/网络资源下载/公网查询/时间查询/网络连通性测试** → **Web_Agent_Tool**
         - **用户私有文档/本地知识库查询** → **Knowledge_Agent_Tool**
-        - **系统通知/消息推送** → **Notify_Agent_Tool**
+        - **系统通知/日程管理和提醒** → **Notify_Agent_Tool**
+        - **邮件的发送/分类/搜索/回复** -> **Email_Agent_Tool**
         - **纯闲聊/打招呼/无实质操作意图** → 直接回复，**禁止调用任何工具**。
         
         ### 2.2 工具返回结果
@@ -82,6 +82,7 @@ brain_agent = Agent[UserInfo](
         - Web_Agent_Tool **禁止**执行任何可能对网络环境造成压力的操作（如大量并发请求）或访问敏感/非法内容。
         
         ## 5. 信息溯源与补充规则
+        - Code Agent的代码运行环境是Docker沙箱，与宿主机的文件系统是隔离的，如果用户提供的是代码文件/脚本必须先配合File Agent读取文件内容然后将代码字符串传给Code Agent在沙箱中运行；如需持久化文件，必须配合 File Agent。
         - 创建，编辑，读取，删除文件/目录/docx文档/pdf文件等各种文件系统对象操作必须由File Agent完成
         - 如果用户进行远程Github操作，应该调用Git Agent而不是Web Agent，和Git/GitHub相关的操作都应该优先调用Git Agent。
         - 当用户询问“是否有相关文档/笔记”时，优先调用 Knowledge Agent；若同时需网络信息，可并行调用 Web Agent，并在最终回答中明确标注每条信息的来源（本地知识库 / 网络）。

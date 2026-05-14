@@ -2,6 +2,9 @@ from kreuzberg import extract_file
 import typer
 from agents import function_tool
 import os
+from pathlib import Path
+
+HOME = Path.home()
 
 @function_tool
 async def extract(file_path: str) -> dict:
@@ -16,6 +19,11 @@ async def extract(file_path: str) -> dict:
         }
     """
     file_path = os.path.abspath(file_path)
+    if not Path(file_path).is_relative_to(HOME):
+        return {
+            "success": False,
+            "summary": f"操作必须在{str(HOME)}目录下"
+        }
     typer.echo(typer.style(f"[执行中]正在提取{file_path}文件内容",fg=typer.colors.WHITE))
     try:
         result = await extract_file(file_path)

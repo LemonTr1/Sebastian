@@ -2,6 +2,8 @@ from agents import *
 
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
+from Tools.Code_Tools.execute_shell import execute_shell
+from Tools.Code_Tools.execute_python import execute_python
 from models import deepseek_model
 
 code_agent = Agent[UserInfo](
@@ -78,6 +80,6 @@ code_agent = Agent[UserInfo](
                 """
     ),
     tools = [
-        fetch_username, execute_in_sandbox
+        fetch_username, execute_python, execute_shell
     ]
 )
