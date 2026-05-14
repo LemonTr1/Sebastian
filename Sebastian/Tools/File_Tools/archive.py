@@ -2,9 +2,11 @@ import shutil
 import os
 import json
 import py7zr
-
+from pathlib import Path
 import typer
 from agents import function_tool
+
+HOME=Path.home()
 
 #压缩
 @function_tool
@@ -27,6 +29,16 @@ def make_archive(
             "output_file": str | None  # 实际生成的文件路径
         }
     """
+    source_path = os.path.abspath(source_path)
+    output_path = os.path.abspath(output_path)
+    if not Path(source_path).is_relative_to(HOME) or not Path(output_path).is_relative_to(HOME):
+        return json.dumps(
+            {
+                "success": False,
+                "message": f"所有操作必须在{str(HOME)}范围内",
+                "output_file": None
+            }, ensure_ascii=False, indent=2
+        )
     result = {"success": False, "message": "", "output_file": None}
 
     if not os.path.exists(source_path):
@@ -80,12 +92,31 @@ def unpack_archive(
     """
     解压文件
     Args:
-        archive_path: 压缩包路径
-        extract_dir: 解压目标目录（默认当前目录）
+        archive_path: 压缩包路径（必须为绝对路径）
+        extract_dir: 解压目标目录（默认为当前目录，如果不是默认值的话必须为绝对路径）
         format: 可选，zip/tar/gztar/bztar/xztar
     Returns:
         JSON 字符串: {"success": bool, "message": str, "extract_dir": str|null}
     """
+    archive_path = os.path.abspath(archive_path)
+    if extract_dir != ".":
+        extract_dir = os.path.abspath(extract_dir)
+        if not Path(extract_dir).is_relative_to(HOME):
+            return json.dumps(
+                {
+                    "success": False,
+                    "message": f"所有操作必须在{str(HOME)}下",
+                    "extract_dir": None
+                }, ensure_ascii=False, indent=2
+            )
+    if not Path(archive_path).is_relative_to(HOME):
+        return json.dumps(
+            {
+                "success": False,
+                "message": f"所有操作必须在{str(HOME)}下",
+                "extract_dir": None
+            }, ensure_ascii=False, indent=2
+        )
     result = {"success": False, "message": "", "extract_dir": None}
 
     if not os.path.exists(archive_path):
@@ -123,11 +154,18 @@ def unpack_7z_archive(
     """
     解压.7z压缩包
     Args:
-        source_path: 7z压缩包所在路径
-        output_path: 解压目标目录
+        source_path: 7z压缩包所在路径（必须为绝对路径）
+        output_path: 解压目标目录（必须为绝对路径）
     Returns:
         json字符串：{"success": bool, "message": str}
     """
+    source_path = os.path.abspath(source_path)
+    output_path = os.path.abspath(output_path)
+    if not Path(source_path).is_relative_to(HOME) or not Path(output_path).is_relative_to(HOME):
+        return json.dumps({
+            "success": False,
+            "message": f"所有操作必须在{str(HOME)}范围内"
+        }, ensure_ascii=False, indent=2)
     result = {"success": False, "message": ""}
     if not os.path.exists(source_path):
         typer.echo(typer.style(f"[ERROR]压缩包{source_path}不存在",fg=typer.colors.RED))
@@ -164,11 +202,18 @@ def make_7z_archive(
     """
     压缩目标文件夹为7z压缩包
     Args:
-        source_path: 源文件夹路径
-        output_path: 7z压缩包路径
+        source_path: 源文件夹路径（必须为绝对路径）
+        output_path: 7z压缩包路径（必须为绝对路径）
     Returns:
         json字符串{"success": bool, "message": str}
     """
+    source_path = os.path.abspath(source_path)
+    output_path = os.path.abspath(output_path)
+    if not Path(source_path).is_relative_to(HOME) or not Path(output_path).is_relative_to(HOME):
+        return json.dumps({
+            "success": False,
+            "message": f"所有操作必须在{str(HOME)}路径下"
+        }, ensure_ascii=False, indent=2)
     result = {"success": False, "message": ""}
     if not os.path.exists(source_path):
         typer.echo(typer.style(f"[ERROR]目标目录{source_path}不存在",fg=typer.colors.RED))
