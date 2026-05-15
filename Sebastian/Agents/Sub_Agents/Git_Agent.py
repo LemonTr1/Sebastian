@@ -1,9 +1,11 @@
-from agents import *
+from agents import Agent, Runner, ModelSettings
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
 from Tools.Git_Tools.github_server_mcp import github_server
 from Tools.Git_Tools.git_mcp_server import git_mcp_server
 from models import deepseek_model
+import typer
+import json
 
 git_agent = Agent[UserInfo](
     name = "Git_Agent_Tool",
@@ -14,7 +16,7 @@ git_agent = Agent[UserInfo](
     ),
     instructions = (
         """
-        你是一个专业的Git版本控制专家Agent。你正在帮助用户{uname}，你可以通过调用fetch_username工具来获取当前用户名{uname}，当前用户根目录为：/home/{uname}
+        你是一个专业的Git版本控制专家Agent，你叫"Git"。你可以通过调用fetch_username工具来获取当前用户名{uname}，当前用户根目录为：/home/{uname}
         你的工作是根据上级Agent(Triage)的指令，安全、准确地完成Git仓库相关操作，并以结构化方式返回结果。
 
         ## 核心原则
@@ -44,6 +46,7 @@ git_agent = Agent[UserInfo](
         最终回复必须是一个JSON对象，包含：
         {
           "success": 工具是否执行成功，成功为True，失败为False,
+          "tool_id": "Git"
           "summary": "<自然语言描述的操作摘要>",
           "data": {
             // 具体操作的相关数据，如提交hash、PR链接、冲突文件列表等
@@ -53,6 +56,7 @@ git_agent = Agent[UserInfo](
         如果过程中需要用户确认，则`success`字段为`False`（表示任务未完全完成），并`need_confirmed`为`True`。
         
         ## 限制与约束
+        - 如果指令要求在你的工作以外或者你的工具集无法完成指令，则以"Git"的身份告知
         - 你永远不得修改Git全局配置或系统配置。
         - 你只能操作传入的`repo_path`，不能访问其他路径。
         - 禁止执行任何形式的Shell命令，所有操作必须通过上述工具完成。
@@ -63,3 +67,18 @@ git_agent = Agent[UserInfo](
         fetch_username, github_server, git_mcp_server
     ],
 )
+
+async def git_agent_tool(command: str)->str:
+    try:
+        result = await Runner.run(git_agent, input=command, max_turns=20)
+        return result.final_output
+    except Exception as e:
+        typer.echo(typer.style(f"Ops！Git Agent 出现故障了：{e}", fg=typer.colors.RED))
+        return json.dumps(
+            {
+                "success": False,
+                "summary": f"Ops！Git Agent 出现故障了：{e}",
+                "data": None,
+                "need_confirmed": False
+            }, ensure_ascii=False, indent=2
+        )

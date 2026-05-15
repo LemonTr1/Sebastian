@@ -1,5 +1,6 @@
-from agents import *
-
+import typer
+from agents import Agent, Runner, ModelSettings
+import json
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
 from Tools.Code_Tools.execute_shell import execute_shell
@@ -15,7 +16,7 @@ code_agent = Agent[UserInfo](
     ),
     instructions=(
         """
-        你是 Sebastian 的 **Code Agent** 专家，你的工作是根据上级Agent(Triage)的指令完成编写代码，运行脚本代码、安装软件和进行数学计算的任务。
+        你是 Sebastian 的 **Code Agent** 专家，名叫"Code"，你的工作是根据上级Agent(Triage)的指令完成编写代码，运行脚本代码、安装软件和进行数学计算的任务。
         你正在帮助用户{uname}，你可以通过fetch_username工具来获取当前用户名{uname}
         你拥有隔离的沙箱环境来运行代码或脚本，所以必须将安全放在第一位。
         
@@ -42,7 +43,7 @@ code_agent = Agent[UserInfo](
           - 禁止加载用户的 `~/.bashrc`、`~/.profile` 等个人配置文件
         
         ## 3. 工作流
-        1. 收到指令后，先判断是否属于你职责范围。若越界，礼貌告知并建议调用正确的 Agent。
+        1. 收到指令后，先判断是否属于你职责范围。若越界或你的工具集无法完成指令则以"Code"的身份告知无法完成本次操作。
         2. 对于安装/执行类任务，先**复述你要做的事情**（如“将在 ubuntu:latest 容器中用 apt 安装 git”），并给出风险评估。
         3. 如果是高危操作（修改系统设置、全局安装软件、执行未经验证的脚本），必须**明确要求用户确认**，收到用户同意后再执行。
         4. 执行后返回结果进行摘要：
@@ -61,6 +62,7 @@ code_agent = Agent[UserInfo](
         - 返回给上级Agent结果格式为JSON对象，包含以下字段：
         {
           "success": 工具是否执行成功，成功为True，失败为False,
+          "tool_id": "Code",  
           "summary": "<自然语言描述的操作摘要>",
           "data": {
             // 具体操作的相关数据
@@ -83,3 +85,18 @@ code_agent = Agent[UserInfo](
         fetch_username, execute_python, execute_shell
     ]
 )
+
+async def code_agent_tool(command: str)->str:
+    try:
+        result = await Runner.run(code_agent, input=command, max_turns=20)
+        return result.final_output
+    except Exception as e:
+        typer.echo(typer.style(f"Ops！Code Agent 出现故障了：{e}", fg=typer.colors.RED))
+        return json.dumps(
+            {
+                "success": False,
+                "summary": f"Ops！Code Agent 出现故障了：{e}",
+                "data": None,
+                "need_confirmed": False
+            }, ensure_ascii=False, indent=2
+        )

@@ -1,5 +1,4 @@
-from agents import *
-
+from agents import Agent, Runner, ModelSettings
 from Interface.UserInfo import UserInfo
 from Tools.File_Tools.read_file import read_file
 from Tools.File_Tools.rm_file import rm
@@ -28,7 +27,7 @@ file_agent = Agent[UserInfo](
     ),
     instructions=(
         """
-        你是 Sebastian 的 File Agent，作为 Triage 的下级专家，负责文件系统对象操作和文件内容编辑。
+        你是 Sebastian 的 File Agent，作为 Triage 的下级专家，你叫"File"，你的任务是根据指令负责文件系统对象操作和文件内容编辑。
         你可以通过fetch_username获取当前系统用户名{uname}，你的所有操作只能在`/home/{uname}`的根目录下
 
         ## 核心能力
@@ -37,7 +36,7 @@ file_agent = Agent[UserInfo](
         - 支持绝对路径和相对路径（相对路径基于沙箱工作目录 /workspace，家目录为只读视图）。
         
         ## 安全边界（必须严格遵守）
-        1. 所有操作限定在用户家目录内，禁止访问 /etc、/sys、/proc 等系统敏感区域。
+        1. 所有操作限定在用户家目录内，即/home/{uname}根目录下，禁止访问 /etc、/sys、/proc 等系统敏感区域。
         2. 破坏性操作（删除、覆盖、批量移动/重命名、权限修改）前必须：
            - 明确说明影响范围和后果
            - 等待用户（或 Triage）确认，不得擅自执行
@@ -64,6 +63,7 @@ file_agent = Agent[UserInfo](
            - 返回给上级Agent结果格式为JSON对象，包含以下字段，这些字段在工具的返回中也会出现：
             {
               "success": 工具是否执行成功，成功为True，失败为False,
+              "tool_id": "File",
               "summary": "<自然语言描述的操作摘要>",
               "data": {
                 // 具体操作的相关数据
@@ -75,6 +75,7 @@ file_agent = Agent[UserInfo](
         ## 与 Triage 协作要点
         - 你是纯执行单元，接收 Triage 分解后的具体文件任务，不自行扩大任务范围。
         - 若 Triage 的指令违反安全原则，应明确指出风险并请求重新确认，不可盲目执行。
+        - 如果不是你的职责以内的任务或工具集无法完成指令则以"File"的身份告知
         """
     ),
     tools=[
@@ -85,3 +86,18 @@ file_agent = Agent[UserInfo](
         unpack_7z_archive, make_7z_archive, cp_file, cp_dict, mv
     ]
 )
+
+async def file_agent_tool(command: str)->str:
+    try:
+        result = await Runner.run(file_agent, input=command, max_turns=20)
+        return result.final_output
+    except Exception as e:
+        typer.echo(typer.style(f"Ops！File Agent 出现故障了：{e}", fg=typer.colors.RED))
+        return json.dumps(
+            {
+                "success": False,
+                "summary": f"Ops！File Agent 出现故障了：{e}",
+                "data": None,
+                "need_confirmed": False
+            }, ensure_ascii=False, indent=2
+        )

@@ -1,5 +1,4 @@
-from agents import *
-
+from agents import Agent, Runner, ModelSettings
 from Interface.UserInfo import UserInfo
 from Tools.fetch_username import fetch_username
 from models import deepseek_model
@@ -8,6 +7,8 @@ from Tools.Web_Tools.Web_Search.web_extract import web_extract
 from Tools.Web_Tools.Web_Fetch.download_file import download_file
 from Tools.Web_Tools.Traffic_Analysis.check_url_reachable import acheck_url_reachable
 from Interface.get_current_time import get_current_time
+import typer
+import json
 
 current_time = get_current_time()
 
@@ -15,12 +16,12 @@ web_agent = Agent[UserInfo](
     name = "Web_Agent_Tool",
     model = deepseek_model,
     instructions=(
-        "你是一个高效的网络搜索助手，你可以调用fetch_username工具来获取当前用户名\n"
+        "你是一个高效的网络搜索助手，你叫'Web'，你可以调用fetch_username工具来获取当前用户名\n"
         "你的核心任务是根据上级Agent(Triage)指令完成：信息搜索、网页内容获取、网络资源下载，网络连通性测试并明确告知上级Agent操作是否成功。\n"
 
         "## 工作流程\n"
         f"1. **记住实时时间**：现在的时间为{current_time}，之后的所有的操作都以这个时间为基准\n"
-        "2. **理解用户意图**：判断用户是想要查找信息、获取某网页的具体内容，还是下载文件，还是网络连通性测试。\n"
+        "2. **理解用户意图**：判断指令内容是想要查找信息、获取某网页的具体内容，还是下载文件，还是网络连通性测试。\n"
         "3. **选择合适的工具**：根据任务类型调用对应工具（搜索工具、网页抓取工具、下载工具，网络连通性测试工具）。若工具不足，请明确告知上级Agent缺失的能力。\n"
         "4. **执行与汇报**：\n"
         "   - 搜索时：提取核心关键词，限定搜索范围（如有必要），返回最相关的前3-5条结果，每条附带标题、链接和简要摘要。\n"
@@ -33,6 +34,7 @@ web_agent = Agent[UserInfo](
         "    返回给上级Agent结果格式为JSON对象，包含以下字段：\n"
         "    {\n"
         "      'success': 工具是否执行成功，成功为True，失败为False, \n"
+        "      'tool_id': 'Web',\n"
         "      'summary': '<自然语言描述的操作摘要>',\n"
         "      'data': {\n"
         "        // 具体操作的相关数据\n"
@@ -45,6 +47,7 @@ web_agent = Agent[UserInfo](
         "- **处理失败**：如果搜索无结果或网页无法访问，说明原因并给出替代建议（换关键词、检查网站状态等）。\n"
     
         "## 约束与安全\n"
+        "- 如果指令内容不在你的工作范围或者你的工具集无法完成指令，以'Web'的身份告知\n"
         "- 绝对不允许访问内网环境\n"
         "- 遵守法律法规，不尝试绕过付费墙、不下载侵权内容、不访问被屏蔽的网站。\n"
         "- 不执行任何可能对目标网站造成压力的操作（如大量并发请求）。\n"
@@ -58,3 +61,18 @@ web_agent = Agent[UserInfo](
     ),
     tools=[fetch_username, web_search, web_extract, download_file, acheck_url_reachable]
 )
+
+async def web_agent_tool(command: str)->str:
+    try:
+        result = await Runner.run(web_agent, input=command, max_turns=20)
+        return result.final_output
+    except Exception as e:
+        typer.echo(typer.style(f"Ops！Web Agent 出现故障了：{e}", fg=typer.colors.RED))
+        return json.dumps(
+            {
+                "success": False,
+                "summary": f"Ops！Web Agent 出现故障了：{e}",
+                "data": None,
+                "need_confirmed": False
+            }, ensure_ascii=False, indent=2
+        )
