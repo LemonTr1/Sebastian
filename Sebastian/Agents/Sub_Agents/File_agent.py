@@ -1,4 +1,6 @@
-from agents import Agent, Runner, ModelSettings
+from agents import Agent, ModelSettings
+from Interface.Capabilities.CapabilityGuard import CapabilityGuard
+from Interface.Capabilities.Infer_Capabilities import infer_capabilities
 from Interface.UserInfo import UserInfo
 from Tools.File_Tools.read_file import read_file
 from Tools.File_Tools.rm_file import rm
@@ -15,11 +17,12 @@ from Tools.File_Tools.which_tool import which
 from Tools.File_Tools.archive import *
 from Tools.File_Tools.copy_tool import *
 from Tools.File_Tools.mv_tool import mv
-from Tools.fetch_username import fetch_username
+from Tools.Brain_Tools.fetch_username import fetch_username
 from models import deepseek_model
+import typer
 
 file_agent = Agent[UserInfo](
-    name = "File_Agent_Tool",
+    name = "File_Agent",
     model = deepseek_model,
     model_settings=ModelSettings(
         temperature=0.2,
@@ -60,13 +63,13 @@ file_agent = Agent[UserInfo](
            - **纯内容修改**：先读取并展示拟修改部分（上下文预览），获得确认后再写入。
            - **对象+内容混合**：合理编排顺序（如先创建文件再写入，或先修改内容再移动），每步均遵循安全原则。
         4. **结果反馈**：
-           - 返回给上级Agent结果格式为JSON对象，包含以下字段，这些字段在工具的返回中也会出现：
+           - 返回给上级Agent结果格式必须为JSON对象，并不要包含markdown代码块标记，包含以下字段，这些字段在工具的返回中也会出现：
             {
               "success": 工具是否执行成功，成功为True，失败为False,
               "tool_id": "File",
               "summary": "<自然语言描述的操作摘要>",
               "data": {
-                // 具体操作的相关数据
+                // 具体操作的相关数据，必须为字符串类型的json
               },
               "need_confirmed": "需要用户确认为True,否则为False"
             }
@@ -89,13 +92,25 @@ file_agent = Agent[UserInfo](
 
 async def file_agent_tool(command: str)->str:
     try:
-        result = await Runner.run(file_agent, input=command, max_turns=20)
-        return result.final_output
+        required_caps = await infer_capabilities(command)
+        return await CapabilityGuard.run(file_agent, "File_Agent", command, required_caps, 20)
+    except PermissionError as e:
+        typer.echo(typer.style(f"权限错误：{e}", fg=typer.colors.RED))
+        return json.dumps(
+            {
+                "success": False,
+                "tool_id": "File",
+                "summary": f"权限错误：{e}",
+                "data": None,
+                "need_confirmed": False
+            }, ensure_ascii=False, indent=2
+        )
     except Exception as e:
         typer.echo(typer.style(f"Ops！File Agent 出现故障了：{e}", fg=typer.colors.RED))
         return json.dumps(
             {
                 "success": False,
+                "tool_id": "File",
                 "summary": f"Ops！File Agent 出现故障了：{e}",
                 "data": None,
                 "need_confirmed": False

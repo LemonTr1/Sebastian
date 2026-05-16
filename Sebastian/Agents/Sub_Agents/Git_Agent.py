@@ -1,6 +1,8 @@
-from agents import Agent, Runner, ModelSettings
+from agents import Agent, ModelSettings
+from Interface.Capabilities.CapabilityGuard import CapabilityGuard
+from Interface.Capabilities.Infer_Capabilities import infer_capabilities
 from Interface.UserInfo import UserInfo
-from Tools.fetch_username import fetch_username
+from Tools.Brain_Tools.fetch_username import fetch_username
 from Tools.Git_Tools.github_server_mcp import github_server
 from Tools.Git_Tools.git_mcp_server import git_mcp_server
 from models import deepseek_model
@@ -8,7 +10,7 @@ import typer
 import json
 
 git_agent = Agent[UserInfo](
-    name = "Git_Agent_Tool",
+    name = "Git_Agent",
     model = deepseek_model,
     model_settings = ModelSettings(
         temperature=0.1,
@@ -43,13 +45,13 @@ git_agent = Agent[UserInfo](
         4. 完成所有步骤后，汇总操作结果，生成一个自然语言摘要（面向上级Agent，专业但清晰，并一定要声明操作是否成功完成），连同结构化数据一起返回。
         
         ## 返回格式
-        最终回复必须是一个JSON对象，包含：
+        最终回复必须是一个JSON对象，并不要包含markdown代码块标记，包含：
         {
           "success": 工具是否执行成功，成功为True，失败为False,
           "tool_id": "Git"
           "summary": "<自然语言描述的操作摘要>",
           "data": {
-            // 具体操作的相关数据，如提交hash、PR链接、冲突文件列表等
+            // 具体操作的相关数据，如提交hash、PR链接、冲突文件列表等，必须为字符串类型的json
           },
           "need_confirmed": "需要用户确认为True,否则为False"
         }
@@ -70,13 +72,25 @@ git_agent = Agent[UserInfo](
 
 async def git_agent_tool(command: str)->str:
     try:
-        result = await Runner.run(git_agent, input=command, max_turns=20)
-        return result.final_output
+        required_caps = await infer_capabilities(command)
+        return await CapabilityGuard.run(git_agent, "Git_Agent", command, required_caps, 20)
+    except PermissionError as e:
+        typer.echo(typer.style(f"权限错误：{e}", fg=typer.colors.RED))
+        return json.dumps(
+            {
+                "success": False,
+                "tool_id": "Git",
+                "summary": f"权限错误：{e}",
+                "data": None,
+                "need_confirmed": False
+            }, ensure_ascii=False, indent=2
+        )
     except Exception as e:
         typer.echo(typer.style(f"Ops！Git Agent 出现故障了：{e}", fg=typer.colors.RED))
         return json.dumps(
             {
                 "success": False,
+                "tool_id": "Git",
                 "summary": f"Ops！Git Agent 出现故障了：{e}",
                 "data": None,
                 "need_confirmed": False

@@ -1,9 +1,9 @@
 from agents import Runner, Agent, ModelSettings, SQLiteSession
 from openai.types.responses import ResponseTextDeltaEvent
 import os
-from Tools.fetch_username import fetch_username
+from Tools.Brain_Tools.fetch_username import fetch_username
 from models import deepseek_model
-from Tools.DispatcherTool import dispatcher
+from Tools.Brain_Tools.DispatcherTool import dispatcher
 from Interface.UserInfo import UserInfo
 import typer
 
@@ -26,14 +26,12 @@ brain_agent = Agent[UserInfo](
         - **编写代码/代码运行/数学计算/Bash 命令** → dispatcher的type参数必须为"Code"，表示"Code"操作
         - **文件系统操作**（查看/创建/删除/移动/重命名/复制/查找/权限修改/压缩解压）及**文件内容读写** → dispatcher的type参数必须为"File"，表示"File"操作
         - **实时信息搜索/网页抓取/网络资源下载/公网查询/时间查询/网络连通性测试** → dispatcher的type参数必须为"Web"，表示"Web"操作
-        - **用户私有文档/本地知识库查询** → dispatcher的type参数必须为"Knowledge"，表示"Knowledge"操作
-        - **系统通知/日程管理和提醒** → dispatcher的type参数必须为"Notify"，表示"Notify"操作
-        - **邮件的发送/分类/搜索/回复** -> dispatcher的type参数必须为"Email"，表示"Email"操作
         - **纯闲聊/打招呼/无实质操作意图** → 直接回复，**禁止调用dispatcher**。
         
         ### 2.2 工具参数解释
         工具dispatcher有两个参数：
-            command：字符串类型，用自然语言描述，表示最小可执行步骤的指令，必须明确清晰指明具体任务
+            command：字符串类型，用自然语言描述，表示不可再拆分的最小可执行步骤的指令，必须明确清晰指明具体任务
+                
             type：字符串类型，表示对应的操作，如"File"操作，"Code"操作等
         
         ### 2.3 工具返回结果
@@ -52,7 +50,7 @@ brain_agent = Agent[UserInfo](
         
         ## 3. 工作流与状态管控（防重复、防过时意图）
         ### 3.1 任务规划与并行
-        - 拆解任务为最小可执行步骤，然后根据情况并行或串行调用工具dispatcher。
+        - 拆解任务为多个不可再拆分的最小可执行步骤，然后根据情况并行或串行调用工具dispatcher。
         - 最终输出由你提炼、对比、总结，用自然语言给出结论；**禁止直接抛出工具原始 JSON 或代码块**。
         
         ### 3.2 历史状态回溯（关键）
@@ -80,11 +78,11 @@ brain_agent = Agent[UserInfo](
         
         ### 4.2 工具安全约束
         - "Git"操作 仅限于已注册的仓库白名单，**不允许**通过拼接参数执行任意 Git 命令。
-        - "Code"操作 永远不可以直接进行文件操作，文件持久化必须只能由"File"操作完成；网络连通性测试必须用"Web"操作完成
+        - "Code"操作 永远不可以访问宿主机文件系统和直接进行文件操作，文件持久化必须只能由"File"操作完成；网络连通性测试必须用"Web"操作完成
         - "Web"操作 **禁止**执行任何可能对网络环境造成压力的操作（如大量并发请求）或访问敏感/非法内容。
         
-        ## 5. 信息溯源与补充规则
-        - "Code"操作的代码运行环境是Docker沙箱，与宿主机的文件系统是隔离的，如果用户提供的是代码文件/脚本必须先配合"File"操作读取文件内容然后将代码字符串传进"Code"操作在沙箱中运行；如需持久化文件，必须配合"File"操作。
+        ## 5. 信息溯源与补充规则(必须严格遵守)
+        - 禁止使用"Code"操作直接访问宿主机文件系统，如果要执行代码文件必须先配合"File"操作读取文件内容然后将"代码字符串"传进"Code"操作在沙箱中运行；如需持久化文件，必须配合"File"操作。
         - 创建，编辑，读取，删除文件/目录/docx文档/pdf文件等各种文件系统对象操作必须用"File"操作完成
         - 如果用户进行远程Github操作，应该使用"Git"操作而不是"Web"操作，和Git/GitHub相关的操作都应该优先使用"Git"操作。
         - 当用户询问“是否有相关文档/笔记”时，优先使用"Knowledge"操作；若同时需网络信息，可并行使用"Web"操作，并在最终回答中明确标注每条信息的来源（本地知识库 / 网络）。
@@ -107,7 +105,7 @@ async def chat():
     typer.echo(typer.style(f"Welcome {uname}！I'm Sebastian.What can I do for you? [Press 'quit' to exit]", fg=typer.colors.BLUE, bold=True))
     user_session = SQLiteSession(uname)
     while True:
-        question = typer.prompt(typer.style("[You]", fg=typer.colors.GREEN, bold=True))
+        question = typer.prompt(typer.style(f"[{uname}]", fg=typer.colors.GREEN, bold=True))
         if question.lower() in ["quit", "exit"]:
             typer.echo(typer.style("Bye", fg=typer.colors.BLUE, bold=True))
             raise typer.Exit(code=0)

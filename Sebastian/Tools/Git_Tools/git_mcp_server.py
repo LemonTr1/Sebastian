@@ -20,7 +20,7 @@ async def git_mcp_server(command: str):
     """
     home = Path.home()
     git_agent_workspace = os.path.join(home, "git_agent_workspace")
-    if os.path.isdir(git_agent_workspace):
+    if not os.path.isdir(git_agent_workspace):
         os.makedirs(git_agent_workspace, exist_ok=True)
     try:
         async with MCPServerStdio(
