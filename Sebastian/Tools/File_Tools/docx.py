@@ -4,89 +4,92 @@ import typer
 import os
 import asyncio
 from pathlib import Path
-
-HOME = Path.home()
+import json
+from Interface.SafePath import resolve_safe_path
+from Interface.Exception.SecurityException import SecurityException
 
 #创建空docx文档
 @function_tool
-async def create_docx(file_path: str) -> dict:
+async def create_docx(path: str, filename: str) -> str:
     """
-    在指定路径创建一个全新的空白 .docx 文件。
-    该文档不包含任何预设内容（无标题、无段落），
-    可被 LibreOffice 和 Microsoft Office 正常打开。
+    在指定路径创建新的Word(.docx)文档。
     Args:
-        file_path: 要创建的 .docx 文件的完整路径（文件后缀一定要是.docx）
+        path: str类型，表示目标路径的绝对路径
+        filename: str类型，表示Word文档名，后缀必须为.docx
     Returns:
-        结构化字典： {
+        json形式字符串 {
             "success": 操作成功为True，失败为False,
             "summary": 操作结果概要
         }
     """
-    file_path = os.path.abspath(file_path)
-    if not Path(file_path).is_relative_to(HOME):
-        return {
+    try:
+        path = resolve_safe_path(path)
+    except SecurityException as e:
+        return json.dumps({
             "success": False,
-            "summary": f"操作必须在{str(HOME)}目录下"
-        }
+            "summary": str(e)
+        }, ensure_ascii=False, indent=2)
+    file_path = os.path.join(path, filename)
     suffix = file_path[-5:]
     if suffix != ".docx":
-        return {
+        return json.dumps({
             "success": False,
             "summary": "文件后缀必须是.docx"
-        }
+        }, ensure_ascii=False, indent=2)
     try:
         if os.path.isfile(file_path):
             confirmed = typer.confirm(typer.style(f"[Warn]目标文档已经存在，确定覆盖文档{file_path}吗？",fg=typer.colors.YELLOW))
             if not confirmed:
                 typer.echo("已终止此操作")
-                return {
+                return json.dumps({
                     "success": False,
                     "summary": "用户确认阻止了本次操作"
-                }
+                }, ensure_ascii=False, indent=2)
         else:
             confirmed = typer.confirm(
                 typer.style(f"[Warn]确定创建文档{file_path}吗？", fg=typer.colors.YELLOW))
             if not confirmed:
                 typer.echo("已终止此操作")
-                return {
+                return json.dumps({
                     "success": False,
                     "summary": "用户确认阻止了本次操作"
-                }
+                }, ensure_ascii=False, indent=2)
         # 创建一个空白的 Document 对象
         doc = Document()
         # 直接保存，不添加任何内容
         doc.save(file_path)
         typer.echo(typer.style(f"{file_path}已创建", fg=typer.colors.WHITE))
-        return {
+        return json.dumps({
             "success": True,
             "summary": f"成功创建空白文档：{file_path}"
-        }
+        }, ensure_ascii=False, indent=2)
     except Exception as e:
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"创建失败：{str(e)}"
-        }
+        }, ensure_ascii=False, indent=2)
 
 
 #读取docx文档内容
 @function_tool
-async def read_docx(file_path: str) -> dict:
+async def read_docx(file_path: str) -> str:
     """
     读取docx文档的纯文本内容。
     Args:
-        file_path: docx文件的完整路径，必须是绝对路径
+        file_path: str类型，表示docx文件的完整路径，必须是绝对路径
     Returns:
-        结构化字典： {
+        json形式字符串 {
             "success"：表示操作是否成功，成功为True,失败为False,
             "summary"：操作摘要
         }
     """
-    file_path = os.path.abspath(file_path)
-    if not Path(file_path).is_relative_to(HOME):
-        return {
+    try:
+        file_path = resolve_safe_path(file_path)
+    except SecurityException as e:
+        return json.dumps({
             "success": False,
-            "summary": f"操作必须在{str(HOME)}目录下"
-        }
+            "summary": str(e)
+        })
     try:
         typer.echo(typer.style(f"[执行中]正在读取{file_path}文档内容...",fg=typer.colors.WHITE))
         loop = asyncio.get_running_loop()
@@ -111,20 +114,20 @@ async def read_docx(file_path: str) -> dict:
         if tables_text:
             full_text += "\n\n【表格内容】\n" + "\n\n".join(tables_text)
 
-        return {
+        return json.dumps({
             "success": True,
             "summary": full_text if full_text else "文档中没有可读取的文本内容。"
-        }
+        }, ensure_ascii=False, indent=2)
     except FileNotFoundError:
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"错误：文件不存在 - {file_path}"
-        }
+        }, ensure_ascii=False, indent=2)
     except Exception as e:
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"读取文档时出错：{str(e)}"
-        }
+        }, ensure_ascii=False, indent=2)
 
 #修改docx文档
 @function_tool
@@ -133,26 +136,27 @@ async def modify_docx(
         new_content: str,
         mode: str = "append",
         old_content: str = None
-) -> dict:
+) -> str:
     """
     修改 docx 文档的内容。
     Args:
-        file_path: docx 文件的完整路径
-        new_content: 要添加或替换的内容
-        mode: 操作模式 —— "append"（追加到末尾）、"replace"（全局替换文本）
-        old_content: replace 模式下需要替换的目标文本（必填）
+        file_path: str类型，docx 文件的完整路径
+        new_content: str类型，表示要添加或替换的内容
+        mode: str类型，表示操作模式 —— "append"（追加到末尾）、"replace"（全局替换文本），默认为"append"
+        old_content: str类型，replace 模式下需要替换的目标文本（必填）
     Returns:
-        结构化字典： {
+        json结构字符串 {
             "success"：表示操作是否成功，成功为True,失败为False,
             "summary"：操作摘要
         }
     """
-    file_path = os.path.abspath(file_path)
-    if not Path(file_path).is_relative_to(HOME):
-        return {
+    try:
+        file_path = resolve_safe_path(file_path)
+    except SecurityException as e:
+        return json.dumps({
             "success": False,
-            "summary": f"操作必须在{str(HOME)}目录下"
-        }
+            "summary": str(e)
+        }, ensure_ascii=False, indent=2)
     typer.echo(typer.style(f"[执行中] 正在修改{file_path}文档内容", fg=typer.colors.WHITE))
     try:
         doc = Document(file_path)
@@ -162,10 +166,10 @@ async def modify_docx(
 
         elif mode == "replace":
             if old_content is None:
-                return {
+                return json.dumps({
                     "success": False,
                     "summary": "错误：replace 模式必须提供 old_content 参数，用于指定要被替换的内容"
-                }
+                }, ensure_ascii=False, indent=2)
 
             replaced_count = 0
             for paragraph in doc.paragraphs:
@@ -188,16 +192,16 @@ async def modify_docx(
                     replaced_count += 1
 
             if replaced_count == 0:
-                return {
+                return json.dumps({
                     "success": False,
                     "summary": f"警告：未在文档中找到文本 '{old_content}'，未执行任何替换"
-                }
+                }, ensure_ascii=False, indent=2)
 
         else:
-            return {
+            return json.dumps({
                 "success": False,
                 "summary": f"错误：不支持的 mode: {mode}，仅支持 'append' 或 'replace'"
-            }
+            }, ensure_ascii=False, indent=2)
 
         # 交互确认
         confirmed = typer.confirm(
@@ -205,36 +209,36 @@ async def modify_docx(
         )
         if not confirmed:
             typer.echo("操作已终止")
-            return {
+            return json.dumps({
                 "success": False,
                 "summary": "操作已取消，文件未保存"
-            }
+            }, ensure_ascii=False, indent=2)
 
         doc.save(file_path)
 
         if mode == "append":
-            return {
+            return json.dumps({
                 "success": True,
                 "summary": f"成功修改文档：已追加内容到末尾"
-            }
+            }, ensure_ascii=False, indent=2)
         else:
-            return {
+            return json.dumps({
                 "success": True,
                 "summary": f"成功修改文档：replace 模式已完成，共替换 {replaced_count} 处"
-            }
+            }, ensure_ascii=False, indent=2)
 
     except FileNotFoundError:
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"错误：文件不存在 - {file_path}"
-        }
+        }, ensure_ascii=False, indent=2)
     except PermissionError:
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"错误：文件被占用或无写入权限 - {file_path}"
-        }
+        }, ensure_ascii=False, indent=2)
     except Exception as e:
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"修改文档时出错：{str(e)}"
-        }
+        }, ensure_ascii=False, indent=2)

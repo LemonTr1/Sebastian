@@ -2,54 +2,61 @@ import os
 import typer
 from agents import function_tool
 from pathlib import Path
+import json
+from Interface.Exception.SecurityException import SecurityException
+from Interface.SafePath import resolve_safe_path
 
 HOME = Path.home()
 
 @function_tool
-def mkdir(path: str, folder: str)->dict:
+def mkdir(path: str, folder: str)->str:
     """
     在指定路径下创建一个新文件夹
     Args:
-        path: 路径字符串
-        folder: 空文件夹名称
+        path: str类型，表示目标路径，必须为绝对路径
+        folder: str类型，表示空文件夹名称
     Returns:
-        结构化字典：{
+        json格式的字符串：{
             "success"：操作成功返回True,失败返回False,
             "summary": 操作摘要
         }
     """
-    path = os.path.abspath(path)
-    if not Path(path).is_relative_to(HOME):
-        return {
+    try:
+        path = resolve_safe_path(path)
+    except SecurityException as e:
+        return json.dumps({
             "success": False,
-            "summary": f"操作必须在{str(HOME)}目录下"
-        }
+            "summary": str(e)
+        }, ensure_ascii=False, indent=2)
     dict_path = os.path.join(path, folder)
     if os.path.isdir(dict_path):
-        typer.echo(typer.style(f"[Warn]目录{dict_path}已存在", fg=typer.colors.YELLOW))
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"文件夹已存在：{dict_path}，不需要创建了",
-        }
+        }, ensure_ascii=False, indent=2)
 
     confirmed = typer.confirm(typer.style(f"[Warn]目录{dict_path}不存在，是否要创建？",fg=typer.colors.YELLOW))
     if not confirmed:
         typer.echo("用户已终止本次操作")
-        return {
+        return json.dumps({
             "success": False,
             "summary": "用户确认终止了创建新文件夹的操作",
-        }
+        }, ensure_ascii=False, indent=2)
 
     try:
         os.makedirs(dict_path, exist_ok=True)
         typer.echo(typer.style(f"[执行中]正在创建目录：{dict_path}", fg=typer.colors.WHITE))
-        return {
+        return json.dumps({
             "success": True,
             "summary": f"创建目录成功：{dict_path}",
-        }
+        }, ensure_ascii=False, indent=2)
     except OSError as e:
-        typer.echo(typer.style(f"[Error]创建目录{dict_path}失败:{e}", fg=typer.colors.RED))
-        return {
+        return json.dumps({
             "success": False,
-            "summary": f"创建目录{dict_path}失败",
-        }
+            "summary": f"系统问题导致创建目录{dict_path}失败：{e}",
+        }, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "summary": f"未知错误：{e}"
+        }, ensure_ascii=False, indent=2)

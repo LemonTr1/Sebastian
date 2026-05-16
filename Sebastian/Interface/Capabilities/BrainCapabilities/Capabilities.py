@@ -1,5 +1,4 @@
 from enum import auto, Flag
-from typing import Set
 
 class Capabilities(Flag):
     FILE_EXECUTE = auto()

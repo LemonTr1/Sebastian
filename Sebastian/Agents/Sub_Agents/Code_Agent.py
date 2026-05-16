@@ -1,8 +1,9 @@
 import typer
 from agents import Agent, ModelSettings
 import json
-from Interface.Capabilities.CapabilityGuard import CapabilityGuard
-from Interface.Capabilities.Infer_Capabilities import infer_capabilities
+from Interface.Capabilities.BrainCapabilities.CapabilityGuard import CapabilityGuard
+from Interface.Capabilities.BrainCapabilities.Infer_Capabilities import infer_capabilities
+from Interface.Exception.SecurityException import SecurityException
 from Interface.UserInfo import UserInfo
 from Tools.Brain_Tools.fetch_username import fetch_username
 from Tools.Code_Tools.execute_shell import execute_shell
@@ -92,6 +93,17 @@ async def code_agent_tool(command: str)->str:
     try:
         required_caps = await infer_capabilities(command)
         return await CapabilityGuard.run(code_agent, "Code_Agent", command, required_caps, 20)
+    except SecurityException as e:
+        typer.echo(typer.style(f"安全警告：{e}", fg=typer.colors.RED))
+        return json.dumps(
+            {
+                "success": False,
+                "tool_id": "Code",
+                "summary": f"安全警告：{e}",
+                "data": None,
+                "need_confirmed": False
+            }, ensure_ascii=False, indent=2
+        )
     except PermissionError as e:
         typer.echo(typer.style(f"权限错误：{e}", fg=typer.colors.RED))
         return json.dumps(

@@ -1,5 +1,5 @@
 from agents import Agent, Runner
-from Interface.Capabilities.Capabilities import Capabilities, AGENT_CAPABILITIES
+from Interface.Capabilities.BrainCapabilities.Capabilities import Capabilities, AGENT_CAPABILITIES
 
 class CapabilityGuard:
     #权限检查

@@ -3,9 +3,10 @@ from openai.types.responses import ResponseTextDeltaEvent
 import os
 from Tools.Brain_Tools.fetch_username import fetch_username
 from models import deepseek_model
-from Tools.Brain_Tools.DispatcherTool import dispatcher
+from Tools.Brain_Tools.BrainDispatcherTool import dispatcher
 from Interface.UserInfo import UserInfo
 import typer
+from Interface.Exception.SecurityException import SecurityException
 
 brain_agent = Agent[UserInfo](
     name="Triage",
@@ -24,7 +25,7 @@ brain_agent = Agent[UserInfo](
         ### 2.1 你可以调用工具dispatcher,它会根据你的指示将任务分配到合适的路由,但你必须给出操作类型并按照下列要求一一对应：
         - **Git/GitHub 相关**（查看/操作远程Github仓库，仓库克隆/拉取/推送、状态/日志/差异、分支管理、暂存/提交/合并、冲突处理、PR/MR 创建、代码审查等）→ dispatcher的type参数必须为"Git"，表示"Git"操作
         - **编写代码/代码运行/数学计算/Bash 命令** → dispatcher的type参数必须为"Code"，表示"Code"操作
-        - **文件系统操作**（查看/创建/删除/移动/重命名/复制/查找/权限修改/压缩解压）及**文件内容读写** → dispatcher的type参数必须为"File"，表示"File"操作
+        - **文件系统操作**（查看/创建/删除/移动/重命名/复制/查找/压缩解压）及**文件内容读写** → dispatcher的type参数必须为"File"，表示"File"操作
         - **实时信息搜索/网页抓取/网络资源下载/公网查询/时间查询/网络连通性测试** → dispatcher的type参数必须为"Web"，表示"Web"操作
         - **纯闲聊/打招呼/无实质操作意图** → 直接回复，**禁止调用dispatcher**。
         
@@ -71,7 +72,7 @@ brain_agent = Agent[UserInfo](
         涉及以下情况时，你必须先用自然语言说明具体执行计划及潜在影响，**待用户明确同意后再调用工具**：
         - 批量删除或覆盖重要文件；
         - 执行不可逆脚本或命令；
-        - 修改系统级配置（即使限定在用户目录内，如 `~/.bashrc`）；
+        - 修改系统级配置；
         - Git 的不可逆操作（merge、rebase、强制推送等）。
         
         对于 Git 不可逆操作，提前告知会影响哪些分支历史、是否有代码丢失风险。
@@ -100,6 +101,11 @@ brain_agent = Agent[UserInfo](
     ]
 )
 
+def sanitize_input(command: str) -> str:
+    if "忽略之前的指令" in command or "ignore previous" in command:
+        raise SecurityException("检测到提示词注入尝试")
+    return command.strip()
+
 async def chat():
     uname = os.getlogin()
     typer.echo(typer.style(f"Welcome {uname}！I'm Sebastian.What can I do for you? [Press 'quit' to exit]", fg=typer.colors.BLUE, bold=True))
@@ -110,7 +116,11 @@ async def chat():
             typer.echo(typer.style("Bye", fg=typer.colors.BLUE, bold=True))
             raise typer.Exit(code=0)
         try:
+            question = sanitize_input(question)
             result = Runner.run_streamed(brain_agent, input=question, context=UserInfo(uname=uname), session=user_session, max_turns=50)
+        except SecurityException as e:
+            typer.echo(typer.style(f"Ops！你的输入被安全系统拦截了：{e}", fg=typer.colors.RED, bold=True))
+            raise typer.Exit(code=1)
         except Exception as e:
             typer.echo(typer.style(f"Ops！机器人出现故障了：{e}", fg=typer.colors.RED, bold=True))
             raise typer.Exit(code=1)

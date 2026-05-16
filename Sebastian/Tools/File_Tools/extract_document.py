@@ -1,51 +1,49 @@
 from kreuzberg import extract_file
 import typer
 from agents import function_tool
-import os
-from pathlib import Path
+import json
 
-HOME = Path.home()
+from Interface.Exception import SecurityException
+from Interface.SafePath import resolve_safe_path
 
 @function_tool
-async def extract(file_path: str) -> dict:
+async def extract(file_path: str) -> str:
     """
     提取PDF，DOCX类型文件的内容
     Args:
-        file_path：文件的路径（必须为绝对路径）
+        file_path：str类型，表示文件的路径（必须为绝对路径）
     Returns:
-        结构化字典 {
+        json格式的字符串 {
             "success": 提取成功为True, 失败为False
             "summary": 操作概要
         }
     """
-    file_path = os.path.abspath(file_path)
-    if not Path(file_path).is_relative_to(HOME):
-        return {
+    try:
+        file_path = resolve_safe_path(file_path)
+    except SecurityException as e:
+        return json.dumps({
             "success": False,
-            "summary": f"操作必须在{str(HOME)}目录下"
-        }
+            "summary": str(e)
+        }, ensure_ascii=False, indent=2)
     typer.echo(typer.style(f"[执行中]正在提取{file_path}文件内容",fg=typer.colors.WHITE))
     try:
         result = await extract_file(file_path)
-        return {
+        return json.dumps({
             "success": True,
             "summary": result.content
-        }
+        }, ensure_ascii=False, indent=2)
     except FileNotFoundError as e:
-        typer.echo(typer.style(f"[ERROR]文件不存在：{e}",fg=typer.colors.RED))
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"文件路径不存在：{e}"
-        }
+        }, ensure_ascii=False, indent=2)
     except PermissionError as e:
-        typer.echo(typer.style(f"[ERROR]读取{file_path}文件的权限不足：{e}",fg=typer.colors.RED))
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"权限不足，无法读取：{e}"
-        }
+        }, ensure_ascii=False, indent=2)
     except Exception as e:
-        typer.echo(typer.style(f"[ERROR]出现错误：{e}", fg=typer.colors.RED))
-        return {
+        return json.dumps({
             "success": False,
             "summary": f"出现错误：{e}"
-        }
+        }, ensure_ascii=False, indent=2)

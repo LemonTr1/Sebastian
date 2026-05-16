@@ -1,6 +1,7 @@
 from agents import Agent, ModelSettings
-from Interface.Capabilities.CapabilityGuard import CapabilityGuard
-from Interface.Capabilities.Infer_Capabilities import infer_capabilities
+from Interface.Capabilities.BrainCapabilities.CapabilityGuard import CapabilityGuard
+from Interface.Capabilities.BrainCapabilities.Infer_Capabilities import infer_capabilities
+from Interface.Exception.SecurityException import SecurityException
 from Interface.UserInfo import UserInfo
 from Tools.Brain_Tools.fetch_username import fetch_username
 from models import deepseek_model
@@ -68,6 +69,17 @@ async def web_agent_tool(command: str)->str:
     try:
         required_caps = await infer_capabilities(command)
         return await CapabilityGuard.run(web_agent, "Web_Agent", command, required_caps, 20)
+    except SecurityException as e:
+        typer.echo(typer.style(f"安全警告：{e}", fg=typer.colors.RED))
+        return json.dumps(
+            {
+                "success": False,
+                "tool_id": "Web",
+                "summary": f"安全警告：{e}",
+                "data": None,
+                "need_confirmed": False
+            }, ensure_ascii=False, indent=2
+        )
     except PermissionError as e:
         typer.echo(typer.style(f"权限错误：{e}", fg=typer.colors.RED))
         return json.dumps(
