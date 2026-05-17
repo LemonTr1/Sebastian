@@ -8,7 +8,7 @@ os.environ['all_proxy'] = ''
 from dotenv import load_dotenv
 load_dotenv(override=True)
 from Agents import Brain_agent
-
+import readline
 import typer
 import asyncio
 

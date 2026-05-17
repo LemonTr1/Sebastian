@@ -1,6 +1,7 @@
 import typer
 from agents import Agent, ModelSettings
 import json
+from Interface.Capabilities.BrainCapabilities.Capabilities import Capabilities
 from Interface.Capabilities.BrainCapabilities.CapabilityGuard import CapabilityGuard
 from Interface.Capabilities.BrainCapabilities.Infer_Capabilities import infer_capabilities
 from Interface.Exception.SecurityException import SecurityException

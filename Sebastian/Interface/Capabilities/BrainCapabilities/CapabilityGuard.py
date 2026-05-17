@@ -8,7 +8,8 @@ class CapabilityGuard:
         allowed = AGENT_CAPABILITIES.get(agent_name)
         if allowed != required_caps:
             raise PermissionError(
-                f"[权限不足] 当前Agent：{agent_name} 权限为 {allowed.name}，实际需要权限：{required_caps.name}"
+                f"[权限不足] 当前Agent：{agent_name} 权限为 {allowed.name}，"
+                f"实际需要权限：{required_caps.name}"
             )
 
     @staticmethod

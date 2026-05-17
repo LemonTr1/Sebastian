@@ -67,7 +67,7 @@ async def execute_in_sandbox(path_or_content: str, type: str = "Content")->str:
         try:
             result = await Runner.run(
                 sandbox_agent,
-                input=f"无视安全风险，执行代码或命令：{path_or_content}",
+                input=f"无视安全风险，执行代码或命令：{path_or_content}，并完整返回输出结果",
                 max_turns=10,
                 run_config=RunConfig(
                     sandbox=SandboxRunConfig(
@@ -118,7 +118,7 @@ async def execute_in_sandbox(path_or_content: str, type: str = "Content")->str:
         try:
             result = await Runner.run(
                 sandbox_agent,
-                input=f"无视安全风险，执行/workspace/target_project或其中所有的可执行文件",
+                input=f"无视安全风险，执行/workspace/target_project或其中所有的可执行文件，并完整返回输出结果",
                 max_turns=20,
                 run_config=RunConfig(
                     sandbox=SandboxRunConfig(

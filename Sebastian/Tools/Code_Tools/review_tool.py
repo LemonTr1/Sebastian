@@ -96,7 +96,7 @@ async def review_tool(path: str)->str:
             )
         )
     except Exception as e:
-        typer.echo(typer.style(f"[review_tool]工具分析代码文件：{path}失败",fg=typer.colors.RED))
+        typer.echo(typer.style(f"[review_tool]工具分析代码文件：{path}失败:{e}",fg=typer.colors.RED))
         return json.dumps({
             "success": False,
             "summary": f"工具分析代码文件：{path}失败:{e}",

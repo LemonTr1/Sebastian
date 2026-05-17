@@ -13,8 +13,9 @@ from agents import Runner, ModelSettings, RunConfig, SQLiteSession
 from agents.sandbox import SandboxAgent, Manifest, SandboxRunConfig, SandboxPathGrant
 from agents.sandbox.capabilities import Shell
 from docker import from_env
+from Interface.SafePath import resolve_safe_path
 
-WORKSPACE = Path.home() / "code-agent-workspace"
+WORKSPACE = Path.home() / "桌面" / "exec"
 
 async def main() -> None:
     user_session = SQLiteSession("user_id_1")

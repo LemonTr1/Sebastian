@@ -111,6 +111,7 @@ async def chat():
     typer.echo(typer.style(f"Welcome {uname}！I'm Sebastian.What can I do for you? [Press 'quit' to exit]", fg=typer.colors.BLUE, bold=True))
     user_session = SQLiteSession(uname)
     while True:
+        typer.echo()
         question = typer.prompt(typer.style(f"[{uname}]", fg=typer.colors.GREEN, bold=True))
         if question.lower() in ["quit", "exit"]:
             typer.echo(typer.style("Bye", fg=typer.colors.BLUE, bold=True))
@@ -129,4 +130,3 @@ async def chat():
             if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
                 delta = event.data.delta
                 typer.echo(typer.style(delta, fg=typer.colors.BLUE), nl=False)
-        typer.echo()
