@@ -1,19 +1,27 @@
+import json
+
 import aiohttp
 import asyncio
 import ssl
 import typer
-from typing import Any, Dict
 from agents import function_tool
 
 @function_tool
-async def acheck_url_reachable(url: str, timeout: int = 5) -> Dict[str, Any]:
+async def acheck_url_reachable(url: str, timeout: int = 5) -> str:
     """
     测试当前网络到url的连通性
     Args:
-        url: 目标网址（字符串类型）
-        timeout: 超时时间（默认为5秒）
+        url: str类型，目标网址（字符串类型）
+        timeout: int类型，超时时间（默认为5秒）
     Returns:
-        结构化字典，包含url, reachable, status_code, error, elapsed_sec字段
+        json格式字符串
+        {
+            "url": 目标网址
+            "reachable":可达为True,不可达为False,
+            "status_code": 状态码,
+            "error": 错误信息，
+            "elapsed_sec": 耗时（单位秒）
+        }
     """
     typer.echo(typer.style(f"[执行中]正在测试{url}的网络连通性...",fg=typer.colors.WHITE))
     result = {
@@ -46,4 +54,4 @@ async def acheck_url_reachable(url: str, timeout: int = 5) -> Dict[str, Any]:
         result["error"] = "Connection failed"
     except aiohttp.ClientError as e:
         result["error"] = str(e)
-    return result
+    return json.dumps(result, ensure_ascii=False, indent=2)

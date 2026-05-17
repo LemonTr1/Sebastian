@@ -107,9 +107,9 @@ def download_file(url: str, save_dir: str = None, timeout: int = DEFAULT_TIMEOUT
     当用户要求获取、下载某个链接的文件时，应调用此工具。
 
     Args:
-        url: 文件的直接下载链接。
-        save_dir: 保存目录，默认为 ./downloads。
-        timeout: 超时秒数，默认30。
+        url: str类型，文件的直接下载链接。
+        save_dir: str类型，保存目录，默认为 ./downloads。
+        timeout: int类型，超时秒数，默认30。
 
     Returns:
         JSON字符串，包含成功信息或错误提示。成功时:

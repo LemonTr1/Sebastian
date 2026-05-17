@@ -14,12 +14,12 @@ def web_search(word: str, max_results: int = 10, timeout: int = 20) -> str:
     """
     网络信息搜索工具
     Args:
-        word: 查询内容
-        max_results: 最大返回内容数（默认为10条结果）
-        timeout: 最大超时限制时间（默认为20s）
+        word: str类型，表示查询内容
+        max_results: int类型，表示最大返回内容数（默认为10条结果）
+        timeout: int类型，表示最大超时限制时间（默认为20s）
     Returns:
-        json字符串：{ 
-            "success": bool,
+        json格式的字符串：{
+            "success": 搜索成功为True,失败为False
             "result_list": list #搜索结果列表
             "error_message" str #错误信息，如果成功则为空
         }

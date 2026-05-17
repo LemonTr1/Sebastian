@@ -24,10 +24,14 @@ def web_extract(url: str, timeout: int = 20)->str:
     """
     网页内容提取
     Args:
-        url: 目标网页的完整url地址
-        timeout: 最大超时限制（默认20秒）
+        url: str类型，表示目标网页的完整url地址
+        timeout: int类型，表示最大超时限制（默认20秒）
     Returns:
-        json字符串：{"success": bool, "content": str}
+        json格式的字符串：
+        {
+            "success": 成功为True,失败为False
+            "content": 网页的文本内容
+        }
     """
     #检查url的安全性
     if not is_public_url(url):

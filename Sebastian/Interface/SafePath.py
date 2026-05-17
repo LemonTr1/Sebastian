@@ -1,13 +1,13 @@
 import os
 from pathlib import Path
 from Interface.Exception.SecurityException import SecurityException
-
+from typing import Literal
 #同时递归解析符号链接，判断符号链接指向的源文件是否存在，是否在家目录外，是否涉及敏感文件或目录，一个不满足就SecurityException
 
-def resolve_safe_path(path) -> str:
+def resolve_safe_path(path: str, type: str = "abs") -> str:
     """
     将路径转为绝对路径，递归解析符号链接到最终目标，
-    通过安全检查后返回该真实绝对路径。
+    通过安全检查后根据选择返回真实绝对路径还是绝对路径，默认返回非真实的绝对路径。
     """
     # 1. 绝对路径 + 递归穿透符号链接
     abs_path = os.path.abspath(path)
@@ -75,5 +75,8 @@ def resolve_safe_path(path) -> str:
     lower_name = file_name.lower()
     if any(kw in lower_name for kw in ('secret', 'token', 'password', 'credential', 'api_key', 'private_key')):
         raise SecurityException(f"路径文件名包含敏感关键词，严禁访问（完整路径：{real_path}）")
+
+    if type != "abs":
+        return real_path
 
     return abs_path

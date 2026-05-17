@@ -3,7 +3,6 @@
 .env.local
 .env.*.local
 TODO
-Sebastian/UnitTests
 
 # Python
 __pycache__/
