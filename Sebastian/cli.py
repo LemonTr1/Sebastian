@@ -7,7 +7,7 @@ os.environ['all_proxy'] = ''
 #将.env配置加载到环境变量中
 from dotenv import load_dotenv
 load_dotenv(override=True)
-from Agents import Brain_agent
+from src.Agents import Brain_agent
 import readline
 import typer
 import asyncio

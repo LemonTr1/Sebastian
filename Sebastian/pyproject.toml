@@ -5,9 +5,13 @@ requires-python = ">=3.10"
 dependencies = [
     "typer>=0.9",
     "chromadb",
+    "openai",
     "openai-agents",
     "sentence-transformers",
     "python-dotenv",
+    "docker",
+    "ddgs",
+    "kreuzberg",
 ]
 
 [project.scripts]

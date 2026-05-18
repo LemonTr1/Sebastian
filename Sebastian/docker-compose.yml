@@ -1,0 +1,12 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sebastian:local
+    container_name: sebastian-dev
+    volumes:
+      - .:/app
+    stdin_open: true
+    tty: true
+    command: python cli.py
