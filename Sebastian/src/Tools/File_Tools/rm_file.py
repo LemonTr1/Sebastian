@@ -3,8 +3,9 @@ import typer
 from agents import function_tool
 import os
 import json
-from src.Interfaces.Exception.SecurityException import SecurityException
-from src.Interfaces.SafePath import resolve_safe_path
+from pathlib import Path
+
+HOME = Path.home()
 
 @function_tool
 def rm(path: str, filename: str)->str:
@@ -21,12 +22,10 @@ def rm(path: str, filename: str)->str:
     """
     path = os.path.abspath(path)
     file_path = os.path.join(path, filename)
-    try:
-        file_path = resolve_safe_path(file_path)
-    except SecurityException as e:
+    if Path(file_path).is_relative_to(HOME):
         return json.dumps({
             "success": False,
-            "summary": str(e)
+            "summary": f"删除的目标文件必须在{str(HOME)}路径下"
         }, ensure_ascii=False, indent=2)
 
     confirmed = typer.confirm(typer.style(f"[Warn]确定要删除文件系统对象：{file_path}吗？", fg=typer.colors.YELLOW))

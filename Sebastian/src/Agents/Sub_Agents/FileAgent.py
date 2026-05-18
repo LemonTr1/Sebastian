@@ -65,11 +65,12 @@ file_agent = Agent[UserInfo](
         4. **结果反馈**：
            - 返回给上级Agent结果格式必须为JSON对象，并不要包含markdown代码块标记，包含以下字段，这些字段在工具的返回中也会出现：
             {
-              "success": 工具是否执行成功，成功为True，失败为False,
-              "tool_id": "File",
+              "success": 操作是否执行成功，成功为"True"，失败为"False",
+              "operator": "File",
+              "tool_name": [<完成指令调用的所有工具列表>],
               "summary": "<自然语言描述的操作摘要>",
               "data": {
-                // 具体操作的相关数据，必须为字符串类型的json
+                // 具体操作的相关数据
               },
               "need_confirmed": "需要用户确认为True,否则为False"
             }

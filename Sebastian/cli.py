@@ -7,7 +7,7 @@ os.environ['all_proxy'] = ''
 #将.env配置加载到环境变量中
 from dotenv import load_dotenv
 load_dotenv(override=True)
-from src.Agents import Brain_agent
+from src.Agents import BrainAgent
 import readline
 import typer
 import asyncio
@@ -21,7 +21,7 @@ def setup(version: bool = typer.Option(False, "--version", "-v", help="Show vers
         raise typer.Exit(code=0)
     else:
         try:
-            asyncio.run(Brain_agent.chat())
+            asyncio.run(BrainAgent.chat())
         except Exception as e:
             typer.echo(f"Error: {str(e)}", err=True)
             raise typer.Exit(code=1)

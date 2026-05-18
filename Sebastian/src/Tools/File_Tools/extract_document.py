@@ -4,7 +4,7 @@ from agents import function_tool
 import json
 
 from src.Interfaces.Exception import SecurityException
-from src.Interfaces.SafePath import resolve_safe_path
+from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
 
 @function_tool
 async def extract(file_path: str) -> str:

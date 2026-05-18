@@ -3,7 +3,7 @@ import typer
 import os
 import json
 from src.Interfaces.Exception.SecurityException import SecurityException
-from src.Interfaces.SafePath import resolve_safe_path
+from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
 
 @function_tool
 def read_file(path: str, filename: str)->str:

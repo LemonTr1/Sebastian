@@ -3,7 +3,7 @@ import json
 import typer
 import os
 from agents import function_tool
-from src.Interfaces.SafePath import resolve_safe_path
+from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
 from src.Interfaces.Exception.SecurityException import SecurityException
 
 @function_tool

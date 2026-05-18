@@ -4,7 +4,7 @@ import typer
 import os
 import asyncio
 import json
-from src.Interfaces.SafePath import resolve_safe_path
+from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
 from src.Interfaces.Exception.SecurityException import SecurityException
 
 #创建空docx文档

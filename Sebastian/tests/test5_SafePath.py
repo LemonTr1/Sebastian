@@ -1,4 +1,4 @@
-from src.Interfaces.SafePath import resolve_safe_path
+from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
 from pathlib import Path
 import os
 

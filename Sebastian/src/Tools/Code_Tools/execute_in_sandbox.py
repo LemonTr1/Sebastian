@@ -10,7 +10,7 @@ from agents import function_tool, Runner
 
 from src.Interfaces.Docker.ensure_docker import ensure_image
 from src.Interfaces.Exception.ImageNotFoundException import ImageNotFoundException
-from src.Interfaces.SafePath import resolve_safe_path
+from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
 from src.Interfaces.Exception.SecurityException import SecurityException
 from docker import from_env
 import os

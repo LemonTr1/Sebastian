@@ -5,7 +5,7 @@ import py7zr
 from pathlib import Path
 import typer
 from agents import function_tool
-from src.Interfaces.SafePath import resolve_safe_path
+from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
 from src.Interfaces.Exception.SecurityException import SecurityException
 
 #压缩

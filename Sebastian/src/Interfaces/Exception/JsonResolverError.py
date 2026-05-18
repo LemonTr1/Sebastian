@@ -1,0 +1,2 @@
+class JsonResolverError(Exception):
+    pass
