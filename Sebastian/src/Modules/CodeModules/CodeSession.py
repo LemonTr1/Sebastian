@@ -1,3 +1,9 @@
 from agents import SQLiteSession
 
-code_session = SQLiteSession("code_conversation")
+def _load_session():
+    return SQLiteSession("code_conversation")
+
+_SESSION = _load_session()
+
+def get_code_session():
+    return _SESSION

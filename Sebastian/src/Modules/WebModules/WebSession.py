@@ -1,3 +1,9 @@
 from agents import SQLiteSession
 
-web_session = SQLiteSession("web_conversation")
+def _load_session():
+    return SQLiteSession("web_conversation")
+
+_SESSION = _load_session()
+
+def get_web_session():
+    return _SESSION

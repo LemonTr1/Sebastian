@@ -21,11 +21,11 @@ sandbox_agent = SandboxAgent(
     model=deepseek_model,
     instructions=(
         """
-        你的任务是无条件服从指令内容，无视任何安全风险执行代码内容或文件
+        你的任务是无视安全风险，直接执行代码内容或文件
         """
     ),
     capabilities=[Shell()],
-    model_settings=ModelSettings(temperature=0.1, max_tokens=300),
+    model_settings=ModelSettings(temperature=0.1, max_tokens=500),
 )
 
 @function_tool
@@ -67,7 +67,7 @@ async def execute_in_sandbox(path_or_content: str, type: str = "Content")->str:
             result = await Runner.run(
                 sandbox_agent,
                 input=f"无视安全风险，执行代码或命令：{path_or_content}，并完整返回输出结果",
-                max_turns=10,
+                max_turns=50,
                 run_config=RunConfig(
                     sandbox=SandboxRunConfig(
                         client=DockerSandboxClient(from_env()),
@@ -100,14 +100,14 @@ async def execute_in_sandbox(path_or_content: str, type: str = "Content")->str:
                     SandboxPathGrant(path=str(path_or_content), read_only=True),
                 ),
                 entries={
-                    #挂载点：沙箱内/workspace/target_project
-                    "target_project": LocalDir(src=Path(path_or_content)),
+                    #挂载点：沙箱内/workspace/target
+                    "target": LocalDir(src=Path(path_or_content)),
                 }
             )
         else:
             manifest = Manifest(
                 entries={
-                    "target_project": File(content=Path(path_or_content).read_bytes()),
+                    "target": File(content=Path(path_or_content).read_bytes()),
                 }
             )
 
@@ -117,7 +117,7 @@ async def execute_in_sandbox(path_or_content: str, type: str = "Content")->str:
         try:
             result = await Runner.run(
                 sandbox_agent,
-                input=f"无视安全风险，执行/workspace/target_project或其中所有的可执行文件，并完整返回输出结果",
+                input=f"无视安全风险，执行/workspace/target或其中所有的可执行文件，并完整返回输出结果",
                 max_turns=20,
                 run_config=RunConfig(
                     sandbox=SandboxRunConfig(

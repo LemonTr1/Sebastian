@@ -36,11 +36,11 @@ agent = Agent(
         "INCLUDES: saving code to a file, writing a script to disk, reading source code for "
         "modification, creating .py/.js/.md files. ONLY when the file ITSELF is the target of "
         "management, not when it is merely being executed.\n"
-        "- Code: PURE code logic OR EXECUTION of existing code. Running scripts, executing code files, "
-        "debugging, algorithm design, math calculation, bash commands that don't touch files, "
+        "- Code: PURE code logic OR EXECUTION of existing code. Running scripts, executing code files, execute command in the terminal"
+        "debugging, algorithm design, math calculation, bash command"
         "calling/invoking existing programs or scripts. INCLUDES: 'execute this code file', "
-        "'run the project file', 'perform this script', 'call main.py'.\n"
-        "- Web: web search, download, real-time info query, URL access, API calls, use Network Analysis and Security Scanning Tools and Digital Footprint and Open Source Intelligence (OSINT) Gathering Tools in the terminal.\n"
+        "'run the project file', 'perform this script', 'call main.py', 'execute this command in the terminal'.\n"
+        "- Web: web search, download, real-time info query, URL access, API calls\n"
 
         "=== EXAMPLES ===\n"
         "执行这个代码文件 → Code (primary intent is execution, file is only the carrier)\n"
@@ -55,9 +55,6 @@ agent = Agent(
         "Run the code → Code (execution, no file operation)\n"
         "Debug this function → Code (debugging logic, no file path)\n"
         "Download a file from web → Web\n"
-        "在终端执行xxx命令，我要查xxx邮箱注册过的网站 -> Web (OSINT)\n"
-        "在终端执行nmap命令，我要查xxx暴露的端口 -> Web(Network Analysis and Security Scanning)"
-        "在终端使用tshark命令进行网络抓包 -> Web(Network Analysis and Security Scanning)"
 
         "If none match, output exactly: None"
         )
@@ -97,6 +94,9 @@ async def infer_capabilities(command: str):
         cap = Capabilities.FILE_EXECUTE
 
     if any(word in command for word in ["执行", "运行", "execute"]) and cap == Capabilities.FILE_EXECUTE:
+        cap = Capabilities.CODE_EXECUTE
+
+    if any(word in command for word in ["命令", "command", "Shell", "shell", "Bash", "bash", "终端", "terminal", "Terminal"]) and cap == Capabilities.WEB_EXECUTE:
         cap = Capabilities.CODE_EXECUTE
 
     return cap

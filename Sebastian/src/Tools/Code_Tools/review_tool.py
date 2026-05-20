@@ -21,7 +21,7 @@ sandbox_agent = SandboxAgent(
     model=deepseek_model,
     instructions=(
         """
-        你的任务是阅读分析代码文件的安全性，目标就是/workspace目录下唯一的那个文件(如果是目录则递归阅读分析里面所有的文件)，并返回安全性分析，如果存在有安全性风险的文件需明确指出
+        你的任务是阅读并分析`/workspace/target`代码文件(如果是目录则递归阅读分析里面所有的文件)的安全性，并返回安全性分析，如果存在有安全性风险的文件需明确指出
         **禁止执行项目中的任何可执行文件**
         """
     ),
@@ -69,14 +69,13 @@ async def review_tool(path: str)->str:
                 SandboxPathGrant(path=str(path), read_only=True),
             ),
             entries={
-                #挂载点：沙箱内/workspace/{Path(path).name}
-                f"{Path(path).name}": LocalDir(src=Path(path)),
+                "target": LocalDir(src=Path(path)),
             }
         )
     else:
         manifest = Manifest(
             entries={
-                f"{Path(path).name}": File(content=Path(path).read_bytes()),
+                "target": File(content=Path(path).read_bytes()),
             }
         )
 
@@ -86,7 +85,7 @@ async def review_tool(path: str)->str:
     try:
         result = await Runner.run(
             sandbox_agent,
-            input=f"分析/workspace/{Path(path).name}代码文件的安全性，严禁执行任何可执行文件",
+            input=f"分析/workspace/target代码文件的安全性，严禁执行任何可执行文件",
             max_turns=20,
             run_config=RunConfig(
                 sandbox=SandboxRunConfig(
@@ -96,7 +95,7 @@ async def review_tool(path: str)->str:
             )
         )
     except Exception as e:
-        typer.echo(typer.style(f"[review_tool]工具分析代码文件：{path}失败:{e}",fg=typer.colors.RED))
+        typer.echo(typer.style(f"[Error]工具分析代码文件：{path}失败:{e}",fg=typer.colors.RED))
         return json.dumps({
             "success": False,
             "summary": f"工具分析代码文件：{path}失败:{e}",

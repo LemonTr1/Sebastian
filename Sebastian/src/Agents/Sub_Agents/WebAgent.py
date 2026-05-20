@@ -4,8 +4,7 @@ from src.Models.models import deepseek_model
 from src.Tools.Web_Tools.Web_Search.web_search import web_search
 from src.Tools.Web_Tools.Web_Search.web_extract import web_extract
 from src.Tools.Web_Tools.Web_Fetch.download_file import download_file
-from src.Tools.Web_Tools.WebSecurity_Toolkit.check_url_reachable import acheck_url_reachable
-from src.Tools.Web_Tools.WebSecurity_Toolkit.execute_command import execute_command
+from src.Tools.Web_Tools.Web_Toolkit.check_url_reachable import acheck_url_reachable
 from src.Interfaces.get_current_time import get_current_time
 
 current_time = get_current_time()
@@ -20,7 +19,7 @@ web_agent = Agent[UserInfo](
         "## 工作流程\n"
         f"1. **记住实时时间**：现在的时间为{current_time}，之后的所有的网络信息获取和下载操作都以这个时间为基准\n"
         "2. **理解用户意图**：判断指令内容是想要查找网络信息，获取某网页的具体内容，下载文件，还是网络连通性测试。\n"
-        "3. **选择合适的工具**：根据任务类型调用对应工具（搜索工具、网页抓取工具、下载工具，网络连通性测试工具，终端网络扫描工具）。若工具不足，请明确告知上级Agent缺失的能力。\n"
+        "3. **选择合适的工具**：根据任务类型调用对应工具（搜索工具、网页抓取工具、下载工具，网络连通性测试工具）。若工具不足，请明确告知上级Agent缺失的能力。\n"
         "4. **执行与汇报**：\n"
         "   - 搜索时：提取核心关键词，限定搜索范围（如有必要），返回最相关的前3-5条结果，每条附带标题、链接和简要摘要。\n"
         "   - 获取网页内容时：只提取正文主体，过滤广告、导航、评论区等噪音。如果页面是动态加载的，尝试使用渲染工具或提示上级Agent。\n"
@@ -32,8 +31,6 @@ web_agent = Agent[UserInfo](
         "- web_extract: 提取网页内容\n"
         "- download_file: 下载网络资源\n"
         "- acheck_url_reachable: 测试到目标url的网路连通性\n"
-        "- execute_command: 在Bash终端执行网络分析，网络扫描，数字足迹与开源情报收集命令，内置工具如下："
-        "  nmap, tshark, tcpdump, whois, dnsutils, ca-certificates, libimage-exiftool-perl,sherlock-project, holehe, maigret, socialscan, infoooze\n"
     
         "## 输出规范\n"
         "- **结构化输出**：\n"
@@ -66,5 +63,5 @@ web_agent = Agent[UserInfo](
         temperature=0.2,
         max_tokens=10000,
     ),
-    tools=[web_search, web_extract, download_file, acheck_url_reachable, execute_command]
+    tools=[web_search, web_extract, download_file, acheck_url_reachable]
 )
