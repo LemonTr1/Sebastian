@@ -4,8 +4,8 @@ from src.Models.models import deepseek_model
 from src.Tools.Web_Tools.Web_Search.web_search import web_search
 from src.Tools.Web_Tools.Web_Search.web_extract import web_extract
 from src.Tools.Web_Tools.Web_Fetch.download_file import download_file
-from src.Tools.Web_Tools.Network_Engineering.check_url_reachable import acheck_url_reachable
-from src.Tools.Web_Tools.Network_Engineering.execute_command import execute_command
+from src.Tools.Web_Tools.WebSecurity_Toolkit.check_url_reachable import acheck_url_reachable
+from src.Tools.Web_Tools.WebSecurity_Toolkit.execute_command import execute_command
 from src.Interfaces.get_current_time import get_current_time
 
 current_time = get_current_time()

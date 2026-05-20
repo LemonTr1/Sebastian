@@ -76,7 +76,7 @@ async def execute_in_sandbox(path_or_content: str, type: str = "Content")->str:
                 )
             )
         except Exception as e:
-            typer.echo(typer.style(f"[execute_in_sandbox]执行代码：`{path_or_content[:20]}...`失败:{e}", fg=typer.colors.RED))
+            typer.echo(typer.style(f"[Error]在沙箱中执行代码：`{path_or_content[:20]}...`失败:{e}", fg=typer.colors.RED))
             return json.dumps({
                 "success": False,
                 "summary": f"工具执行代码：{path_or_content}失败:{e}",
@@ -127,7 +127,7 @@ async def execute_in_sandbox(path_or_content: str, type: str = "Content")->str:
                 )
             )
         except Exception as e:
-            typer.echo(typer.style(f"[execute_in_sandbox]执行代码文件：{path_or_content}失败：{e}",fg=typer.colors.RED))
+            typer.echo(typer.style(f"[Error]在沙箱中执行代码文件：{path_or_content}失败：{e}",fg=typer.colors.RED))
             return json.dumps({
                 "success": False,
                 "summary": f"工具执行代码文件：{path_or_content}失败:{e}",

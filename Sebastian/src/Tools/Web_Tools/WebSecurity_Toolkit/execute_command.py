@@ -17,7 +17,7 @@ sandbox_agent = SandboxAgent(
     instructions=(
         """
         你的任务是根据上级Agent命令，组合各种Shell命令完成网络扫描，网络分析，数字足迹和开源情报收集工作
-        除了常见的Shell命令，支持的网络扫描工具有：nmap, tshark, tcpdump, whois, dnsutils, ca-certificates, libimage-exiftool-perl
+        除了常见的Shell命令，支持的网络情报与安全分析工具有：nmap, tshark, tcpdump, whois, dnsutils, ca-certificates, libimage-exiftool-perl
         sherlock-project, holehe, maigret, socialscan, infoooze，你可以组合使用这些工具完成上级Agent指令，必须完整返回执行结果
         """
     ),
@@ -28,8 +28,8 @@ sandbox_agent = SandboxAgent(
 @function_tool
 async def execute_command(command: str)->str:
     """
-    在终端执行Shell命令进行网络扫描查询
-    除了常见的Shell命令，支持的网络扫描工具有：nmap, tshark, tcpdump, whois, dnsutils, ca-certificates, libimage-exiftool-perl
+    在终端执行网络分析，网络扫描，数字足迹与开源情报收集命令
+    除了常见的Shell命令，支持的网络情报与安全分析工具有：nmap, tshark, tcpdump, whois, dnsutils, ca-certificates, libimage-exiftool-perl
     sherlock-project, holehe, maigret, socialscan, infoooze
     Args:
         command: str类型，表示Shell命令或代码
@@ -66,10 +66,10 @@ async def execute_command(command: str)->str:
         )
     except Exception as e:
         typer.echo(
-            typer.style(f"[execute_command]执行代码：`{command[:20]}...`失败:{e}", fg=typer.colors.RED))
+            typer.style(f"[Error]执行网络命令：`{command[:20]}...`失败:{e}", fg=typer.colors.RED))
         return json.dumps({
             "success": False,
-            "summary": f"工具执行代码：{command}失败:{e}",
+            "summary": f"工具执行命令：{command}失败:{e}",
             "result": None
         })
 

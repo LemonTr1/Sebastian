@@ -57,6 +57,7 @@ agent = Agent(
         "Download a file from web → Web\n"
         "在终端执行xxx命令，我要查xxx邮箱注册过的网站 -> Web (OSINT)\n"
         "在终端执行nmap命令，我要查xxx暴露的端口 -> Web(Network Analysis and Security Scanning)"
+        "在终端使用tshark命令进行网络抓包 -> Web(Network Analysis and Security Scanning)"
 
         "If none match, output exactly: None"
         )
