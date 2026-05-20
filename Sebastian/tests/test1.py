@@ -1,4 +1,4 @@
-from src.Interfaces.Docker.ensure_docker import ensure_image
+from src.Interfaces.Docker.EnsureDocker import ensure_image
 from src.Interfaces.Exception.ImageNotFoundException import ImageNotFoundException
 
 

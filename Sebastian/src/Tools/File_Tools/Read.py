@@ -6,7 +6,7 @@ from src.Interfaces.Exception.SecurityException import SecurityException
 from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
 
 @function_tool
-def read_file(path: str, filename: str)->str:
+async def read_file(path: str, filename: str)->str:
     """
     读取并以字符串形式返回目标文件内的文本内容(读取.docx或.pdf类型文件内容必须使用extract_document工具)
     Args:

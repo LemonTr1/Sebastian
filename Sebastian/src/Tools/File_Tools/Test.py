@@ -5,7 +5,7 @@ import json
 
 #判断是否存在目标文件/目录
 @function_tool
-def which(path: str)->str:
+async def which(path: str)->str:
     """
     判断目标文件/目录的路径是否存在
     Args:
@@ -18,7 +18,7 @@ def which(path: str)->str:
         }
     """
     path = os.path.abspath(path)
-    typer.echo(typer.style(f"[执行中]正在执行：which {path}", fg=typer.colors.WHITE))
+    typer.echo(typer.style(f"[执行中]正在执行：test {path}", fg=typer.colors.WHITE))
     if os.path.exists(path):
         return json.dumps({
             "exist": True,

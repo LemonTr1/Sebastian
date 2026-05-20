@@ -14,8 +14,7 @@ from agents.sandbox import SandboxAgent, Manifest, SandboxRunConfig, SandboxPath
 from agents.sandbox.capabilities import Shell
 from docker import from_env
 
-WORKSPACE = Path.home() / "桌面" / "exec"
-
+WORKSPACE = Path.home() / "桌面" / "test"
 async def main() -> None:
     user_session = SQLiteSession("user_id_1")
     manifest = Manifest(
@@ -38,14 +37,13 @@ async def main() -> None:
         name="Sandbox",
         model=deepseek_model,
         instructions="根据指令做出操作，并详细说明你具体做的每一步操作",
-        default_manifest=manifest,
         capabilities=[Shell()],
         model_settings=ModelSettings(temperature=0.1, max_tokens=1000),
     )
 
     client = DockerSandboxClient(from_env())
 
-    session = await client.create(manifest=manifest, options=DockerSandboxClientOptions(image="python:3.14-slim"))
+    session = await client.create(manifest=manifest, options=DockerSandboxClientOptions(image="sebastian:local"))
     while True:
         question = input("请输入：")
 

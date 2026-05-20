@@ -1,7 +1,7 @@
 import typer
 from agents import function_tool
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from src.Interfaces.check_url import is_public_url
+from src.Interfaces.CheckUrlSafety import is_public_url
 from ddgs import DDGS
 import json
 
@@ -20,7 +20,7 @@ def ddgs_extract(url: str)->dict:
         return {"success": False, "content": f"出现错误：{e}"}
 
 @function_tool
-def web_extract(url: str, timeout: int = 20)->str:
+async def web_extract(url: str, timeout: int = 20)->str:
     """
     网页内容提取
     Args:

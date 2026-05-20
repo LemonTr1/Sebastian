@@ -1,6 +1,6 @@
 from src.Agents.Sub_Agents.WebAgent import web_agent
 from src.Interfaces.Capabilities.BrainCapabilities.CapabilityGuard import CapabilityGuard
-from src.Interfaces.Capabilities.BrainCapabilities.Infer_Capabilities import infer_capabilities
+from src.Interfaces.Capabilities.BrainCapabilities.InferCapabilities import infer_capabilities
 from src.Interfaces.Exception.SecurityException import SecurityException
 import typer
 import json

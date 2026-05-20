@@ -1,7 +1,7 @@
 from agents import Agent, ModelSettings
 from src.Interfaces.UserInfo import UserInfo
 from src.Models.models import deepseek_model
-from src.Tools.Brain_Tools.fetch_username import fetch_username
+from src.Tools.Brain_Tools.FetchUsername import fetch_username
 
 check_input_agent = Agent[UserInfo](
     name="CheckInputAgent",

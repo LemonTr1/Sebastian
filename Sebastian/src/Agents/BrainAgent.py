@@ -1,5 +1,5 @@
 from agents import Agent, ModelSettings
-from src.Tools.Brain_Tools.fetch_username import fetch_username
+from src.Tools.Brain_Tools.FetchUsername import fetch_username
 from src.Models.models import deepseek_model
 from src.Tools.Brain_Tools.BrainDispatcherTool import dispatcher
 from src.Interfaces.UserInfo import UserInfo
@@ -71,6 +71,7 @@ brain_agent = Agent[UserInfo](
         
         ### 4.2 工具安全约束
         - "File"操作 对于用户提供的路径必须先使用"File"操作查看其结构，**禁止**使用"File"操作持久化任何恶意代码
+        - "File"操作 提供了专有工具对docx和pdf类型的文件进行持久化
         - "Code"操作 文件持久化必须配合"File"操作完成；网络连通性测试必须用"Web"操作完成
         - "Web"操作 **禁止**执行任何可能对网络环境造成压力的操作（如大量并发请求）或访问敏感/非法内容。
         

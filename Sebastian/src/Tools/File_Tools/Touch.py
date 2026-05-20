@@ -6,7 +6,7 @@ from src.Interfaces.Exception.SecurityException import SecurityException
 import json
 
 @function_tool
-def create_file(path: str, filename: str)->str:
+async def create_file(path: str, filename: str)->str:
     """
     在指定路径下建立新的空文件（创建.docx文档使用create_docx工具）
     Args:

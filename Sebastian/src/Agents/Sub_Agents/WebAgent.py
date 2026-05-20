@@ -1,11 +1,11 @@
 from agents import Agent, ModelSettings
 from src.Interfaces.UserInfo import UserInfo
 from src.Models.models import deepseek_model
-from src.Tools.Web_Tools.Web_Search.web_search import web_search
-from src.Tools.Web_Tools.Web_Search.web_extract import web_extract
-from src.Tools.Web_Tools.Web_Fetch.download_file import download_file
-from src.Tools.Web_Tools.Web_Toolkit.check_url_reachable import acheck_url_reachable
-from src.Interfaces.get_current_time import get_current_time
+from src.Tools.Web_Tools.Web_Search.WebSearch import web_search
+from src.Tools.Web_Tools.Web_Search.WebPageExtract import web_extract
+from src.Tools.Web_Tools.Web_Fetch.Download import download_file
+from src.Tools.Web_Tools.Web_Toolkit.Ping import acheck_url_reachable
+from src.Interfaces.GetDatetime import get_current_time
 
 current_time = get_current_time()
 

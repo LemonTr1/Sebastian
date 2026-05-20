@@ -4,7 +4,7 @@ import typer
 import json
 
 @function_tool
-def ls(path:str):
+async def ls(path:str):
     """
     列出path路径下所有的文件和目录
     Args:
@@ -18,7 +18,7 @@ def ls(path:str):
         }
     """
     path = os.path.abspath(path)
-    typer.echo(typer.style(f"[执行中]正在执行ls {path}", fg=typer.colors.WHITE))
+    typer.echo(typer.style(f"[执行中]正在执行ls -al {path}", fg=typer.colors.WHITE))
     if not os.path.isdir(path):
         #如果路径不存在或指向文件
         return json.dumps({

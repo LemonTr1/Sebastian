@@ -10,7 +10,7 @@ def ddgs_search(word: str, max_results: int):
         return list(ddgs.text(word, max_results=max_results))
 
 @function_tool
-def web_search(word: str, max_results: int = 10, timeout: int = 20) -> str:
+async def web_search(word: str, max_results: int = 10, timeout: int = 20) -> str:
     """
     网络信息搜索工具
     Args:

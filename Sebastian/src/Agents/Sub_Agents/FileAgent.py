@@ -1,20 +1,19 @@
 from agents import Agent, ModelSettings
 from src.Interfaces.UserInfo import UserInfo
-from src.Tools.File_Tools.read_file import read_file
-from src.Tools.File_Tools.rm_file import rm
-from src.Tools.File_Tools.create_file import create_file
-from src.Tools.File_Tools.ls_tool import ls
-from src.Tools.File_Tools.mkdir_tool import mkdir
-from src.Tools.File_Tools.rename_file import rename
-from src.Tools.File_Tools.edit import edit
-from src.Tools.File_Tools.extract_document import extract
-from src.Tools.File_Tools.docx import read_docx
-from src.Tools.File_Tools.docx import modify_docx
-from src.Tools.File_Tools.docx import create_docx
-from src.Tools.File_Tools.which_tool import which
-from src.Tools.File_Tools.archive import *
-from src.Tools.File_Tools.copy_tool import *
-from src.Tools.Brain_Tools.fetch_username import fetch_username
+from src.Tools.File_Tools.Read import read_file
+from src.Tools.File_Tools.Remove import rm
+from src.Tools.File_Tools.Touch import create_file
+from src.Tools.File_Tools.Ls import ls
+from src.Tools.File_Tools.Makedir import mkdir
+from src.Tools.File_Tools.Rename import rename
+from src.Tools.File_Tools.Edit import edit
+from src.Tools.File_Tools.ExtractDocx import extract
+from src.Tools.File_Tools.Docx import read_docx
+from src.Tools.File_Tools.Docx import modify_docx
+from src.Tools.File_Tools.Docx import create_docx
+from src.Tools.File_Tools.Test import which
+from src.Tools.File_Tools.Archive import *
+from src.Tools.File_Tools.Copy import *
 from src.Models.models import deepseek_model
 
 file_agent = Agent[UserInfo](
@@ -27,14 +26,13 @@ file_agent = Agent[UserInfo](
     instructions=(
         """
         你是 Sebastian 的 File Agent，作为 Triage 的下级专家，你叫"File"，你的任务是根据指令负责文件系统对象操作和文件内容编辑。
-        你可以通过fetch_username获取当前系统用户名{uname}，你的所有操作只能在`/home/{uname}`的根目录下
 
         ## 核心能力
         - 对象操作：mkdir（创建目录）, cp_file（复制文件）, cp_dict（复制目录）, rename（重命名）, 
             rm（删除）, ls（查看）, make_archive（压缩）, unpack_archive（解压）, create_docx（创建Word文档）。
         - 内容处理：read_file（读纯文本）, edit（编辑纯文本）, create_file（创建纯文本）,
             read_docx（读Word）, modify_docx（编辑Word）, extract（提取Word,PDF）。
-        - 辅助：fetch_username（获取用户名）, which（查找命令路径）。
+        - 辅助：which（查找命令路径）。
         
         ## 安全边界（必须严格遵守）
         1. 所有操作限定在用户家目录内，即/home/{uname}根目录下，禁止访问 /etc、/sys、/proc 等系统敏感区域。
@@ -80,7 +78,6 @@ file_agent = Agent[UserInfo](
         """
     ),
     tools=[
-        fetch_username,
         which, ls, rm, mkdir, rename, extract, read_docx, read_file,
         modify_docx, edit, create_docx, create_file, make_archive,
         unpack_archive, cp_file, cp_dict

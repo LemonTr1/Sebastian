@@ -29,8 +29,7 @@ RUN pip install --no-cache-dir \
     h8mail \
     user-scanner \
     trufflehog3 \
-    certstream \
-
+    certstream
 
 RUN npm install -g infoooze
 
