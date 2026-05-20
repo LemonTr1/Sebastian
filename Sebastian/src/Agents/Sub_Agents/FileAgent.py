@@ -1,6 +1,4 @@
 from agents import Agent, ModelSettings
-from src.Interfaces.Capabilities.BrainCapabilities.CapabilityGuard import CapabilityGuard
-from src.Interfaces.Capabilities.BrainCapabilities.Infer_Capabilities import infer_capabilities
 from src.Interfaces.UserInfo import UserInfo
 from src.Tools.File_Tools.read_file import read_file
 from src.Tools.File_Tools.rm_file import rm
@@ -18,7 +16,6 @@ from src.Tools.File_Tools.archive import *
 from src.Tools.File_Tools.copy_tool import *
 from src.Tools.Brain_Tools.fetch_username import fetch_username
 from src.Models.models import deepseek_model
-import typer
 
 file_agent = Agent[UserInfo](
     name = "File_Agent",
@@ -90,40 +87,3 @@ file_agent = Agent[UserInfo](
     ]
 )
 
-async def file_agent_tool(command: str)->str:
-    try:
-        required_caps = await infer_capabilities(command)
-        return await CapabilityGuard.run(file_agent, "File_Agent", command, required_caps, 20)
-    except SecurityException as e:
-        typer.echo(typer.style(f"安全警告：{e}", fg=typer.colors.RED))
-        return json.dumps(
-            {
-                "success": False,
-                "tool_id": "File",
-                "summary": f"安全警告：{e}",
-                "data": None,
-                "need_confirmed": False
-            }, ensure_ascii=False, indent=2
-        )
-    except PermissionError as e:
-        typer.echo(typer.style(f"权限错误：{e}", fg=typer.colors.RED))
-        return json.dumps(
-            {
-                "success": False,
-                "tool_id": "File",
-                "summary": f"权限错误：{e}",
-                "data": None,
-                "need_confirmed": False
-            }, ensure_ascii=False, indent=2
-        )
-    except Exception as e:
-        typer.echo(typer.style(f"Ops！File Agent 出现故障了：{e}", fg=typer.colors.RED))
-        return json.dumps(
-            {
-                "success": False,
-                "tool_id": "File",
-                "summary": f"Ops！File Agent 出现故障了：{e}",
-                "data": None,
-                "need_confirmed": False
-            }, ensure_ascii=False, indent=2
-        )

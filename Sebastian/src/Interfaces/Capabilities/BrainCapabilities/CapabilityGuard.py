@@ -1,5 +1,8 @@
 from agents import Agent, Runner
 from src.Interfaces.Capabilities.BrainCapabilities.Capabilities import Capabilities, AGENT_CAPABILITIES
+from src.Modules.CodeModules.CodeSession import code_session
+from src.Modules.FileModules.FileSession import file_session
+from src.Modules.WebModules.WebSession import web_session
 
 class CapabilityGuard:
     #权限检查
@@ -21,5 +24,11 @@ class CapabilityGuard:
             max_turns: int = 20
     )->str:
         CapabilityGuard.check(agent_name, required_caps)
-        result = await Runner.run(agent, input=task, max_turns=max_turns)
+        if agent_name == "Code_Agent":
+            session = code_session
+        elif agent_name == "Web_Agent":
+            session = web_session
+        elif agent_name == "File_Agent":
+            session = file_session
+        result = await Runner.run(agent, input=task, max_turns=max_turns, session=session)
         return result.final_output

@@ -12,6 +12,7 @@ dependencies = [
     "docker",
     "ddgs",
     "kreuzberg",
+    "pydantic"
 ]
 
 [project.scripts]

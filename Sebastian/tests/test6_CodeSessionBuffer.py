@@ -1,5 +1,5 @@
-import src.Modules.CodeModules.CodeSessionBuffer
-from src.Modules.CodeModules.CodeSessionBuffer import code_session_buffer
+import src.Modules.CodeModules.CodeSession
+from src.Modules.CodeModules.CodeSession import code_session_buffer
 
 def main():
     for i in range(5):

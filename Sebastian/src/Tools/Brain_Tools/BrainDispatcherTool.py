@@ -1,8 +1,8 @@
 from agents import function_tool
 from typing import Literal
-from src.Agents.Sub_Agents.CodeAgent import code_agent_tool
-from src.Agents.Sub_Agents.WebAgent import web_agent_tool
-from src.Agents.Sub_Agents.FileAgent import file_agent_tool
+from src.Modules.CodeModules.CodeAgentRunner import code_agent_tool
+from src.Modules.WebModules.WebAgentRunner import web_agent_tool
+from src.Modules.FileModules.FileAgentRunner import file_agent_tool
 import json
 
 @function_tool

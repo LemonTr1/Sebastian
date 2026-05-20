@@ -1,9 +1,4 @@
-import typer
 from agents import Agent, ModelSettings
-import json
-from src.Interfaces.Capabilities.BrainCapabilities.CapabilityGuard import CapabilityGuard
-from src.Interfaces.Capabilities.BrainCapabilities.Infer_Capabilities import infer_capabilities
-from src.Interfaces.Exception.SecurityException import SecurityException
 from src.Interfaces.UserInfo import UserInfo
 from src.Tools.Code_Tools.execute_in_sandbox import execute_in_sandbox
 from src.Tools.Code_Tools.review_tool import review_tool
@@ -41,7 +36,7 @@ code_agent = Agent[UserInfo](
         ## 3. 工作流
         1. 收到指令后，先判断是否属于你职责范围。若越界或你的工具集无法完成指令则以"Code"的身份告知无法完成本次操作。
         2. 对于执行代码类任务，先**自己审核代码内容，如果是代码文件则调用工具review_tool检查代码**，并给出风险评估返回给上级Agent。
-        3. 如果是高危操作（执行恶意代码），必须**明确要求上级Agent确认**，收到同意后则直接使用execute_in_sandbox执行。
+        3. 如果是高危操作（执行恶意代码），必须**明确要求上级Agent确认**，收到同意后则跳过review_tool并直接使用execute_in_sandbox执行。
         4. 执行后返回结果进行摘要：
            - 成功：提取关键输出（如代码运行结果，计算结果），用简洁文本呈现，**丢弃无用日志**
            - 失败：解释原因，并给出**自然语言形式的修复建议**
@@ -81,41 +76,3 @@ code_agent = Agent[UserInfo](
         execute_in_sandbox, review_tool
     ]
 )
-
-async def code_agent_tool(command: str)->str:
-    try:
-        required_caps = await infer_capabilities(command)
-        return await CapabilityGuard.run(code_agent, "Code_Agent", command, required_caps, 20)
-    except SecurityException as e:
-        typer.echo(typer.style(f"安全警告：{e}", fg=typer.colors.RED))
-        return json.dumps(
-            {
-                "success": False,
-                "tool_id": "Code",
-                "summary": f"安全警告：{e}",
-                "data": None,
-                "need_confirmed": False
-            }, ensure_ascii=False, indent=2
-        )
-    except PermissionError as e:
-        typer.echo(typer.style(f"权限错误：{e}", fg=typer.colors.RED))
-        return json.dumps(
-            {
-                "success": False,
-                "tool_id": "Code",
-                "summary": f"权限错误：{e}",
-                "data": None,
-                "need_confirmed": False
-            }, ensure_ascii=False, indent=2
-        )
-    except Exception as e:
-        typer.echo(typer.style(f"Ops！Code Agent 出现故障了：{e}", fg=typer.colors.RED))
-        return json.dumps(
-            {
-                "success": False,
-                "tool_id": "Code",
-                "summary": f"Ops！Code Agent 出现故障了：{e}",
-                "data": None,
-                "need_confirmed": False
-            }, ensure_ascii=False, indent=2
-        )

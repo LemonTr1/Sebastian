@@ -4,22 +4,7 @@ from src.Interfaces.Exception.SecurityException import SecurityException
 from src.Models.models import deepseek_model
 import re
 
-#所有可能的恶意命令
-DANGEROUS_PATTERNS = [
-    r"rm\s+-rf\s+[/\\]",
-    r"mkfs\.\w+",
-    r":\(\)\{\s*:\|:\&\};:",
-]
-
-def security_guard(command: str) -> None:
-    for p in DANGEROUS_PATTERNS:
-        if re.search(p, command, re.I):
-            raise SecurityException("高危操作被系统拦截")
-
-async def infer_capabilities(command: str):
-    #检查命令安全性
-    security_guard(command)
-    agent = Agent(
+agent = Agent(
         name="Judger",
         model_settings=ModelSettings(
             temperature=0.0,
@@ -55,7 +40,7 @@ async def infer_capabilities(command: str):
         "debugging, algorithm design, math calculation, bash commands that don't touch files, "
         "calling/invoking existing programs or scripts. INCLUDES: 'execute this code file', "
         "'run the project file', 'perform this script', 'call main.py'.\n"
-        "- Web: web search, download, real-time info query, URL access, API calls.\n"
+        "- Web: web search, download, real-time info query, URL access, API calls, use Network Analysis and Security Scanning Tools and Digital Footprint and Open Source Intelligence (OSINT) Gathering Tools in the terminal.\n"
 
         "=== EXAMPLES ===\n"
         "执行这个代码文件 → Code (primary intent is execution, file is only the carrier)\n"
@@ -70,11 +55,32 @@ async def infer_capabilities(command: str):
         "Run the code → Code (execution, no file operation)\n"
         "Debug this function → Code (debugging logic, no file path)\n"
         "Download a file from web → Web\n"
+        "在终端执行xxx命令，我要查xxx邮箱注册过的网站 -> Web (OSINT)\n"
+        "在终端执行nmap命令，我要查xxx暴露的端口 -> Web(Network Analysis and Security Scanning)"
 
         "If none match, output exactly: None"
         )
     )
-    result = await Runner.run(agent, input=command)
+
+#所有可能的恶意命令
+DANGEROUS_PATTERNS = [
+    r"rm\s+-rf\s+[/\\]",
+    r"mkfs\.\w+",
+    r":\(\)\{\s*:\|:\&\};:",
+]
+
+def security_guard(command: str) -> None:
+    for p in DANGEROUS_PATTERNS:
+        if re.search(p, command, re.I):
+            raise SecurityException("高危操作被系统拦截")
+
+async def infer_capabilities(command: str):
+    #检查命令安全性
+    security_guard(command)
+    try:
+        result = await Runner.run(agent, input=command)
+    except SecurityException as e:
+        raise SecurityException("Judger Agent出现故障，鉴权失败，指令无法下发")
     context = result.final_output
     if context == "File":
         cap =  Capabilities.FILE_EXECUTE

@@ -1,12 +1,8 @@
-from agents import Runner, Agent, ModelSettings, SQLiteSession
-from openai.types.responses import ResponseTextDeltaEvent
-import os
+from agents import Agent, ModelSettings
 from src.Tools.Brain_Tools.fetch_username import fetch_username
 from src.Models.models import deepseek_model
 from src.Tools.Brain_Tools.BrainDispatcherTool import dispatcher
 from src.Interfaces.UserInfo import UserInfo
-import typer
-from src.Interfaces.Exception.SecurityException import SecurityException
 
 brain_agent = Agent[UserInfo](
     name="Triage",
@@ -25,7 +21,7 @@ brain_agent = Agent[UserInfo](
         ### 2.1 你可以调用工具dispatcher,它会根据你的指示将任务分配到合适的路由,但你必须给出操作类型并按照下列要求一一对应：
         - **编写代码/代码运行/数学计算/Bash命令** → dispatcher的type参数必须为"Code"，表示"Code"操作
         - **文件系统操作**（查看/创建/删除/移动/重命名/复制/查找/压缩解压）及**文件内容读写** → dispatcher的type参数必须为"File"，表示"File"操作
-        - **实时信息搜索/网页抓取/网络资源下载/公网查询/时间查询/网络连通性测试** → dispatcher的type参数必须为"Web"，表示"Web"操作
+        - **网络实时信息搜索/网页抓取/网络资源下载/公网查询/时间查询/网络连通性测试/网络信息工程（网络扫描，网络分析，网络数字足迹和开源情报收集）** → dispatcher的type参数必须为"Web"，表示"Web"操作
         - **纯闲聊/打招呼/无实质操作意图** → 直接回复，**禁止调用dispatcher**。
         
         ### 2.2 工具参数解释
@@ -94,33 +90,3 @@ brain_agent = Agent[UserInfo](
         dispatcher
     ]
 )
-
-def sanitize_input(command: str) -> str:
-    if "忽略之前的指令" in command or "ignore previous" in command:
-        raise SecurityException("检测到提示词注入尝试")
-    return command.strip()
-
-async def chat():
-    uname = os.getlogin()
-    typer.echo(typer.style(f"Welcome {uname}！I'm Sebastian.What can I do for you? [Press 'quit' to exit]", fg=typer.colors.BLUE, bold=True))
-    user_session = SQLiteSession(uname)
-    while True:
-        typer.echo()
-        question = typer.prompt(typer.style(f"[{uname}]", fg=typer.colors.GREEN, bold=True))
-        if question.lower() in ["quit", "exit"]:
-            typer.echo(typer.style("Bye", fg=typer.colors.BLUE, bold=True))
-            raise typer.Exit(code=0)
-        try:
-            question = sanitize_input(question)
-            result = Runner.run_streamed(brain_agent, input=question, context=UserInfo(uname=uname), session=user_session, max_turns=50)
-        except SecurityException as e:
-            typer.echo(typer.style(f"Ops！你的输入被安全系统拦截了：{e}", fg=typer.colors.RED, bold=True))
-            raise typer.Exit(code=1)
-        except Exception as e:
-            typer.echo(typer.style(f"Ops！机器人出现故障了：{e}", fg=typer.colors.RED, bold=True))
-            raise typer.Exit(code=1)
-        typer.echo(typer.style("[AI]: ", fg=typer.colors.BLUE, bold=True), nl=False)
-        async for event in result.stream_events():
-            if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
-                delta = event.data.delta
-                typer.echo(typer.style(delta, fg=typer.colors.BLUE), nl=False)
