@@ -5,6 +5,9 @@ import os
 import json
 from pathlib import Path
 
+from src.Interfaces.Exception.SecurityException import SecurityException
+from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
+
 HOME = Path.home()
 
 @function_tool
@@ -22,7 +25,16 @@ def rm(path: str, filename: str)->str:
     """
     path = os.path.abspath(path)
     file_path = os.path.join(path, filename)
-    if Path(file_path).is_relative_to(HOME):
+    try:
+        temp_path = file_path
+        resolve_safe_path(temp_path)
+    except SecurityException as e:
+        return json.dumps({
+            "success": False,
+            "summary": str(e)
+        }, ensure_ascii=False, indent=2)
+
+    if not Path(file_path).is_relative_to(HOME):
         return json.dumps({
             "success": False,
             "summary": f"删除的目标文件必须在{str(HOME)}路径下"

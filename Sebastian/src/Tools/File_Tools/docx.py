@@ -88,7 +88,7 @@ async def read_docx(file_path: str) -> str:
         return json.dumps({
             "success": False,
             "summary": str(e)
-        })
+        }, ensure_ascii=False, indent=2)
     try:
         typer.echo(typer.style(f"[执行中]正在读取{file_path}文档内容...",fg=typer.colors.WHITE))
         loop = asyncio.get_running_loop()

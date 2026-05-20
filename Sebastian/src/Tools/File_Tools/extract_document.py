@@ -3,7 +3,7 @@ import typer
 from agents import function_tool
 import json
 
-from src.Interfaces.Exception import SecurityException
+from src.Interfaces.Exception.SecurityException import SecurityException
 from src.Interfaces.Resolver.SafePathResolver import resolve_safe_path
 
 @function_tool

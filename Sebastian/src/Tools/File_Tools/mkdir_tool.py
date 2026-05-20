@@ -35,14 +35,6 @@ def mkdir(path: str, folder: str)->str:
             "summary": f"文件夹已存在：{dict_path}，不需要创建了",
         }, ensure_ascii=False, indent=2)
 
-    confirmed = typer.confirm(typer.style(f"[Warn]目录{dict_path}不存在，是否要创建？",fg=typer.colors.YELLOW))
-    if not confirmed:
-        typer.echo("用户已终止本次操作")
-        return json.dumps({
-            "success": False,
-            "summary": "用户确认终止了创建新文件夹的操作",
-        }, ensure_ascii=False, indent=2)
-
     try:
         os.makedirs(dict_path, exist_ok=True)
         typer.echo(typer.style(f"[执行中]正在创建目录：{dict_path}", fg=typer.colors.WHITE))

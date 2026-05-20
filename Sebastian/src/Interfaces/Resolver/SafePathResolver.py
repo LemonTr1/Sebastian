@@ -11,8 +11,8 @@ def resolve_safe_path(path: str, type: str = "abs") -> str:
     通过安全检查后根据选择返回真实绝对路径还是绝对路径，默认返回非真实的绝对路径。
     """
     # 1. 绝对路径 + 递归穿透符号链接
-    abs_path = os.path.abspath(path)
-    real_path = os.path.realpath(path)
+    abs_path = os.path.abspath(path).strip()
+    real_path = os.path.realpath(path).strip()
 
     # 2. 存在性检查（realpath 对死链也会返回路径，必须显式检查）
     if not os.path.exists(real_path):

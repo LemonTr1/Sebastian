@@ -89,16 +89,6 @@ async def infer_capabilities(command: str):
     else:
         raise PermissionError(f"Unexpected output from judger agent: {context}")
 
-    #最后一层代码层面约束作为保险丝
-    if any(word in command for word in ["读取", "写入", "查看", "创建", "删除", "移动", "重命名", "复制", "查找", "压缩", "解压"]) and cap == Capabilities.CODE_EXECUTE:
-        cap = Capabilities.FILE_EXECUTE
-
-    if any(word in command for word in ["执行", "运行", "execute"]) and cap == Capabilities.FILE_EXECUTE:
-        cap = Capabilities.CODE_EXECUTE
-
-    if any(word in command for word in ["命令", "command", "Shell", "shell", "Bash", "bash", "终端", "terminal", "Terminal"]) and cap == Capabilities.WEB_EXECUTE:
-        cap = Capabilities.CODE_EXECUTE
-
     return cap
 
 

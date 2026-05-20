@@ -49,20 +49,11 @@ def create_file(path: str, filename: str)->str:
         }, ensure_ascii=False, indent=2)
 
     if os.path.exists(file_path):
-        confirmed = typer.confirm(typer.style(f"[Warn]文件{file_path}已经存在，覆盖会清空内容，确定吗", fg=typer.colors.YELLOW))
+        confirmed = typer.confirm(typer.style(f"[Warn]文件{file_path}已经存在，覆盖会清空内容，确定吗",fg=typer.colors.YELLOW))
         if not confirmed:
-            typer.echo("已终止本次操作")
             return json.dumps({
                 "success": False,
-                "summary": f"用户确认终止了本次的操作",
-            }, ensure_ascii=False, indent=2)
-    else:
-        confirmed = typer.confirm(typer.style(f"[Warn]文件{file_path}不存在，确定要创建吗", fg=typer.colors.YELLOW))
-        if not confirmed:
-            typer.echo("已终止本次操作")
-            return json.dumps({
-                "success": False,
-                "summary": f"用户确认终止了本次操作",
+                "summary": f"用户确认停止该操作",
             }, ensure_ascii=False, indent=2)
 
     try:

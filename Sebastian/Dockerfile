@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ make git curl wget vim libpq-dev \
     openjdk-17-jdk-headless \
-    nmap tshark tcpdump \
+    nmap tcpdump \
     whois dnsutils \
     libimage-exiftool-perl \
     nodejs npm zip unzip \
@@ -21,10 +21,16 @@ RUN pip install --no-cache-dir .
 
 # pip 可装的 OSINT 工具
 RUN pip install --no-cache-dir \
+    python-whois \
     sherlock-project \
     holehe \
     maigret \
-    socialscan
+    socialscan \
+    h8mail \
+    user-scanner \
+    trufflehog3 \
+    certstream \
+
 
 RUN npm install -g infoooze
 
