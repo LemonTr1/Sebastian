@@ -1,14 +1,12 @@
 from src.Agents.Sub_Agents.WebAgent import web_agent
 from src.Interfaces.Capabilities.BrainCapabilities.CapabilityGuard import CapabilityGuard
-from src.Interfaces.Capabilities.BrainCapabilities.InferCapabilities import infer_capabilities
 from src.Interfaces.Exception.SecurityException import SecurityException
 import typer
 import json
 
 async def web_agent_tool(command: str)->str:
     try:
-        required_caps = await infer_capabilities(command)
-        return await CapabilityGuard.run(web_agent, "Web_Agent", command, required_caps, 20)
+        return await CapabilityGuard.run(web_agent, "Web", command, 20)
     except SecurityException as e:
         typer.echo(typer.style(f"安全警告：{e}", fg=typer.colors.RED))
         return json.dumps(

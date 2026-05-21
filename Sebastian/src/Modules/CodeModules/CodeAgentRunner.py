@@ -1,6 +1,5 @@
 from src.Agents.Sub_Agents.CodeAgent import code_agent
 from src.Interfaces.Capabilities.BrainCapabilities.CapabilityGuard import CapabilityGuard
-from src.Interfaces.Capabilities.BrainCapabilities.InferCapabilities import infer_capabilities
 from src.Interfaces.Exception.ImageNotFoundException import ImageNotFoundException
 from src.Interfaces.Exception.SecurityException import SecurityException
 import typer
@@ -8,8 +7,7 @@ import json
 
 async def code_agent_tool(command: str, path: str)->str:
     try:
-        required_caps = await infer_capabilities(command)
-        return await CapabilityGuard.run(code_agent, "Code_Agent", command, required_caps, 20, path)
+        return await CapabilityGuard.run(code_agent, "Code", command, 20, path)
     except ImageNotFoundException as e:
         typer.echo(typer.style(f"请检查本地Docker服务，发生错误：{str(e)}", fg=typer.colors.RED))
         return json.dumps({

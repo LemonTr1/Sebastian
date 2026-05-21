@@ -13,10 +13,25 @@ from src.Modules.WebModules.WebSession import get_web_session
 from src.Modules.CodeModules.SandboxSessionFactory import SandboxSessionFactory
 from pathlib import Path
 
+# 简单的类型到权限映射
+TYPE_TO_CAPABILITY = {
+    "File": Capabilities.FILE_EXECUTE,
+    "Code": Capabilities.CODE_EXECUTE,
+    "Web": Capabilities.WEB_EXECUTE,
+}
+
+# 类型到Agent名称映射
+TYPE_TO_AGENT_NAME = {
+    "File": "File_Agent",
+    "Code": "Code_Agent",
+    "Web": "Web_Agent",
+}
+
 class CapabilityGuard:
-    #权限检查
+    # 权限检查 - 直接用 type 字符串
     @staticmethod
-    def check(agent_name: str, required_caps: Capabilities) -> None:
+    def check(agent_name: str, task_type: str) -> None:
+        required_caps = TYPE_TO_CAPABILITY[task_type]
         allowed = AGENT_CAPABILITIES.get(agent_name)
         if allowed != required_caps:
             raise PermissionError(
@@ -27,14 +42,15 @@ class CapabilityGuard:
     @staticmethod
     async def run(
             agent: Agent | SandboxAgent,
-            agent_name: str,
+            task_type: str,
             task: str,
-            required_caps: Capabilities,
             max_turns: int = 20,
             path: str = "None"
     )->str:
-        CapabilityGuard.check(agent_name, required_caps)
-        if agent_name == "Code_Agent":
+        agent_name = TYPE_TO_AGENT_NAME[task_type]
+        CapabilityGuard.check(agent_name, task_type)
+        
+        if task_type == "Code":
             #对CodeAgent共享Session缓冲区读取必须互斥，所以实际上还是只能串行执行Shell命令或代码
             async with get_code_session_lock():
                 session = get_code_session()
@@ -80,9 +96,9 @@ class CapabilityGuard:
                         )
                     )
                     return result.final_output
-        elif agent_name == "Web_Agent":
+        elif task_type == "Web":
             session = get_web_session()
-        elif agent_name == "File_Agent":
+        elif task_type == "File":
             session = get_file_session()
         result = await Runner.run(agent, input=task, max_turns=max_turns, session=session)
         return result.final_output
