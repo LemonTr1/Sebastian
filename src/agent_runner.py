@@ -78,8 +78,7 @@ class AgentRunner:
         return result
 
     #执行工具函数
-    def _process_tool_calls(self, tool_calls: list) -> str | None:
-        final_result = None
+    def _process_tool_calls(self, tool_calls: list) -> None:
         aborted = False
         for tc in tool_calls:
             #OpenAI API契约规定：tool_calls数组有多少项，后面就必须用同样的role: tool消息回应，就是必须要告诉LLM结果是什么
@@ -140,8 +139,6 @@ class AgentRunner:
                 aborted = True
             self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
 
-        return final_result
-
     def run(self, task: str, max_turns: int = 50) -> str:
         self._ensure_system_prompt()
         self.context.append({"role": "user", "content": task})
@@ -171,10 +168,7 @@ class AgentRunner:
             if not tool_calls:
                 return assistant_msg.get("content") or ""
 
-            final_result = self._process_tool_calls(tool_calls)
-
-            if final_result is not None:
-                return final_result
+            self._process_tool_calls(tool_calls)
 
     def run_stream(self, task: str, on_token=None, max_turns: int = 50) -> str:
         self._ensure_system_prompt()
@@ -243,10 +237,7 @@ class AgentRunner:
             if not tool_calls_list:
                 return collected_content
 
-            final_result = self._process_tool_calls(tool_calls_list)
-
-            if final_result is not None:
-                return final_result
+            self._process_tool_calls(tool_calls_list)
 
     #human-in-the-loop确认机制
     def _hitl_confirm(self, name: str, args: dict) -> bool:
