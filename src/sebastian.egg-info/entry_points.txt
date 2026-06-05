@@ -1,0 +1,2 @@
+[console_scripts]
+sebastian = cli:app

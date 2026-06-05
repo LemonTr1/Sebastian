@@ -1,0 +1,33 @@
+[project]
+name = "sebastian"
+version = "0.2.0"
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.9",
+    "chromadb",
+    "openai>=1.0",
+    "sentence-transformers",
+    "python-dotenv",
+    "ddgs",
+    "kreuzberg",
+    "pydantic",
+    "huggingface_hub",
+    "playwright",
+    "python-docx",
+    "python-pptx",
+    "py7zr",
+]
+
+[project.scripts]
+sebastian = "cli:app"
+
+[tool.setuptools]
+py-modules = ["cli"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[build-system]
+requires = ["setuptools>=59.6.0"]
+build-backend = "setuptools.build_meta"
