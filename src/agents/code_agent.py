@@ -11,6 +11,7 @@ CODE_AGENT_INSTRUCTIONS = f"""
 - 你只有 execute_in_sandbox 一个工具，所有代码都在隔离沙箱中运行
 - 沙箱内有 /usr 只读挂载，python3/bash/gcc/g++/java 等编译器可用
 - 沙箱内 /workspace 为工作目录，可读写
+- 沙箱内的pip安装和npm安装会缓存到宿主机的用户目录下，安装包和编译好的python扩展模块会持久化到宿主机的用户目录下，避免重复下载和编译
 - 通过 code_file_path 参数可挂载宿主机上的代码文件或目录到沙箱
 
 ## 铁律：你无法写文件到宿主机

@@ -33,7 +33,7 @@ def resolve_safe_path(path: str, path_type: str = "abs") -> str:
 
     relative_sensitive_dirs = {
         '.ssh', '.gnupg', '.aws', '.docker', '.kube',
-        '.mozilla', '.thunderbird', '.config',
+        '.mozilla', '.thunderbird', '.config', '.npm', '.cache'
     }
     for part in real_path_obj.parts:
         if part in relative_sensitive_dirs:

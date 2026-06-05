@@ -4,6 +4,8 @@ os.environ['http_proxy'] = ''
 os.environ['https_proxy'] = ''
 os.environ['all_proxy'] = ''
 
+import re
+
 from dotenv import load_dotenv, set_key
 load_dotenv(override=True)
 
@@ -42,8 +44,9 @@ def _run_chat():
 
     while True:
         try:
-            typer.echo(typer.style(f"\n[{uname}]：", fg=typer.colors.GREEN, bold=True), nl=False)
-            question = input()
+            styled = typer.style(f"\n[{uname}]：", fg=typer.colors.GREEN, bold=True)
+            prompt = re.sub(r'(\x1b\[[0-9;]*m)', r'\001\1\002', styled)
+            question = input(prompt)
         except (EOFError, KeyboardInterrupt):
             typer.echo(typer.style("\nBye", fg=typer.colors.BLUE, bold=True))
             raise typer.Exit(code=0)

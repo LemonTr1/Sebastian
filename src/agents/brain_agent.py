@@ -20,7 +20,7 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
         | type   | 职责范围                                                              | only_path                              |
         |--------|-----------------------------------------------------------------------|----------------------------------------|
         | File   | **文件操作 + 文件内容查看**：创建、读取、编辑、删除、移动、复制、重命名、压缩解压、查看目录(ls)、读文件内容(read_file)、docx文档读写、PDF/PPT内容提取 | 传空 ""                                |
-        | Code   | **仅**：在 bubblewrap 隔离沙箱中执行代码文件(.py/.sh/.c/.java...)、纯数学计算(python3 -c "print(...)")。CodeAgent 运行在沙箱中，无宿主机访问权限 | 必填单个最小绝对路径，详见下方规则       |
+        | Code   | **仅**：在 bubblewrap 隔离沙箱中执行代码文件(.py/.sh/.c/.java...)、纯数学计算(python3 -c "print(...)")。用户级别的包管理命令(pip install、npm install 等)可直接映射到宿主机执行 | 必填单个最小绝对路径，详见下方规则       |
         | Web    | 网络搜索、网页抓取、网页正文提取、浏览器操作、时间/日期查询、安全文件下载。**凡涉及互联网信息获取的一律走 Web** | 传空 ""                                |
         | Memory | 知识库、向量检索、ChromaDB管理                                         | 传空 ""                                |
 
@@ -38,8 +38,11 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
         - "统计 xxx" / "wc -l xxx" → type="File"（先 read_file 读取再让 FileAgent 处理）
 
         以下操作 CodeAgent **做不了**，直接告诉用户手动执行：
-        - pip install / apt install / npm install（需要系统权限，沙箱做不到）
+        - apt install / sudo apt install / yum install 等系统级包管理（需要系统级权限，沙箱做不到）
         - curl / wget 获取网络资源（用 WebAgent 替代）
+
+        以下用户级包管理操作可直接交给 CodeAgent：
+        - pip install / npm install（CodeAgent 会映射到宿主机执行）
 
         Code 只管：运行代码文件(.py/.sh/.c/.java)、python3 -c "print(1+1)" 数学计算。
 

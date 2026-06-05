@@ -4,6 +4,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+HOME = Path.home()
 
 class BubblewrapSandbox:
     def __init__(self, workspace_dir: str = None):
@@ -20,12 +21,14 @@ class BubblewrapSandbox:
             )
 
     @staticmethod
-    def _mount_stdlib(bwrap_args: list, host_path: str, container_path: str):
+    def _mount_stdlib(bwrap_args: list, ro: bool, host_path: str, container_path: str):
         if os.path.islink(host_path):
             target = os.readlink(host_path)
             bwrap_args.extend(["--symlink", target, container_path])
-        elif os.path.isdir(host_path):
+        elif os.path.isdir(host_path) and ro == True:
             bwrap_args.extend(["--ro-bind", host_path, container_path])
+        elif os.path.isdir(host_path) and ro == False:
+            bwrap_args.extend(["--bind", host_path, container_path])
 
     def run(self, command: str, cwd: str = None, timeout: int = 60,
             mount_paths: list = None, env: dict = None) -> dict:
@@ -45,24 +48,49 @@ class BubblewrapSandbox:
             "--ro-bind", "/etc", "/etc",
         ]
         #兼容老系统（有的系统/bin和/lib不是指向/usr/bin, /usr/lib的符号链接，并且有的系统根本没/lib64）
-        self._mount_stdlib(bwrap_args, "/lib", "/lib")
-        self._mount_stdlib(bwrap_args, "/lib64", "/lib64")
-        self._mount_stdlib(bwrap_args, "/bin", "/bin")
-        self._mount_stdlib(bwrap_args, "/sbin", "/sbin")
+        self._mount_stdlib(bwrap_args, True, "/lib", "/lib")
+        self._mount_stdlib(bwrap_args, True, "/lib64", "/lib64")
+        self._mount_stdlib(bwrap_args, True,"/bin", "/bin")
+        self._mount_stdlib(bwrap_args, True,"/sbin", "/sbin")
+        # DNS解析支持：修复 systemd-resolved下/etc/resolv.conf符号链接断裂问题（不然pip install无法连接）                                      2% used
+        self._mount_stdlib(bwrap_args, True, "/run/systemd/resolve", "/run/systemd/resolve")
+        # pip缓存管理，python安装包的临时缓存
+        self._mount_stdlib(bwrap_args, False,f"{str(HOME)}/.cache/pip", f"{str(HOME)}/.cache/pip")
+        # npm包管理，nodejs安装包的临时缓存，npm安装包的全局缓存
+        self._mount_stdlib(bwrap_args, False, f"{str(HOME)}/.npm", f"{str(HOME)}/.npm")
+        # npm配置文件持久化，确保沙箱内npm能读写~/.npmrc
+        npmrc_path = f"{str(HOME)}/.npmrc"
+        if not os.path.exists(npmrc_path):
+            Path(npmrc_path).touch()
+        # 确保~/.local目录在宿主机上存在，否则bwrap bind会失败
+        os.makedirs(f"{str(HOME)}/.local", exist_ok=True)
+        # Rust包管理，有些pip包也会调用Rust编译器编译扩展模块，cargo的缓存和安装包都在这里面
+        self._mount_stdlib(bwrap_args, False, f"{str(HOME)}/.cargo/registry", f"{str(HOME)}/.cargo/registry")
+        # pnpm包管理
+        self._mount_stdlib(bwrap_args, False, f"{str(HOME)}/.cache/pnpm", f"{str(HOME)}/.cache/pnpm")
+        # Go构建缓存，缓存go build的编译中间产物
+        self._mount_stdlib(bwrap_args, False, f"{str(HOME)}/.cache/go-build", f"{str(HOME)}/.cache/go-build")
+        # Go包管理，go install的二进制装在~/go/bin，module缓存在~/go/pkg/mod
+        self._mount_stdlib(bwrap_args, False, f"{str(HOME)}/go", f"{str(HOME)}/go")
 
         bwrap_args += [
             "--proc", "/proc",
             "--dev", "/dev",
             "--tmpfs", "/tmp",
             "--bind", work_dir, "/workspace",
+            # pip和pipx缓存持久化到宿主机，下载好的python包依赖库都~/.local/lib里面，命令本体在~/.local/bin中，pipx包在~/.local/pipx中
+            "--bind", f"{str(HOME)}/.local", f"{str(HOME)}/.local",
+            "--bind", npmrc_path, npmrc_path,
             "--chdir", "/workspace",
             "--clearenv",
             #设置PATH环境变量，因为部分的Shell命令不是内置的而是在/usr/bin或usr/sbin中，必须为这些命令设置环境变量来指明所在的文件
-            "--setenv", "PATH", "/usr/bin:/bin:/usr/sbin:/sbin",
-            "--setenv", "HOME", "/workspace",
+            "--setenv", "PATH", f"/usr/bin:/bin:/usr/sbin:/sbin:/{str(HOME)}/.local/bin:/{str(HOME)}/go/bin",
+            "--setenv", "HOME", str(HOME),
             "--setenv", "USER", "sandbox",
             "--setenv", "LANG", "C.UTF-8",
             "--setenv", "LC_ALL", "C.UTF-8",
+            "--setenv", "npm_config_prefix", f"{str(HOME)}/.local",
+            "--setenv", "npm_config_globalconfig", "/dev/null",
         ]
 
         if mount_paths:
@@ -106,6 +134,5 @@ class BubblewrapSandbox:
             }
 
     def cleanup(self):
-        import shutil
         if os.path.exists(self.workspace_dir):
             shutil.rmtree(self.workspace_dir, ignore_errors=True)
