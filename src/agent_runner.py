@@ -22,7 +22,7 @@ from src.config import get_client, MODEL
       "type": "function",
       "function": {
         "name": "dispatcher",
-        "arguments": "{\"command\": \"列出家目录\", \"type\": \"File\", \"only_path\": \"\", \"confidence\": 1.0, \"last_choice\": \"False\"}"
+        "arguments": "{\"command\": \"列出家目录\", \"type\": \"File\", \"only_path\": \"\"}"
       }
     }, 
     ...
@@ -241,7 +241,7 @@ class AgentRunner:
 
     #human-in-the-loop确认机制
     def _hitl_confirm(self, name: str, args: dict) -> bool:
-        brief = {k: v for k, v in args.items() if k not in ("confidence", "last_choice")}
+        brief = {k: v for k, v in args.items()}
         typer.echo("")
         typer.echo(
             typer.style(
