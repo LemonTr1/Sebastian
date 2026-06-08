@@ -1,6 +1,7 @@
 import os
 from src.agent_runner import AgentRunner
 from src.tools.brain.dispatcher import dispatcher, DISPATCHER_SCHEMA
+from src.tools.brain.todo_manager import todo, TODO_SCHEMA
 
 uname = os.getlogin()
 
@@ -13,6 +14,7 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
         - 所有路径操作限定于 `/home/{uname}/` 及其子目录，对于用户给出的非绝对路径（`~`、`..`、符号链接），必须先规范化为 `/home/{uname}/...` 格式的绝对路径后方可使用
         - 禁止访问其他用户目录或系统目录（`/etc`、`/root`、`/sys`、`/proc`、`/boot` 等），越界须立即拒绝并提示
         - 对于命令，代码和待写入的文本内容，必须使用markdown代码块包裹以防止触发极度严格的路径校验，如```markdown \n <文本内容>\n ```, ```python \n <代码块> `\n``, ```shell \n <shell命令>\n ```
+        - 对于多步任务，分析用户意图后**必须**使用todo工具来规划任务并生成任务状态表，并每完成一项任务后必须使用todo更新状态表让用户可见，禁止一次性执行多个任务或在未完成前一个任务的情况下执行下一个任务
 
         ## 2. 工具路由
         调用 dispatcher(command, type, only_path)，type 必须精确匹配：
@@ -108,5 +110,6 @@ brain_agent = AgentRunner.create_runner(
     instructions=BRAIN_AGENT_INSTRUCTIONS,
     tools=[
         (dispatcher, DISPATCHER_SCHEMA),
+        (todo(), TODO_SCHEMA)
     ],
 )

@@ -1,6 +1,7 @@
 import json
 import typer
 from src.config import get_client, MODEL
+from src.tools.brain.todo_manager import todo
 
 #以下为response.choice[0].message对象结构
 #LLM的没有工具调用的回应格式：
@@ -78,8 +79,9 @@ class AgentRunner:
         return result
 
     #执行工具函数
-    def _process_tool_calls(self, tool_calls: list) -> None:
+    def _process_tool_calls(self, tool_calls: list) -> bool:
         aborted = False
+        used_todo = False
         for tc in tool_calls:
             #OpenAI API契约规定：tool_calls数组有多少项，后面就必须用同样的role: tool消息回应，就是必须要告诉LLM结果是什么
             if aborted:
@@ -129,8 +131,12 @@ class AgentRunner:
                     f"\n> [TOOL] {self.name} 调用 {name}({_brief_args(tool_args)})",
                     fg=typer.colors.WHITE,
                 ))
-                raw = func(**tool_args)                    
+                #执行工具
+                raw = func(**tool_args)
                 result = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
+                #标记本次AgentLoop中BrainAgent调用了任务管理工具
+                if name == "todo":
+                    used_todo = True
             except Exception as e:
                 result = json.dumps(
                     {"error": f"工具 '{name}' 异常: {str(e)}"},
@@ -138,6 +144,7 @@ class AgentRunner:
                 )
                 aborted = True
             self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
+        return used_todo
 
     def run(self, task: str, max_turns: int = 50) -> str:
         self._ensure_system_prompt()
@@ -237,7 +244,17 @@ class AgentRunner:
             if not tool_calls_list:
                 return collected_content
 
-            self._process_tool_calls(tool_calls_list)
+            used_todo = self._process_tool_calls(tool_calls_list)
+            if used_todo:
+                #打印在终端给用户看
+                todo().render()
+            else:
+                todo().state.rounds_since_update += 1
+                reminder = todo().reminder()
+                if reminder:
+                    #插入一条系统提示
+                    self.context.append({"role": "system", "content": reminder})
+
 
     #human-in-the-loop确认机制
     def _hitl_confirm(self, name: str, args: dict) -> bool:
