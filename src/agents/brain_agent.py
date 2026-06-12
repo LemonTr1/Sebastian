@@ -2,6 +2,7 @@ import os
 from src.agent_runner import AgentRunner
 from src.tools.brain.dispatcher import dispatcher, DISPATCHER_SCHEMA
 from src.tools.brain.todo_manager import todo, TODO_SCHEMA
+from src.tools.brain.skill_registry import get_skill_registry, SKILL_REGISTRY_SCHEMA
 
 uname = os.getlogin()
 
@@ -26,28 +27,6 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
         | Web    | 网络搜索、网页抓取、网页正文提取、浏览器操作、时间/日期查询、安全文件下载。**凡涉及互联网信息获取的一律走 Web** | 传空 ""                                |
         | Memory | 知识库、向量检索、ChromaDB管理                                         | 传空 ""                                |
 
-        ## 常见误判纠正（最高优先级）
-        以下操作**必须走 Web，不要走 Code**——WebAgent 有专用工具：
-        - "现在几点" / "今天几号" → type="Web"（WebAgent 有 get_current_time_str）
-        - "搜索 xxx" / "百度一下 xxx" → type="Web"（WebAgent 有 DDGS 结构化搜索）
-        - "下载 xxx" → type="Web"（WebAgent 有 download_file 带安全扫描）
-        - "这个网页..." / "这个网站..." → type="Web"（WebAgent 有 web_extract 正文提取）
-        - "帮我查 GitHub 上..." → type="Web"
-
-        以下操作**必须走 File，不要走 Code**——CodeAgent 在沙箱中无法访问宿主机文件：
-        - "查看 xxx 目录下有什么" / "列出文件" → type="File"（FileAgent 有 ls）
-        - "读一下 xxx 文件" / "cat xxx" / "head xxx" / "tail xxx" → type="File"（FileAgent 有 read_file）
-        - "统计 xxx" / "wc -l xxx" → type="File"（先 read_file 读取再让 FileAgent 处理）
-
-        以下操作 CodeAgent **做不了**，直接告诉用户手动执行：
-        - apt install / sudo apt install / yum install 等系统级包管理（需要系统级权限，沙箱做不到）
-        - curl / wget 获取网络资源（用 WebAgent 替代）
-
-        以下用户级包管理操作可直接交给 CodeAgent：
-        - pip install / npm install（CodeAgent 会映射到宿主机执行）
-
-        Code 只管：运行代码文件(.py/.sh/.c/.java)、python3 -c "print(1+1)" 数学计算。
-
         **only_path 挂载规则（仅 Code 类型）**：
         - 仅挂载代码/Shell命令执行所需的**单个最小路径**。独立脚本挂载文件本身，项目挂载目录
         - 只能传**一个**绝对路径，禁止多个或逗号分隔
@@ -66,43 +45,20 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
         - **禁止将"执行并保存"合并为一次 Code 调用，必须拆为 Code + File 两步**
         - **向 FileAgent 传递代码/脚本/命令内容时，必须使用 Markdown 代码块**：`` ```python\n代码内容\n``` ``，防止代码中的路径字符串被系统路径校验误拦截
 
-        ## 4. 文档处理路由（重要）
-        - **docx 文件**：创建、读取、编辑、写入 docx **必须路由到 File（type="File"）**。
-          FileAgent 拥有 create_docx/read_docx/write_docx/edit_docx 专用工具，可完整处理 docx 文档。
-          示例：
-          - "帮我创建一个关于项目计划的 docx 文档" → dispatcher(command="创建 /home/{uname}/文档/project.docx...", type="File")
-          - "读取 report.docx 的内容" → dispatcher(command="读取 /home/{uname}/report.docx", type="File")
-          - "把 contract.docx 里的甲方替换成XX公司" → dispatcher(command="编辑 /home/{uname}/contract.docx 查找替换...", type="File")
-        - **pdf 文件**：提取/阅读 pdf 内容 **必须路由到 File（type="File"）**。
-          FileAgent 拥有 read_pdf 工具可提取 PDF 全部文本和表格。创建/编辑 pdf 暂不支持。
-          示例：
-          - "帮我看看这个 PDF 里写了什么" → dispatcher(command="提取 /home/{uname}/report.pdf 的内容", type="File")
-          - "下载这个 PDF" → dispatcher(command="下载 https://example.com/doc.pdf 到 /home/{uname}/下载/", type="Web")
-        - **ppt/pptx 文件**：提取/阅读 ppt 内容 **必须路由到 File（type="File"）**。
-          FileAgent 拥有 read_ppt 工具可提取幻灯片文本（仅支持 .pptx 格式）。
-          示例：
-          - "这个 PPT 讲了什么" → dispatcher(command="提取 /home/{uname}/slides.pptx 的幻灯片内容", type="File")
-        - 以上 pdf/docx/pptx 均**必须路由到 FileAgent（type="File"）**，CodeAgent 无法处理二进制文档格式
-
+        ## 4. 技能加载
+        - 可用以下技能：
+          {get_skill_registry().describe_available()}
+        -可以使用load_skill工具查看技能详细描述
+        
         ## 5. 边界判定
         - **任何涉及互联网的操作 → Web**（搜索、抓取、时间查询、下载、网页内容提取）
         - **执行代码文件 → Code**（.py/.sh/.c/.java 等文件运行、python3 -c 数学计算）
         - **文件查看/读写/文档处理 → File**（ls、读文件、创建、编辑、pdf/docx/ppt）
         - 纯闲聊/打招呼 → 禁止调用 dispatcher，直接回复
-        - **如果你不确定走 Web 还是 Code，默认选 Web**
 
-        ## 6. dispatcher 返回格式
-        JSON 对象，字段：success, tool_id, summary, data, need_confirmed
-        - need_confirmed=true 且 success=false 表示需用户确认后才能继续
-
-        ## 7. 工作流
+        ## 6. 工作流
         - 拆解任务为最小可执行步骤 → 顺序调用 dispatcher → 用自然语言总结，禁止抛出原始 JSON
         - 回顾对话历史，已执行过的任务禁止重复执行
-        - **所有 dispatcher 调用的 last_choice 必须设为 "False"**，你只需要调度，系统会让你在下一轮文字中总结
-
-        ## 8. 安全操作
-        - 高危操作（批量删除、不可逆命令）→ 先向用户说明等待确认
-        - Web 禁止大量并发请求或访问敏感内容
 """
 
 brain_agent = AgentRunner.create_runner(
@@ -110,6 +66,7 @@ brain_agent = AgentRunner.create_runner(
     instructions=BRAIN_AGENT_INSTRUCTIONS,
     tools=[
         (dispatcher, DISPATCHER_SCHEMA),
-        (todo(), TODO_SCHEMA)
+        (todo(), TODO_SCHEMA),
+        (get_skill_registry().load_full_text, SKILL_REGISTRY_SCHEMA)
     ],
 )
