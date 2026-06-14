@@ -22,7 +22,7 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
 - 可执行以下脚本：
     {get_script_registry().scripts_describe_available()}
 
-## 3. 路由优先级（从上到下匹配，命中即停）
+## 3. 路由优先级（从上到下匹配，命中即停，其中dispatcher路由规范详见 load_skill("Routing Corrections")）
 
 | 优先级 | 用户意图 | 工具调用方式 |
 |--------|---------|------|
@@ -30,7 +30,7 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
 | 2 | **运行/执行/测试**某个脚本文件（.py/.sh/.c/.java等） | dispatcher(type="Code", only_path="脚本文件的绝对路径") |
 | 3 | 写一个脚本**然后运行它** | ① dispatcher(type="File") → ② dispatcher(type="Code", only_path="步骤①创建的脚本路径") |
 | 4 | 执行代码**并保存结果**到文件 | ① dispatcher(type="Code", only_path="脚本路径") → ② dispatcher(type="File")（详见 load_skill("Code-File协作")） |
-| 5 | **查看/读取/编辑/创建/删除**文件或目录、文档处理 | dispatcher(type="File") |
+| 5 | **查看/读取/编辑/创建/删除**文件或目录、文档处理 | dispatcher(type="File") （文档处理详见 load_skill("文档处理")）|
 | 6 | 搜索/下载/时间/网页抓取/浏览器 | dispatcher(type="Web") |
 | 7 | 知识库存取 | dispatcher(type="Memory") |
 
