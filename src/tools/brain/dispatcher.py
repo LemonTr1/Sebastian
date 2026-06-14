@@ -145,6 +145,28 @@ def dispatcher(command: str, type: str, only_path: str = "") -> str:
     task = command
     if only_path:
         task = f"{command}\n【工作路径: {only_path}】"
+    elif type == "Code":
+        _SCRIPT_EXT_RE = re.compile(
+            r'(?:[^\s]*\.(?:py|sh|bash|c|cpp|cc|cxx|java|go|rs|js|ts|rb|pl|r|swift))',
+            re.IGNORECASE
+        )
+        clean = _strip_quoted_content(command)
+        if _SCRIPT_EXT_RE.search(clean):
+            return json.dumps(
+                {
+                    "success": False,
+                    "tool_id": None,
+                    "summary": (
+                        "缺少 only_path 参数。命令中引用了脚本文件，"
+                        "Code 类型必须通过 only_path 将脚本的绝对路径挂载到沙箱，否则沙箱内无法访问该文件。"
+                        "请使用 only_path=\"脚本文件的绝对路径\" 重新调用 dispatcher。"
+                        "纯计算（如 python3 -c \"print(1+1)\"）可以不传 only_path。"
+                    ),
+                    "data": None,
+                    "need_confirmed": False
+                },
+                ensure_ascii=False
+            )
 
     try:
         if type == "File":
@@ -185,22 +207,30 @@ DISPATCHER_SCHEMA = {
     "type": "function",
     "function": {
         "name": "dispatcher",
-        "description": "将任务分发到对应的子Agent执行。时间查询、网络搜索、网页抓取、下载、浏览器操作→Web；运行代码文件、数学计算→Code；文件读写/编辑→File；知识库→Memory。Code类型才需填写only_path。不确定时默认选Web。",
+        "description": (
+            "将任务分发到对应的子Agent执行。\n"
+            "路由规则（按优先级）：运行脚本→Code，先写后运行→File→Code，执行并保存→Code→File，"
+            "文件读写/文档→File，搜索/下载/时间/浏览器/网页→Web，知识库→Memory。\n"
+            "如果意图涉及脚本执行，优先选择Code。\n"
+            "only_path仅Code类型填写：沙箱挂载的单个最小绝对路径。"
+            "独立脚本挂载文件本身，项目挂载目录。纯计算传空。"
+            "禁止挂载：用户家目录、桌面、.ssh/.gnupg等敏感路径。"
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "command": {
                     "type": "string",
-                    "description": "自然语言任务描述",
+                    "description": "自然语言任务描述。用Markdown代码块包裹代码/Shell命令/文本内容。",
                 },
                 "type": {
                     "type": "string",
                     "enum": ["File", "Code", "Web", "Memory"],
-                    "description": "目标Agent类型。Web=网络搜索/时间查询/下载/抓取/浏览器；Code=执行代码文件/数学计算/Shell；File=文件读写；Memory=知识库。时间、搜索、下载、网页操作一律用Web不要用Code。",
+                    "description": "目标Agent类型。Code=执行脚本/代码/Shell；File=文件读写/文档；Web=搜索/下载/浏览器/时间；Memory=知识库。",
                 },
                 "only_path": {
                     "type": "string",
-                    "description": "仅Code类型填写：沙箱挂载的单个最小绝对路径。独立脚本挂载文件本身，项目挂载目录。不允许挂载用户家目录或桌面目录，其他类型传空字符串。",
+                    "description": "仅Code类型填写：沙箱挂载的单个最小绝对路径。独立脚本挂载文件，项目挂载目录。不涉及文件则传空字符串。",
                 },
             },
             "required": ["command", "type"],

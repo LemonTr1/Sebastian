@@ -1,6 +1,6 @@
 ---
 name: Routing Corrections
-description: 常见误判纠正，指导正确使用工具（第一次调用工具必须查看）。
+description: 常见误判纠正，指导正确使用dispatcher工具（第一次调用dispatcher工具必须查看）。
 ---
 ## 常见误判纠正
 以下操作**必须走 Web，不要走 Code**——WebAgent 有专用工具：
