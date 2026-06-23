@@ -1,6 +1,7 @@
 import json
 import typer
 from src.config import get_client, MODEL
+from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.brain.todo_manager import todo
 
 #以下为response.choice[0].message对象结构
@@ -146,6 +147,7 @@ class AgentRunner:
             self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
         return used_todo
 
+    #给子Agent用的
     def run(self, task: str, max_turns: int = 50) -> str:
         self._ensure_system_prompt()
         self.context.append({"role": "user", "content": task})
@@ -177,6 +179,7 @@ class AgentRunner:
 
             self._process_tool_calls(tool_calls)
 
+    #流式输出，给brain_agent用的
     def run_stream(self, task: str, on_token=None, max_turns: int = 50) -> str:
         self._ensure_system_prompt()
         self.context.append({"role": "user", "content": task})

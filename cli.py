@@ -1,5 +1,6 @@
 """CLI命令行入口"""
 import os
+
 os.environ['http_proxy'] = ''
 os.environ['https_proxy'] = ''
 os.environ['all_proxy'] = ''
@@ -9,8 +10,9 @@ import re
 from dotenv import load_dotenv, set_key
 load_dotenv(override=True)
 
+from src.hooks import hooks_registry
+
 from src.agents.brain_agent import brain_agent
-from src.security.input_guard import InputSecurityEngine
 try:
     import readline
 except ImportError:
@@ -51,28 +53,24 @@ def _run_chat():
             typer.echo(typer.style("\nBye", fg=typer.colors.BLUE, bold=True))
             raise typer.Exit(code=0)
 
-        if question.lower() in ("quit", "exit", "再见"):
+        if question.lower() in ("/quit", "/exit"):
             typer.echo(typer.style("Bye", fg=typer.colors.BLUE, bold=True))
             raise typer.Exit(code=0)
 
         if not question.strip():
             continue
 
-        violations = InputSecurityEngine.check(question, username=uname)
-        if violations:
-            typer.echo(
-                typer.style(
-                    f"安全拦截：{'; '.join(violations)}",
-                    fg=typer.colors.RED,
-                    bold=True,
-                )
-            )
+        #进入AgentLoop前触发UserPromptSubmit钩子，检查输入安全性
+        result = hooks_registry.get_hooks_registry().trigger_hooks("UserPromptSubmit", question, uname)
+        if result is not None:
+            typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
             continue
 
         try:
             typer.echo(
                 typer.style("[Sebastian]: ", fg=typer.colors.BLUE, bold=True), nl=False
             )
+            #进入AgentLoop
             result = brain_agent.run_stream(
                 question,
                 on_token=lambda token: typer.echo(token, nl=False),
