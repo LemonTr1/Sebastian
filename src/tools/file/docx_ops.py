@@ -4,6 +4,7 @@ from docx import Document
 from docx.shared import Pt
 from src.security.path_safety import resolve_safe_path
 from src.utils.exceptions import SecurityException
+from src.tools.tools_registry import get_tools_registry
 
 
 def _docx_to_text(doc) -> str:
@@ -407,3 +408,8 @@ EDIT_DOCX_SCHEMA = {
         },
     },
 }
+
+get_tools_registry().register_tool("read_docx", read_docx, READ_DOCX_SCHEMA, for_agent="File_Agent")
+get_tools_registry().register_tool("create_docx", create_docx, CREATE_DOCX_SCHEMA, for_agent="File_Agent")
+get_tools_registry().register_tool("write_docx", write_docx, WRITE_DOCX_SCHEMA, hitl=True, for_agent="File_Agent")
+get_tools_registry().register_tool("edit_docx", edit_docx, EDIT_DOCX_SCHEMA, hitl=True, for_agent="File_Agent")

@@ -3,6 +3,7 @@ import json
 from src.security.command_guard import security_guard
 from src.utils.exceptions import SecurityException
 from src.sandbox.bubblewrap import BubblewrapSandbox
+from src.tools.tools_registry import get_tools_registry
 
 TIMEOUT = 60
 
@@ -72,3 +73,5 @@ SANDBOX_EXEC_SCHEMA = {
         },
     },
 }
+
+get_tools_registry().register_tool("execute_in_sandbox", execute_in_sandbox, SANDBOX_EXEC_SCHEMA, for_agent="Code_Agent")

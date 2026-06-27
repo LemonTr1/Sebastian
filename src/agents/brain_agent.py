@@ -1,11 +1,11 @@
 import os
 from src.agent_runner import AgentRunner
-from src.tools.brain.dispatcher import dispatcher, DISPATCHER_SCHEMA
-from src.tools.brain.todo_manager import todo, TODO_SCHEMA
-from src.tools.brain.skill_registry import get_skill_registry, SKILL_REGISTRY_SCHEMA
-from src.tools.brain.scripts_registry import get_script_registry, SCRIPT_REGISTRY_SCHEMA
+from src.tools.brain.skill_registry import get_skill_registry
+from src.tools.brain.scripts_registry import get_script_registry
+from src.tools.tools_registry import get_tools_registry
+from src.utils.user_info import get_username
 
-uname = os.getlogin()
+uname = get_username()
 
 BRAIN_AGENT_INSTRUCTIONS = f"""
 你是 Sebastian 的主控大脑（Triage），负责理解用户意图、调度子Agent执行任务，最终用自然语言输出结果。
@@ -55,10 +55,5 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
 brain_agent = AgentRunner.create_runner(
     name="Brain_Agent",
     instructions=BRAIN_AGENT_INSTRUCTIONS,
-    tools=[
-        (dispatcher, DISPATCHER_SCHEMA),
-        (todo(), TODO_SCHEMA),
-        (get_skill_registry().load_full_text, SKILL_REGISTRY_SCHEMA),
-        (get_script_registry().execute_script, SCRIPT_REGISTRY_SCHEMA)
-    ],
+    registry=get_tools_registry(),
 )

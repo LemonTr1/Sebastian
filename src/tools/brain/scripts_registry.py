@@ -5,6 +5,7 @@ import re
 import subprocess
 import os
 import stat
+from src.tools.tools_registry import get_tools_registry
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 
@@ -66,6 +67,11 @@ class ScriptRegistry:
     def execute_script(self, script_name: str, parameters: list, timeout: int = 20) -> str:
         if parameters is None:
             parameters = []
+        if script_name not in self.scripts_map:
+            return json.dumps({
+                "success": False,
+                "error": f"脚本 '{script_name}' 不存在，可用脚本: {list(self.scripts_map.keys())}"
+            }, ensure_ascii=False)
         script_path = self.scripts_map[script_name].script_path
 
         # 检查并添加Agent执行权限
@@ -148,6 +154,9 @@ SCRIPT_REGISTRY_SCHEMA = {
         },
     },
 }
+
+#注册工具
+get_tools_registry().register_tool("execute_script", SCRIPT_REGISTRY.execute_script, SCRIPT_REGISTRY_SCHEMA, for_agent="Brain_Agent")
 
 def get_script_registry():
     return SCRIPT_REGISTRY

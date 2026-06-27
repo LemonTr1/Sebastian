@@ -3,6 +3,7 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from huggingface_hub import snapshot_download
 from src.tools.memory.chroma_manager import get_collection, list_collections, get_client
+from src.tools.tools_registry import get_tools_registry
 
 HOME = Path.home()
 MODEL_DIR = HOME / ".embedding_models" / "sentence-transformers"
@@ -212,3 +213,8 @@ MEMORY_DELETE_SCHEMA = {
         }, "required": ["collection_name"]},
     },
 }
+
+get_tools_registry().register_tool("memory_store", memory_store, MEMORY_STORE_SCHEMA, for_agent="Memory_Agent")
+get_tools_registry().register_tool("memory_query", memory_query, MEMORY_QUERY_SCHEMA, for_agent="Memory_Agent")
+get_tools_registry().register_tool("memory_list_collections", memory_list_collections, MEMORY_LIST_SCHEMA, for_agent="Memory_Agent")
+get_tools_registry().register_tool("memory_delete_collection", memory_delete_collection, MEMORY_DELETE_SCHEMA, for_agent="Memory_Agent")

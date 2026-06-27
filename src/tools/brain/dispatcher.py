@@ -5,10 +5,7 @@ from pathlib import Path
 import typer
 from src.security.path_safety import resolve_safe_path
 from src.utils.exceptions import SecurityException
-from src.agents.file_agent import file_agent
-from src.agents.code_agent import code_agent
-from src.agents.web_agent import web_agent
-from src.agents.memory_agent import memory_agent
+from src.tools.tools_registry import get_tools_registry
 
 HOME = str(Path.home())
 
@@ -99,6 +96,11 @@ def _filter_paths(command: str, only_path: str, home: str = HOME) -> str | None:
 
 
 def dispatcher(command: str, type: str, only_path: str = "") -> str:
+    from src.agents.file_agent import file_agent
+    from src.agents.code_agent import code_agent
+    from src.agents.web_agent import web_agent
+    from src.agents.memory_agent import memory_agent
+
     path_filter_result = _filter_paths(command, only_path)
     if path_filter_result is not None:
         typer.echo(typer.style("[ERROR]触发非法路径检验", fg=typer.colors.RED))
@@ -144,7 +146,8 @@ def dispatcher(command: str, type: str, only_path: str = "") -> str:
 
     task = command
     if only_path:
-        task = f"{command}\n【工作路径: {only_path}】"
+        project_name = os.path.basename(only_path)
+        task = f"{command}\n <SYSTEM_REMINDER>工具`execute_in_sandbox`中的`code_file_path`参数使用`{only_path}`挂载到`/workspace/{project_name}`<SYSTEM_REMINDER>"
     elif type == "Code":
         _SCRIPT_EXT_RE = re.compile(
             r'(?:[^\s]*\.(?:py|sh|bash|c|cpp|cc|cxx|java|go|rs|js|ts|rb|pl|r|swift))',
@@ -237,3 +240,6 @@ DISPATCHER_SCHEMA = {
         },
     },
 }
+
+#注册工具
+get_tools_registry().register_tool("dispatcher", dispatcher, DISPATCHER_SCHEMA, for_agent="Brain_Agent")

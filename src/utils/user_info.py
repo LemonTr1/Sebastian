@@ -1,6 +1,5 @@
-from dataclasses import dataclass
+import os
 
 
-@dataclass
-class UserInfo:
-    username: str
+def get_username() -> str:
+    return os.environ.get("USER") or os.environ.get("LOGNAME") or os.getlogin()

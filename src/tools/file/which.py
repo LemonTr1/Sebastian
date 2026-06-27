@@ -1,5 +1,6 @@
 import shutil
 import json
+from src.tools.tools_registry import get_tools_registry
 
 
 def which(command: str) -> str:
@@ -37,3 +38,5 @@ WHICH_SCHEMA = {
         },
     },
 }
+
+get_tools_registry().register_tool("which", which, WHICH_SCHEMA, for_agent="File_Agent")

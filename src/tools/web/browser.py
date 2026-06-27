@@ -3,10 +3,12 @@ import time
 from pathlib import Path
 from threading import Lock
 from playwright.sync_api import sync_playwright, Page, Browser, BrowserContext
+from src.tools.tools_registry import get_tools_registry
 
 _browser: Browser | None = None
 _context: BrowserContext | None = None
 _page: Page | None = None
+_playwright = None
 _lock = Lock()
 
 HOME = str(Path.home())
@@ -14,10 +16,10 @@ DEFAULT_SCREENSHOT_DIR = Path(HOME) / "图片" / "screenshots"
 
 
 def _ensure_browser() -> Page:
-    global _browser, _context, _page
+    global _browser, _context, _page, _playwright
     if _page is None or _page.is_closed():
-        pw = sync_playwright().start()
-        _browser = pw.chromium.launch(headless=False)
+        _playwright = sync_playwright().start()
+        _browser = _playwright.chromium.launch(headless=False)
         _context = _browser.new_context(
             viewport={"width": 1280, "height": 720},
             locale="zh-CN",
@@ -33,14 +35,14 @@ def _ensure_browser() -> Page:
                 if target_url and target_url != "about:blank" and cur and not cur.is_closed():
                     cur.goto(target_url, wait_until="domcontentloaded")
             except Exception:
-                pass
+                pass  # popup may already be closed, best-effort intercept
         _page = _context.new_page()
         _context.on("page", _intercept_popup)
     return _page
 
 
 def _close_browser():
-    global _browser, _context, _page
+    global _browser, _context, _page, _playwright
     if _page:
         _page.close()
         _page = None
@@ -50,6 +52,9 @@ def _close_browser():
     if _browser:
         _browser.close()
         _browser = None
+    if _playwright:
+        _playwright.stop()
+        _playwright = None
 
 
 def _ok(**kwargs):
@@ -184,7 +189,7 @@ def browser_js(code: str, timeout: int = 10000) -> str:
     try:
         with _lock:
             page = _ensure_browser()
-            result = page.evaluate(f"() => {{ {code} }}")
+            result = page.evaluate("(code) => eval(code)", code)
             return _ok(result=result)
     except Exception as e:
         return _err(f"JS执行失败: {e}")
@@ -252,3 +257,16 @@ BROWSER_JS_SCHEMA = _browser_schema("browser_js", "在页面执行JS代码", {"c
 BROWSER_GET_COOKIES_SCHEMA = _browser_schema("browser_get_cookies", "获取浏览器Cookie", {"url_filter": {"type": "string"}}, ["url_filter"])
 BROWSER_SET_COOKIES_SCHEMA = _browser_schema("browser_set_cookies", "设置浏览器Cookie", {"cookies_json": {"type": "string"}}, ["cookies_json"])
 BROWSER_CLOSE_SCHEMA = _browser_schema("browser_close", "关闭浏览器", {}, [])
+
+get_tools_registry().register_tool("browser_launch", browser_launch, BROWSER_LAUNCH_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_info", browser_info, BROWSER_INFO_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_navigate", browser_navigate, BROWSER_NAVIGATE_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_click", browser_click, BROWSER_CLICK_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_fill", browser_fill, BROWSER_FILL_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_screenshot", browser_screenshot, BROWSER_SCREENSHOT_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_scroll", browser_scroll, BROWSER_SCROLL_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_wait", browser_wait, BROWSER_WAIT_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_js", browser_js, BROWSER_JS_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_get_cookies", browser_get_cookies, BROWSER_GET_COOKIES_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_set_cookies", browser_set_cookies, BROWSER_SET_COOKIES_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("browser_close", browser_close, BROWSER_CLOSE_SCHEMA, for_agent="Web_Agent")

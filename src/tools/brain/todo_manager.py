@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import typer
 import json
+from src.tools.tools_registry import get_tools_registry
 
 PLAN_REMINDER_INTERVAL = 2  # 每隔2轮提醒一次
 
@@ -132,5 +133,8 @@ _TODO = TodoManager()
 
 def todo():
     return _TODO
+
+#注册工具
+get_tools_registry().register_tool("todo", _TODO, TODO_SCHEMA, for_agent="Brain_Agent")
 
 

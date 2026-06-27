@@ -1,8 +1,5 @@
 from src.agent_runner import AgentRunner
-from src.tools.memory.memory_ops import (
-    memory_store, memory_query, memory_list_collections, memory_delete_collection,
-    MEMORY_STORE_SCHEMA, MEMORY_QUERY_SCHEMA, MEMORY_LIST_SCHEMA, MEMORY_DELETE_SCHEMA,
-)
+from src.tools.tools_registry import get_tools_registry
 
 MEMORY_AGENT_INSTRUCTIONS = """
 你是 Sebastian 的 **Memory Agent**，负责基于 ChromaDB 的知识库管理。
@@ -31,10 +28,5 @@ MEMORY_AGENT_INSTRUCTIONS = """
 memory_agent = AgentRunner.create_runner(
     name="Memory_Agent",
     instructions=MEMORY_AGENT_INSTRUCTIONS,
-    tools=[
-        (memory_store, MEMORY_STORE_SCHEMA),
-        (memory_query, MEMORY_QUERY_SCHEMA),
-        (memory_list_collections, MEMORY_LIST_SCHEMA),
-        (memory_delete_collection, MEMORY_DELETE_SCHEMA),
-    ],
+    registry=get_tools_registry(),
 )

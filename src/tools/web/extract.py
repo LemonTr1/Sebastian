@@ -2,6 +2,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from ddgs import DDGS
 from src.security.url_safety import is_public_url
+from src.tools.tools_registry import get_tools_registry
 
 
 def _ddgs_extract(url: str) -> dict:
@@ -63,3 +64,5 @@ WEB_EXTRACT_SCHEMA = {
         },
     },
 }
+
+get_tools_registry().register_tool("web_extract", web_extract, WEB_EXTRACT_SCHEMA, for_agent="Web_Agent")

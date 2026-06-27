@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 import re
+from src.tools.tools_registry import get_tools_registry
 
 SKILLS_DIR = Path(__file__).resolve().parent.parent.parent / "skills"
 
@@ -90,3 +91,6 @@ SKILL_REGISTRY_SCHEMA = {
         },
     },
 }
+
+#注册工具
+get_tools_registry().register_tool("load_skill", SKILL_REGISTRY.load_full_text, SKILL_REGISTRY_SCHEMA, for_agent="Brain_Agent")

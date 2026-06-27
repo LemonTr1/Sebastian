@@ -13,14 +13,17 @@ load_dotenv(override=True)
 from src.hooks import hooks_registry
 
 from src.agents.brain_agent import brain_agent
+from src.utils.user_info import get_username
 try:
     import readline
 except ImportError:
     pass
 import typer
+from src.logs.app_log import get_log
+
+logger = get_log()
 
 app = typer.Typer(no_args_is_help=False, help="AutomaticTaskAssistant")
-
 
 @app.callback(invoke_without_command=True)
 def main(
@@ -35,7 +38,8 @@ def main(
 
 
 def _run_chat():
-    uname = os.getlogin()
+    uname = get_username()
+    logger.info(f"{uname} 登陆系统")
     typer.echo(
         typer.style(
             f"Welcome {uname}！I'm Sebastian. [输入 'quit' 退出]",
@@ -55,6 +59,7 @@ def _run_chat():
 
         if question.lower() in ("/quit", "/exit"):
             typer.echo(typer.style("Bye", fg=typer.colors.BLUE, bold=True))
+            logger.info(f"{uname} 登出系统")
             raise typer.Exit(code=0)
 
         if not question.strip():

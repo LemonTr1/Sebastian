@@ -4,6 +4,7 @@ from pptx import Presentation
 import kreuzberg
 from src.security.path_safety import resolve_safe_path
 from src.utils.exceptions import SecurityException
+from src.tools.tools_registry import get_tools_registry
 
 
 def _extract_pdf(file_path: str) -> dict:
@@ -213,3 +214,6 @@ READ_PPT_SCHEMA = {
         },
     },
 }
+
+get_tools_registry().register_tool("read_pdf", read_pdf, READ_PDF_SCHEMA, for_agent="File_Agent")
+get_tools_registry().register_tool("read_ppt", read_ppt, READ_PPT_SCHEMA, for_agent="File_Agent")

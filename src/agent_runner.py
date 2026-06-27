@@ -3,6 +3,7 @@ import typer
 from src.config import get_client, MODEL
 from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.brain.todo_manager import todo
+from src.tools.tools_registry import ToolsRegistry
 
 #以下为response.choice[0].message对象结构
 #LLM的没有工具调用的回应格式：
@@ -37,14 +38,16 @@ class AgentRunner:
         self,
         name: str,
         instructions: str,
-        tool_map: dict = None,
-        hitl_tools: set = None,
+        registry: ToolsRegistry,
         model: str = None,
     ):
         self.name = name
         self.instructions = instructions
-        self.tool_map = tool_map or {}
-        self.hitl_tools = hitl_tools or set()
+        tools, _ = registry.get_tools_for_agent(name)
+        tool_map = {}
+        for func, schema in tools:
+            tool_map[schema["function"]["name"]] = {"func": func, "schema": schema}
+        self.tool_map = tool_map
         self.model = model or MODEL
         self.client = get_client()
         self.context = []
@@ -93,41 +96,18 @@ class AgentRunner:
                 self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": err})
                 continue
 
-            name = tc["function"]["name"]
+            #在此插入PreToolUse钩子
+            hook_result = get_hooks_registry().trigger_hooks("PreToolUse", self.name, tc)
+            if hook_result is not None:
+                aborted = True
+                self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": hook_result})
+                continue
+
             try:
+                name = tc["function"]["name"]
                 args = json.loads(tc["function"]["arguments"])
-            except json.JSONDecodeError:
-                err = json.dumps(
-                    {
-                        "error": f"工具 '{name}' 参数JSON格式解析发生错误，执行失败"
-                    }, ensure_ascii=False
-                )
-                self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": err})
-                aborted = True
-                continue
-
-            if name not in self.tool_map:
-                err = json.dumps(
-                    {"error": f"工具 '{name}' 不存在，可用: {list(self.tool_map.keys())}"},
-                    ensure_ascii=False,
-                )
-                self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": err})
-                aborted = True
-                continue
-
-            if name in self.hitl_tools:
-                if not self._hitl_confirm(name, args):
-                    err = json.dumps(
-                        {"error": f"用户拒绝了工具 '{name}' 的执行。"},
-                        ensure_ascii=False,
-                    )
-                    self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": err})
-                    aborted = True
-                    continue
-
-            tool_args = {k: v for k, v in args.items()}
-            func = self.tool_map[name]["func"]
-            try:
+                tool_args = {k: v for k, v in args.items()}
+                func = self.tool_map[name]["func"]
                 typer.echo(typer.style(
                     f"\n> [TOOL] {self.name} 调用 {name}({_brief_args(tool_args)})",
                     fg=typer.colors.WHITE,
@@ -139,8 +119,9 @@ class AgentRunner:
                 if name == "todo":
                     used_todo = True
             except Exception as e:
+                tool_name = tc.get("function", {}).get("name", "unknown")
                 result = json.dumps(
-                    {"error": f"工具 '{name}' 异常: {str(e)}"},
+                    {"error": f"工具 '{tool_name}' 异常: {str(e)}"},
                     ensure_ascii=False,
                 )
                 aborted = True
@@ -258,51 +239,10 @@ class AgentRunner:
                     #插入一条系统提示
                     self.context.append({"role": "system", "content": reminder})
 
-
-    #human-in-the-loop确认机制
-    def _hitl_confirm(self, name: str, args: dict) -> bool:
-        brief = {k: v for k, v in args.items()}
-        typer.echo("")
-        typer.echo(
-            typer.style(
-                "=" * 60,
-                fg=typer.colors.YELLOW,
-            )
-        )
-        typer.echo(
-            typer.style(
-                f"  [Warn] LLM 请求执行危险操作: {name}",
-                fg=typer.colors.YELLOW,
-                bold=True,
-            )
-        )
-        for k, v in brief.items():
-            val_str = str(v)
-            if len(val_str) > 200:
-                val_str = val_str[:200] + "..."
-            typer.echo(typer.style(f"    {k}: {val_str}", fg=typer.colors.YELLOW))
-        typer.echo(
-            typer.style(
-                "=" * 60,
-                fg=typer.colors.YELLOW,
-            )
-        )
-        return typer.confirm(typer.style("是否允许执行？", fg=typer.colors.YELLOW))
-
     #初始化Agent,返回AgentRunner对象（代替构造函数）
     @classmethod
-    def create_runner(cls, name: str, instructions: str, tools: list, hitl_tools: set = None, model: str = None, summary_hint: str = None):
-        tool_map = {}
-        for tool_func, schema in tools:
-            tool_name = schema["function"]["name"]
-            tool_map[tool_name] = {"func": tool_func, "schema": schema}
-        return cls(
-            name=name,
-            instructions=instructions,
-            tool_map=tool_map,
-            hitl_tools=hitl_tools or set(),
-            model=model,
-        )
+    def create_runner(cls, name: str, instructions: str, registry: ToolsRegistry, model: str = None):
+        return cls(name=name, instructions=instructions, registry=registry, model=model)
 
 #将工具函数的参数从dict类型转化为更方便人类阅读的dict类型
 def _brief_args(args: dict) -> str:

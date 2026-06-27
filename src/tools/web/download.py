@@ -10,11 +10,12 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from urllib.parse import urlparse, unquote
 from src.security.url_safety import is_public_url
+from src.tools.tools_registry import get_tools_registry
 
 ALLOWED_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.gif', '.docx', '.xlsx', '.txt', '.csv', '.zip', '.tar', '.gz', '.7z', '.tar.gz', '.tgz'}
 COMPOUND_EXTENSIONS = ['.tar.gz', '.tar.bz2', '.tar.xz', '.tgz']
 MAX_FILE_SIZE = 100 * 1024 * 1024
-DEFAULT_DOWNLOAD_DIR = Path(f"/home/{os.getlogin()}/下载/")
+DEFAULT_DOWNLOAD_DIR = Path.home() / "下载"
 DEFAULT_TIMEOUT = 600
 
 DANGEROUS_EXTENSIONS = {
@@ -409,3 +410,5 @@ DOWNLOAD_FILE_SCHEMA = {
         },
     },
 }
+
+get_tools_registry().register_tool("download_file", download_file, DOWNLOAD_FILE_SCHEMA, hitl=True, for_agent="Web_Agent")

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from src.security.path_safety import resolve_safe_path
 from src.utils.exceptions import SecurityException
+from src.tools.tools_registry import get_tools_registry
 
 HOME = Path.home()
 
@@ -84,3 +85,5 @@ DELETE_FILE_SCHEMA = {
         },
     },
 }
+
+get_tools_registry().register_tool("delete_file", delete_file, DELETE_FILE_SCHEMA, hitl=True, for_agent="File_Agent")
