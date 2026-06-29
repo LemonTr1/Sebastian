@@ -62,7 +62,7 @@ SANDBOX_EXEC_SCHEMA = {
     "type": "function",
     "function": {
         "name": "execute_in_sandbox",
-        "description": "【默认工具】在bubblewrap隔离沙箱中安全执行代码或命令。任何代码文件(.py/.sh/.c/.java/.js等)、用户提供的脚本、不熟悉的命令，都必须使用此工具。大部分代码执行任务默认选此工具。",
+        "description": "在bubblewrap隔离沙箱中安全执行代码或命令。任何代码文件(.py/.sh/.c/.java/.js等)、用户提供的脚本，代码文件，命令，都必须使用此工具。大部分代码执行任务默认选此工具。",
         "parameters": {
             "type": "object",
             "properties": {
@@ -74,4 +74,5 @@ SANDBOX_EXEC_SCHEMA = {
     },
 }
 
-get_tools_registry().register_tool("execute_in_sandbox", execute_in_sandbox, SANDBOX_EXEC_SCHEMA, for_agent="Code_Agent")
+#注册工具
+get_tools_registry().register_tool("execute_in_sandbox", execute_in_sandbox, SANDBOX_EXEC_SCHEMA, for_agent="Brain_Agent")
