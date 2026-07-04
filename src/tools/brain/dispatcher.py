@@ -50,7 +50,7 @@ DISPATCHER_SCHEMA = {
         "parameters": {
             "type": "object",
             "properties": {
-                "command": {
+                "task": {
                     "type": "string",
                     "description": "自然语言任务描述。用Markdown代码块包裹代码/Shell命令/文本内容。",
                 },

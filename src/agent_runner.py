@@ -4,6 +4,7 @@ from src.config import get_client, MODEL
 from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.brain.todo_manager import todo
 from src.tools.tools_registry import ToolsRegistry
+from src.logs.app_log import get_log
 
 #以下为response.choice[0].message对象结构
 #LLM的没有工具调用的回应格式：
@@ -32,6 +33,8 @@ from src.tools.tools_registry import ToolsRegistry
   ]
 }
 '''
+
+logger = get_log()
 
 class AgentRunner:
     def __init__(
@@ -151,6 +154,12 @@ class AgentRunner:
                 kwargs["tool_choice"] = "auto"
 
             response = self.client.chat.completions.create(**kwargs)
+
+            result = get_hooks_registry().trigger_hooks("PostCompletion", response)
+            if result is not None:
+                logger.error(f"PostCompletion钩子触发错误：{result}")
+                typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
+
             assistant_msg = self._extract_assistant_msg(response)
             self.context.append(assistant_msg)
 
@@ -181,7 +190,7 @@ class AgentRunner:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
 
-            stream = self.client.chat.completions.create(**kwargs, stream=True)
+            stream = self.client.chat.completions.create(**kwargs, stream=True, stream_options={"include_usage": True})
 
             collected_content = ""
             collected_tool_calls: dict[int, dict] = {}
@@ -212,6 +221,13 @@ class AgentRunner:
                     collected_content += token
                     if not has_tool_calls and on_token:
                         on_token(token)
+
+                #在每个chunk结束后触发PostCompletion钩子，主要用于统计Token消耗
+                if chunk.usage:
+                    result = get_hooks_registry().trigger_hooks("PostCompletion", chunk)
+                    if result is not None:
+                        logger.error(f"PostCompletion钩子触发错误：{result}")
+                        typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
 
             tool_calls_list = [
                 collected_tool_calls[i] for i in sorted(collected_tool_calls.keys())

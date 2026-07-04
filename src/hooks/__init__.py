@@ -1,7 +1,7 @@
 import importlib
 from pathlib import Path
 
-_HOOK_EVENTS = ["user_prompt_submit", "pre_tool_use", "post_tool_use", "stop"]
+_HOOK_EVENTS = ["user_prompt_submit", "pre_tool_use", "post_completion", "stop"]
 _HERE = Path(__file__).parent
 
 for _event in _HOOK_EVENTS:

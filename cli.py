@@ -68,6 +68,7 @@ def _run_chat():
         #进入AgentLoop前触发UserPromptSubmit钩子，检查输入安全性
         result = hooks_registry.get_hooks_registry().trigger_hooks("UserPromptSubmit", question, uname)
         if result is not None:
+            logger.error(f"UserPromptSubmit钩子触发错误：{result}")
             typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
             continue
 
@@ -80,6 +81,11 @@ def _run_chat():
                 question,
                 on_token=lambda token: typer.echo(token, nl=False),
             )
+            result = hooks_registry.get_hooks_registry().trigger_hooks("Stop")
+            if result is not None:
+                logger.error(f"Stop钩子触发错误：{result}")
+                typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
+
             typer.echo()
         except Exception as e:
             typer.echo(

@@ -1,26 +1,6 @@
 ---
 name: theharvester-osint
-description: >
-  theHarvester 开源情报（OSINT）收集工具。用于在渗透测试或红队评估的侦察阶段，
-  从多个公共数据源（搜索引擎、证书透明度日志、社交媒体、威胁情报平台等）收集
-  目标域名的电子邮件地址、子域名、IP地址、员工姓名、开放端口/横幅和URL。
-  触发条件：用户提及 theHarvester、OSINT收集、子域名枚举、邮箱收集、
-  被动信息收集、 reconnaissance、信息侦察、开源情报等关键词。
-keywords:
-  - theHarvester
-  - theharvester
-  - OSINT
-  - 开源情报
-  - 信息收集
-  - 侦察
-  - reconnaissance
-  - 子域名枚举
-  - 邮箱收集
-  - 被动收集
-  - 渗透测试前期
-  - subdomain enumeration
-  - email harvesting
-  - footprinting
+description: theHarvester 开源情报（OSINT）收集工具。用于在渗透测试或红队评估的侦察阶段，从多个公共数据源（搜索引擎、证书透明度日志、社交媒体、威胁情报平台等）收集目标域名的电子邮件地址、子域名、IP地址、员工姓名、开放端口/横幅和URL。触发条件：用户提及 theHarvester、OSINT收集、子域名枚举、邮箱收集、被动信息收集、 reconnaissance、信息侦察、开源情报等关键词。
 ---
 
 # theHarvester 开源情报收集工具
