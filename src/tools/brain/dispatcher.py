@@ -57,7 +57,7 @@ DISPATCHER_SCHEMA = {
                 "type": {
                     "type": "string",
                     "enum": ["File", "Web", "Memory"],
-                    "description": "目标Agent类型。File=文件读写/文档；Web=搜索/下载/浏览器/时间；Memory=知识库。",
+                    "description": "目标Agent类型。File=文件对象/文档操作；Web=搜索/下载/浏览器/时间；Memory=知识库。",
                 },
             },
             "required": ["command", "type"],

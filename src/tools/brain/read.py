@@ -5,12 +5,13 @@ from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
 
 
-def edit_file(path: str, filename: str, content: str) -> str:
+def read_file(path: str, filename: str) -> str:
     if filename.endswith(".pdf"):
         return json.dumps(
             {
                 "success": False,
-                "summary": "不支持编辑PDF文件, 请使用 read_pdf 读取"
+                "summary": "不支持读取pdf文档操作，请使用 read_pdf 工具",
+                "content": None
             },
             ensure_ascii=False
         )
@@ -22,17 +23,19 @@ def edit_file(path: str, filename: str, content: str) -> str:
         return json.dumps(
             {
                 "success": False,
-                "summary": str(e)
+                "summary": str(e),
+                "content": None
             },
             ensure_ascii=False
         )
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(content)
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
         return json.dumps(
             {
                 "success": True,
-                "summary": f"文件 {file_path} 内容已更新"
+                "summary": f"成功读取文件 {file_path}",
+                "content": content
             },
             ensure_ascii=False
         )
@@ -40,27 +43,27 @@ def edit_file(path: str, filename: str, content: str) -> str:
         return json.dumps(
             {
                 "success": False,
-                "summary": str(e)
+                "summary": str(e),
+                "content": None
             },
             ensure_ascii=False
         )
 
 
-EDIT_FILE_SCHEMA = {
+READ_FILE_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "edit_file",
-        "description": "编辑/覆盖文件内容。此操作将完全替换文件原有内容为新内容。【此工具需要用户确认后方可执行】",
+        "name": "read_file",
+        "description": "读取文本文件内容。注意：PDF文件请使用 read_pdf 工具。",
         "parameters": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "父目录绝对路径，如 /home/user/docs/"},
-                "filename": {"type": "string", "description": "文件名（含扩展名）"},
-                "content": {"type": "string", "description": "要写入的新内容（完全替换）"},
+                "filename": {"type": "string", "description": "文件名（含扩展名），如 note.txt"},
             },
-            "required": ["path", "filename", "content"],
+            "required": ["path", "filename"],
         },
     },
 }
 
-get_tools_registry().register_tool("edit_file", edit_file, EDIT_FILE_SCHEMA, hitl=True, for_agent="File_Agent")
+get_tools_registry().register_tool("read_file", read_file, READ_FILE_SCHEMA, for_agent="Brain_Agent")

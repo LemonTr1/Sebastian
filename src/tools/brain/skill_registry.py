@@ -3,7 +3,9 @@ from pathlib import Path
 import re
 from src.tools.tools_registry import get_tools_registry
 
-SKILLS_DIR = Path(__file__).resolve().parent.parent.parent / "skills"
+BASE_DIR = Path.home() / ".sebastian"
+
+SKILLS_DIR = BASE_DIR / "skills"
 
 @dataclass
 class SkillManifest:
@@ -24,7 +26,7 @@ class SkillRegistry:
 
     def _load_all(self)->None:
         if not self.skills_dir.is_dir():
-            return
+            Path.mkdir(self.skills_dir, parents=True, exist_ok=True)
 
         for path in sorted(self.skills_dir.rglob("SKILL.md")):
             meta, body = self._parse_frontmatter(path.read_text())

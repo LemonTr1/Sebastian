@@ -20,6 +20,7 @@ except ImportError:
     pass
 import typer
 from src.logs.app_log import get_log
+from pathlib import Path
 
 logger = get_log()
 
@@ -47,6 +48,10 @@ def _run_chat():
             bold=True,
         )
     )
+
+    #初始化重要目录
+    if not Path.is_dir(Path.home() / ".sebastian"):
+        Path.mkdir(Path.home() / ".sebastian")
 
     while True:
         try:

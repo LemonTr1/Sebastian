@@ -28,15 +28,15 @@ WHICH_SCHEMA = {
     "type": "function",
     "function": {
         "name": "which",
-        "description": "查找命令的可执行文件路径",
+        "description": "查看指定路径是否存在，类似于 Linux 的 which 命令",
         "parameters": {
             "type": "object",
             "properties": {
-                "command": {"type": "string", "description": "要查找的命令名，如 python, node"},
+                "command": {"type": "string", "description": "要查看的路径"},
             },
             "required": ["command"],
         },
     },
 }
 
-get_tools_registry().register_tool("which", which, WHICH_SCHEMA, for_agent="File_Agent")
+get_tools_registry().register_tool("which", which, WHICH_SCHEMA, for_agent="Brain_Agent")
