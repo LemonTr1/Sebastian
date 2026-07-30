@@ -255,6 +255,14 @@ class AgentRunner:
                     #插入一条系统提示
                     self.context.append({"role": "system", "content": reminder})
 
+    #提供外界获取上下文的接口
+    def get_context(self):
+        return self.context
+
+    #提供外界初始化上下文的接口
+    def set_context(self, context: list):
+        self.context = context
+
     #初始化Agent,返回AgentRunner对象（代替构造函数）
     @classmethod
     def create_runner(cls, name: str, instructions: str, registry: ToolsRegistry, model: str = None):
