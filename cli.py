@@ -20,10 +20,12 @@ except ImportError:
     pass
 import typer
 from src.logs.app_log import get_log
+from src.utils.session_id_container import get_session_id_container
 from pathlib import Path
 import time
 from datetime import datetime
 import json
+from src.utils.compaction_pipeline import compact_history
 
 logger = get_log()
 
@@ -127,6 +129,8 @@ def _run_chat(session_id: str):
     if restored is not None:
         session_id = restored
 
+    get_session_id_container().set_session_id(session_id)
+
     while True:
         try:
             styled = typer.style(f"\n[{uname}]：", fg=typer.colors.GREEN, bold=True)
@@ -148,6 +152,13 @@ def _run_chat(session_id: str):
             brain_agent.set_context([])
             logger.info(f"{uname} 手动清空所有历史对话")
             typer.echo(typer.style("已清空所有历史对话", fg=typer.colors.GREEN, bold=True))
+            continue
+
+        if question.lower() == "/compact":
+            brain_agent.set_context(compact_history(brain_agent.get_context()))
+            logger.info(f"{uname} 手动压缩历史对话")
+            typer.echo(typer.style("已压缩历史对话", fg=typer.colors.GREEN, bold=True))
+            continue
 
         if not question.strip():
             continue
@@ -164,7 +175,7 @@ def _run_chat(session_id: str):
                 typer.style("[Sebastian]: ", fg=typer.colors.BLUE, bold=True), nl=False
             )
             #进入AgentLoop
-            result = brain_agent.run_stream(
+            brain_agent.run_stream(
                 question,
                 on_token=lambda token: typer.echo(token, nl=False),
             )

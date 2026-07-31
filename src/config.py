@@ -14,7 +14,6 @@ BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
 _client = None
 
-
 def get_client() -> OpenAI:
     global _client
     if _client is None:

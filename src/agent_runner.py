@@ -5,6 +5,8 @@ from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.brain.todo_manager import todo
 from src.tools.tools_registry import ToolsRegistry
 from src.logs.app_log import get_log
+from src.utils.compaction_pipeline import CompactionPipeline
+from src.utils.exceptions import CompactException
 
 #以下为response.choice[0].message对象结构
 #LLM的没有工具调用的回应格式：
@@ -31,6 +33,15 @@ from src.logs.app_log import get_log
     }, 
     ...
   ]
+}
+'''
+
+#回应工具调用请求格式：
+'''
+{
+    "role": "tool", 
+    "tool_call_id": <工具id>, 
+    "content": <工具调用结果>
 }
 '''
 
@@ -131,7 +142,7 @@ class AgentRunner:
             self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
         return used_todo
 
-    #给子Agent用的
+    #给子Agent用的（不需要上下文压缩）
     def run(self, task: str, max_turns: int = 50) -> str:
         self._ensure_system_prompt()
         self.context.append({"role": "user", "content": task})
@@ -146,7 +157,8 @@ class AgentRunner:
         while True:
             turn += 1
             if turn > max_turns:
-                return "已达到最大对话轮次，请精简问题后重试"
+                self.context = []
+                return "<SYSTEM_REMINDER>已达到最大对话轮次，请精简问题后重试</SYSTEM_REMINDER>"
 
             kwargs = dict(model=self.model, messages=self.context)
             if tool_schemas:
@@ -165,13 +177,20 @@ class AgentRunner:
 
             tool_calls = assistant_msg.get("tool_calls") or []
             if not tool_calls:
+                self.context = []
                 return assistant_msg.get("content") or ""
 
             self._process_tool_calls(tool_calls)
 
     #流式输出，给brain_agent用的
-    def run_stream(self, task: str, on_token=None, max_turns: int = 50) -> str:
+    def run_stream(self, task: str, on_token=None, max_turns: int = 50) -> None:
         self._ensure_system_prompt()
+
+        try:
+            self.context = CompactionPipeline.compact(self.context)
+        except CompactException as e:
+            typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
+
         self.context.append({"role": "user", "content": task})
 
         tool_schemas = (
@@ -184,7 +203,8 @@ class AgentRunner:
         while True:
             turn += 1
             if turn > max_turns:
-                return "已达到最大对话轮次，请精简问题后重试"
+                typer.echo("已达到最大对话轮次，请精简问题后重试")
+                return
             kwargs = dict(model=self.model, messages=self.context)
             if tool_schemas:
                 kwargs["tools"] = tool_schemas
@@ -242,7 +262,7 @@ class AgentRunner:
             self.context.append(assistant_msg)
 
             if not tool_calls_list:
-                return collected_content
+                return
 
             used_todo = self._process_tool_calls(tool_calls_list)
             if used_todo:
