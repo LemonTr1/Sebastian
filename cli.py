@@ -69,6 +69,18 @@ def restore_context(session_id: str) -> str | None:
     session_id = datetime.now().strftime("%Y%m%d-%H%M") + "-" + hex(int(time.time()))[-4:]
     return session_id
 
+def clear_session(keep: int = 10):
+    #保留最近10个会话文件，删除旧的
+    session_files = sorted(AGENT_SESSION_DIR.glob("*.jsonl"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if len(session_files) > keep:
+        for old_file in session_files[keep:]:
+            try:
+                old_file.unlink()
+                logger.info(f"已删除旧会话文件：{old_file}")
+            except Exception as e:
+                logger.error(f"删除旧会话文件失败 {old_file}：{e}")
+                typer.echo(typer.style(f"删除旧会话文件失败 {old_file}：{e}", fg=typer.colors.RED, bold=True))
+
 #保存会话
 def save_session(context: list, session_id: str):
     session_file = AGENT_SESSION_DIR / f"{session_id}.jsonl"
@@ -92,6 +104,9 @@ def save_session(context: list, session_id: str):
         logger.error(f"保存会话失败：{e}")
         typer.echo(typer.style(f"保存会话失败：{e}", fg=typer.colors.RED, bold=True))
 
+    #保留最近10个会话文件，删除旧的
+    clear_session()
+
 def _run_chat(session_id: str):
     uname = get_username()
     logger.info(f"{uname} 登陆系统")
@@ -108,9 +123,9 @@ def _run_chat(session_id: str):
         Path(AGENT_SESSION_DIR).mkdir(parents=True, exist_ok=True)
 
     #根据session_id初始化上下文内容
-    ret = restore_context(session_id)
-    if ret is not None:
-        session_id = ret
+    restored = restore_context(session_id)
+    if restored is not None:
+        session_id = restored
 
     while True:
         try:
@@ -128,6 +143,11 @@ def _run_chat(session_id: str):
             save_session(session, session_id)
             logger.info(f"{uname} 已成功保存会话并登出系统")
             raise typer.Exit(code=0)
+
+        if question.lower() == "/clear":
+            brain_agent.set_context([])
+            logger.info(f"{uname} 手动清空所有历史对话")
+            typer.echo(typer.style("已清空所有历史对话", fg=typer.colors.GREEN, bold=True))
 
         if not question.strip():
             continue

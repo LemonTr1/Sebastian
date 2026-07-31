@@ -62,12 +62,12 @@ SANDBOX_EXEC_SCHEMA = {
     "type": "function",
     "function": {
         "name": "execute_in_sandbox",
-        "description": "在bubblewrap隔离沙箱中安全执行代码或命令。任何代码文件(.py/.sh/.c/.java/.js等)、用户提供的脚本，代码文件，命令，都必须使用此工具。大部分代码执行任务默认选此工具。",
+        "description": "在bubblewrap隔离沙箱中安全执行脚本或命令，无法实现文件持久化。第一次调用必须使用load_skill('沙箱执行')查看使用说明",
         "parameters": {
             "type": "object",
             "properties": {
                 "command": {"type": "string", "description": "要在沙箱中执行的命令或代码"},
-                "code_file_path": {"type": "string", "description": "可选，要挂载到沙箱的代码文件或目录的绝对路径（必须在家目录下），留空则不挂载额外路径"},
+                "code_file_path": {"type": "string", "description": "可选，要挂载到沙箱的代码文件或目录的绝对路径（必须在家目录下），留空则不挂载额外路径，挂载到沙箱内路径为/workspace"},
             },
             "required": ["command"],
         },
