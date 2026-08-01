@@ -45,7 +45,7 @@ DISPATCHER_SCHEMA = {
         "name": "dispatcher",
         "description": (
             "将任务分发到对应的子Agent执行。\n"
-            "文件读写/文档→File，搜索/下载/时间/浏览器/网页→Web，知识库→Memory。\n"
+            "文件/文档操作→File，搜索/下载/时间/浏览器/网页→Web，知识库→Memory。\n"
         ),
         "parameters": {
             "type": "object",

@@ -1,11 +1,14 @@
 import json
+import random
+import time
+
 import typer
 from src.config import get_client, MODEL
 from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.brain.todo_manager import todo
 from src.tools.tools_registry import ToolsRegistry
 from src.logs.app_log import get_log
-from src.utils.compaction_pipeline import CompactionPipeline
+from src.utils.compaction_pipeline import CompactionPipeline, reactive_compact
 from src.utils.exceptions import CompactException
 
 #以下为response.choice[0].message对象结构
@@ -142,7 +145,7 @@ class AgentRunner:
             self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
         return used_todo
 
-    #给子Agent用的（不需要上下文压缩）
+    #给子Agent用的（不需要上下文压缩，退出AgentLoop即清空上下文，只需紧急反应式压缩即可）
     def run(self, task: str, max_turns: int = 50) -> str:
         self._ensure_system_prompt()
         self.context.append({"role": "user", "content": task})
@@ -165,7 +168,38 @@ class AgentRunner:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
 
-            response = self.client.chat.completions.create(**kwargs)
+            response = None
+            retries = 0
+            while True:
+                if retries >= 5:
+                    break
+                try:
+                    response = self.client.chat.completions.create(**kwargs)
+                    break
+                except Exception as e:
+                    #如果是上下文溢出导致的异常
+                    if "prompt_too_long" in str(e).lower() or "too many tokens" in str(e).lower() or "context_length_exceeded" in str(e).lower():
+                        reactive_retries = 0
+                        while True:
+                            if reactive_retries >= 3:
+                                break
+                            logger.warning(f"{self.name}上下文过长，启动应急压缩，重试次数：{reactive_retries}")
+                            try:
+                                self.context = reactive_compact(self.context)
+                                break
+                            except CompactException:
+                                reactive_retries += 1
+                                continue
+                    #如果是其他错误如API响应失败
+                    else:
+                        logger.error(f"{self.name}发生错误：{str(e)}")
+                        delay = min(3, 2 ** retries)
+                        time.sleep(random.uniform(0, delay))
+                    retries += 1
+
+            if response is None:
+                self.context = []
+                return f"<SYSTEM_REMINDER>{self.name}出错无法恢复，请重试</SYSTEM_REMINDER>"
 
             result = get_hooks_registry().trigger_hooks("PostCompletion", response)
             if result is not None:
@@ -210,7 +244,41 @@ class AgentRunner:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
 
-            stream = self.client.chat.completions.create(**kwargs, stream=True, stream_options={"include_usage": True})
+            stream = None
+            retries = 0
+            while True:
+                if retries >= 5:
+                    break
+                try:
+                    stream = self.client.chat.completions.create(**kwargs, stream=True,
+                                                                 stream_options={"include_usage": True})
+                    break
+                except Exception as e:
+                    # 如果是上下文溢出导致的异常
+                    if "prompt_too_long" in str(e).lower() or "too many tokens" in str(
+                            e).lower() or "context_length_exceeded" in str(e).lower():
+                        reactive_retries = 0
+                        while True:
+                            if reactive_retries >= 3:
+                                break
+                            logger.warning(f"{self.name}上下文过长，启动应急压缩，重试次数：{reactive_retries}")
+                            try:
+                                self.context = reactive_compact(self.context)
+                                break
+                            except CompactException:
+                                reactive_retries += 1
+                                continue
+                    # 如果是其他错误如API响应失败
+                    else:
+                        logger.error(f"{self.name}发生错误：{str(e)}")
+                        delay = min(3, 2 ** retries)
+                        time.sleep(random.uniform(0, delay))
+                    retries += 1
+
+            if stream is None:
+                logger.error(f"{self.name}出错无法恢复，请稍后重试")
+                typer.echo(typer.style(f"\n {self.name}出错无法恢复，请稍后重试 \n", fg=typer.colors.RED, bold=True))
+                return
 
             collected_content = ""
             collected_tool_calls: dict[int, dict] = {}

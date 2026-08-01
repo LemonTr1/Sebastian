@@ -74,6 +74,7 @@ def micro_compact(messages: list)->list:
     return messages
 
 def write_transcript(messages: list)->str | None:
+    """当前会话持久化到.transcript中"""
     if not TRANSCRIPTS_DIR.is_dir():
         TRANSCRIPTS_DIR.mkdir(exist_ok=True, parents=True)
     transcript_path = TRANSCRIPTS_DIR / f"transcript_{get_session_id_container().get_session_id()}.txt"
@@ -98,6 +99,7 @@ def write_transcript(messages: list)->str | None:
     return str(transcript_path)
 
 def summerize_history(messages: list)->str:
+    """调用API压缩会话"""
     conversation = json.dumps(messages, default=str)
     prompt = ("Summarize this coding-agent conversation so work can continue.\n"
               "Preserve: 1. current goal, 2. key findings/decisions, 3. files read/changed, "
@@ -120,6 +122,21 @@ def compact_history(messages: list)->list:
     except CompactException as e:
         raise CompactException(str(e))
     return [{"role": "user", "content": f"<persisted-output>\n[Compacted]:\n {summary}\n [Reminder]:\n The original conversation history has been saved to {transcript_path}. The file is too large; do not read it in its entirety at once.\n</persisted-output>"}]
+
+def reactive_compact(messages: list) -> list:
+    """应急反应式压缩"""
+    try:
+        transcript_path = write_transcript(messages)
+        summary = summerize_history(messages)
+    except CompactException as e:
+        raise CompactException(str(e))
+
+    tail_start = max(0, len(messages)-5)
+    while tail_start > 0 and messages[tail_start-1].get("role") in ["assistant", "tool"]:
+        tail_start -= 1
+
+    return [{"role": "user", "content": f"<persisted-output>\n[Reactive compacted]:\n {summary}\n [Reminder]:\n The original conversation history has been saved to {transcript_path}. The file is too large; do not read it in its entirety at once.\n</persisted-output>"}, *messages[tail_start:]]
+
 
 class CompactionPipeline:
     @staticmethod
