@@ -35,7 +35,7 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
 
 ## 技能加载
 可用技能：{get_skill_registry().describe_available()}
-使用 load_skill 工具加载技能获取详细说明。
+使用 load_skill 工具加载技能获取详细说明，内置脚本执行使用run_script而不是execute_in_sandbox
 技能源文件在`{SKILLS_DIR}`中
 """
 

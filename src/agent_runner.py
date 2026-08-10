@@ -105,7 +105,7 @@ class AgentRunner:
 
     def should_run_background(self, tool_name: str, tool_args: dict) -> bool:
         """判断是否应该在后台运行工具"""
-        if tool_name != "bash" and tool_name != "execute_in_sandbox":
+        if tool_name != "run_script" and tool_name != "execute_in_sandbox":
             return False
 
         if tool_args.get("run_in_background"):
@@ -134,7 +134,7 @@ class AgentRunner:
 
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
-        typer.echo(typer.style(f"[background] 后台任务启动：{bg_id}: {cmd[:40]} ...", fg=typer.colors.WHITE, bold=True))
+        typer.echo(typer.style(f"\n> [background] 后台任务启动：{bg_id}: {cmd[:40]} ... ", fg=typer.colors.WHITE, bold=True))
         return bg_id
 
     def collect_background_results(self) -> list:
@@ -154,7 +154,7 @@ class AgentRunner:
                 f"  <output>{output}</output>\n"
                 f"</task_notification>"
             )
-            typer.echo(typer.style(f"[background done] {bg_id}: {task['command']} ...", fg=typer.colors.GREEN))
+            typer.echo(typer.style(f"\n> [background done] {bg_id}: {task['command']} ...", fg=typer.colors.GREEN))
         return notifications
 
     #执行工具函数

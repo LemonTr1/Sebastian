@@ -76,7 +76,7 @@ class SkillRegistry:
         )
 
     # 供Agent执行脚本的工具
-    def bash(self, script_path: str, parameters = None, timeout: int = 180, run_in_background: bool = False) -> str:
+    def run_script(self, script_path: str, parameters = None, timeout: int = 180, run_in_background: bool = False) -> str:
         if parameters is None:
             parameters = []
 
@@ -102,9 +102,13 @@ class SkillRegistry:
                     "error": "无法添加执行权限，告诉用户手动运行: chmod +x " + str(script_path)
                 }, ensure_ascii=False)
 
+        exec = "bash"
+        if script_path.endswith(".py"):
+            exec = "python3"
+
         try:
             result = subprocess.run(
-                ["bash", str(script_path)] + parameters,
+                [exec, str(script_path)] + parameters,
                 capture_output=True,
                 text=True,
                 check=True,
@@ -174,8 +178,8 @@ SKILL_REGISTRY_SCHEMA = {
 BASH_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "bash",
-        "description": "在宿主机执行指定脚本并返回结果。",
+        "name": "run_script",
+        "description": "在宿主机执行技能系统内的脚本并返回结果。",
         "parameters": {
             "type": "object",
             "properties": {
@@ -200,4 +204,4 @@ BASH_SCHEMA = {
 
 #注册工具
 get_tools_registry().register_tool("load_skill", SKILL_REGISTRY.load_full_text, SKILL_REGISTRY_SCHEMA, for_agent="Brain_Agent")
-get_tools_registry().register_tool("bash", SKILL_REGISTRY.bash, BASH_SCHEMA, for_agent="Brain_Agent")
+get_tools_registry().register_tool("run_script", SKILL_REGISTRY.run_script, BASH_SCHEMA, for_agent="Brain_Agent")

@@ -63,7 +63,7 @@ WRITE_SCHEMA = {
     "type": "function",
     "function": {
         "name": "write",
-        "description": "覆盖文件内容。此操作将完全替换文件原有内容为新内容。【此工具需要用户确认后方可执行】",
+        "description": "完全替换文件原有内容为新内容，前提是该文件必须存在。【此工具需要用户确认后方可执行】",
         "parameters": {
             "type": "object",
             "properties": {

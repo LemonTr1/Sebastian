@@ -1,10 +1,9 @@
 import os
-import typer
 import json
-from src.security.path_safety import resolve_safe_path
-from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
+from pathlib import Path
 
+HOME = Path.home()
 
 def create_file(path: str, filename: str) -> str:
     if filename.endswith(".pdf") or filename.endswith(".docx"):
@@ -15,17 +14,12 @@ def create_file(path: str, filename: str) -> str:
             }, 
             ensure_ascii=False
         )
-        
-    try:
-        path = resolve_safe_path(path)
-    except SecurityException as e:
-        return json.dumps(
-            {
-                "success": False, 
-                "summary": str(e)
-            }, 
-            ensure_ascii=False
-        )
+
+    if not path.startswith(str(HOME)):
+        return json.dumps({
+            "success": False,
+            "summary": f"新建文件必须在用户家目录下"
+        }, ensure_ascii=False)
         
     if os.path.isfile(path):
         return json.dumps(
@@ -50,7 +44,7 @@ def create_file(path: str, filename: str) -> str:
         return json.dumps(
             {
                 "success": False, 
-                "summary": f"文件 {file_path} 已存在，此操作会覆盖已有文件，需额外确认"
+                "summary": f"文件 {file_path} 已存在，此操作会覆盖已有文件"
             }, 
             ensure_ascii=False
         )
@@ -79,7 +73,7 @@ CREATE_FILE_SCHEMA = {
     "type": "function",
     "function": {
         "name": "create_file",
-        "description": "在指定路径创建新空文件。如果文件已存在，此操作会覆盖原文件。【此工具需要用户确认后方可执行——尤其是覆盖已有文件时】",
+        "description": "在指定路径创建新的空文件。如果文件已存在，此操作会失败。",
         "parameters": {
             "type": "object",
             "properties": {
