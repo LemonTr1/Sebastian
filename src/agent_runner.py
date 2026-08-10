@@ -1,7 +1,7 @@
 import json
 import random
 import time
-
+import threading
 import typer
 from src.config import get_client, MODEL
 from src.hooks.hooks_registry import get_hooks_registry
@@ -68,6 +68,10 @@ class AgentRunner:
         self.model = model or MODEL
         self.client = get_client()
         self.context = []
+        self._bg_counter = 0
+        self.background_tasks: dict[str, dict] = {}
+        self.background_results: dict[str, str] = {}
+        self.background_lock = threading.Lock()
 
     def _ensure_system_prompt(self):
         if not self.context or self.context[0].get("role") != "system":
@@ -99,10 +103,66 @@ class AgentRunner:
 
         return result
 
+    def should_run_background(self, tool_name: str, tool_args: dict) -> bool:
+        """判断是否应该在后台运行工具"""
+        if tool_name != "bash" and tool_name != "execute_in_sandbox":
+            return False
+
+        if tool_args.get("run_in_background"):
+            return True
+
+        return False
+
+    def start_background_task(self, tool_call_id: str, tool_name: str, tool_args: dict) -> str:
+        self._bg_counter += 1
+        bg_id = f"bg_task_{self._bg_counter}"
+        cmd = f"{tool_name}: {json.dumps(tool_args, ensure_ascii=False)}"
+
+        def worker():
+            func = self.tool_map[tool_name]["func"]
+            result = func(**tool_args)
+            with self.background_lock:
+                self.background_tasks[bg_id]["status"] = "completed"
+                self.background_results[bg_id] = result
+
+        with self.background_lock:
+            self.background_tasks[bg_id] = {
+                "tool_call_id": tool_call_id,
+                "command": cmd,
+                "status": "running",
+            }
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        typer.echo(typer.style(f"[background] 后台任务启动：{bg_id}: {cmd[:40]} ...", fg=typer.colors.WHITE, bold=True))
+        return bg_id
+
+    def collect_background_results(self) -> list:
+        with self.background_lock:
+            ready_ids = [bid for bid, task in self.background_tasks.items() if task["status"] == "completed"]
+
+        notifications = []
+        for bg_id in ready_ids:
+            with self.background_lock:
+                task = self.background_tasks.pop(bg_id)
+                output = self.background_results.pop(bg_id, "")
+            notifications.append(
+                f"<task_notification>\n"
+                f"  <task_id>{bg_id}</task_id>\n"
+                f"  <status>completed</status>\n"
+                f"  <command>{task['command']}</command>\n"
+                f"  <output>{output}</output>\n"
+                f"</task_notification>"
+            )
+            typer.echo(typer.style(f"[background done] {bg_id}: {task['command']} ...", fg=typer.colors.GREEN))
+        return notifications
+
     #执行工具函数
     def _process_tool_calls(self, tool_calls: list) -> bool:
         aborted = False
         used_todo = False
+
+        new_messages = []
         for tc in tool_calls:
             #OpenAI API契约规定：tool_calls数组有多少项，后面就必须用同样的role: tool消息回应，就是必须要告诉LLM结果是什么
             if aborted:
@@ -129,12 +189,30 @@ class AgentRunner:
                     f"\n> [TOOL] {self.name} 调用 {name}({_brief_args(tool_args)})",
                     fg=typer.colors.WHITE,
                 ))
+
                 #执行工具
-                raw = func(**tool_args)
-                result = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
+                if self.should_run_background(name, args):
+                    bg_id = self.start_background_task(tc["id"], name, tool_args)
+                    new_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": f"<SYSTEM_REMINDER>Background task {bg_id} started, result will be available when complete.</SYSTEN_REMINDER>"
+                    })
+                else:
+                    raw = func(**tool_args)
+                    result = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
+                    new_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result
+                    })
+
                 #标记本次AgentLoop中BrainAgent调用了任务管理工具
                 if name == "todo":
                     used_todo = True
+                    if self.context[0]["role"] == "system":
+                        self.context[0]["context"] = self.context[0].get("context", "") + "\n\n" + "<当前任务计划>" + "\n" + todo().get_normalized()
+
             except Exception as e:
                 tool_name = tc.get("function", {}).get("name", "unknown")
                 result = json.dumps(
@@ -142,7 +220,13 @@ class AgentRunner:
                     ensure_ascii=False,
                 )
                 aborted = True
-            self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
+
+        # 注入后台任务运行结果
+        bg_notifications = self.collect_background_results()
+        if bg_notifications:
+            new_messages.append({"role": "user", "content": ".\n".join(bg_notifications)})
+
+        self.context.extend(new_messages)
         return used_todo
 
     #给子Agent用的（不需要上下文压缩，退出AgentLoop即清空上下文，只需紧急反应式压缩即可）
@@ -341,7 +425,7 @@ class AgentRunner:
                 reminder = todo().reminder()
                 if reminder:
                     #插入一条系统提示
-                    self.context.append({"role": "system", "content": reminder})
+                    self.context.append({"role": "user", "content": reminder})
 
     #提供外界获取上下文的接口
     def get_context(self):

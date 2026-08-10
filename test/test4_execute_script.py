@@ -1,6 +1,6 @@
-from src.tools.brain.scripts_executor import get_script_registry
+from src.tools.brain.skill_registry import get_skill_registry
 
 if __name__ == "__main__":
     #所有参数必须都是str类型
-    result = get_script_registry().execute_script("project_tree", [])
+    result = get_skill_registry().execute_script("project_tree", [])
     print(result)

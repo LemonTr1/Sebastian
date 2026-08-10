@@ -4,10 +4,11 @@ from src.security.command_guard import security_guard
 from src.utils.exceptions import SecurityException
 from src.sandbox.bubblewrap import BubblewrapSandbox
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 
-TIMEOUT = 60
+TIMEOUT = 180
 
-def execute_in_sandbox(command: str, code_file_path: str = "") -> str:
+def execute_in_sandbox(command: str, code_file_path: str = "", ro: bool = True, run_in_background: bool = False) -> str:
     try:
         security_guard(command)
     except SecurityException as e:
@@ -37,10 +38,10 @@ def execute_in_sandbox(command: str, code_file_path: str = "") -> str:
             )
         sandbox_path = "/workspace/" + os.path.basename(abs_path)
         if os.path.isdir(abs_path):
-            mount_paths.append((abs_path, sandbox_path, False))
+            mount_paths.append((abs_path, sandbox_path, ro))
         else:
             parent = os.path.dirname(abs_path)
-            mount_paths.append((parent, "/workspace", False))
+            mount_paths.append((parent, "/workspace", ro))
 
     sandbox = BubblewrapSandbox()
     try:
@@ -62,12 +63,14 @@ SANDBOX_EXEC_SCHEMA = {
     "type": "function",
     "function": {
         "name": "execute_in_sandbox",
-        "description": "在bubblewrap隔离沙箱中安全执行脚本或命令，无法实现文件持久化。第一次调用必须使用load_skill('沙箱执行')查看使用说明",
+        "description": f"{get_prompt_loader().load_prompt('execute_in_sandbox')}",
         "parameters": {
             "type": "object",
             "properties": {
                 "command": {"type": "string", "description": "要在沙箱中执行的命令或代码"},
                 "code_file_path": {"type": "string", "description": "可选，要挂载到沙箱的代码文件或目录的绝对路径（必须在家目录下），留空则不挂载额外路径，挂载到沙箱内路径为/workspace"},
+                "ro": {"type": "boolean", "description": "可选，是否以只读方式挂载代码文件或目录，true为只读，false为可读写挂载，默认为true"},
+                "run_in_background": {"type": "boolean", "description": "可选，是否在后台以异步方式运行，true表示以异步方式运行，默认为false"},
             },
             "required": ["command"],
         },
@@ -75,4 +78,4 @@ SANDBOX_EXEC_SCHEMA = {
 }
 
 #注册工具
-get_tools_registry().register_tool("execute_in_sandbox", execute_in_sandbox, SANDBOX_EXEC_SCHEMA, for_agent="Brain_Agent")
+get_tools_registry().register_tool("execute_in_sandbox", execute_in_sandbox, SANDBOX_EXEC_SCHEMA, hitl=True, for_agent="Brain_Agent")

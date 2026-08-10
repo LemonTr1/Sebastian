@@ -69,8 +69,13 @@ class TodoManager:
         self.state.rounds_since_update = 0
         return json.dumps({
             "success": "True",
-            "summary": f"任务计划已成功更新: {normalized}"
+            "summary": f"任务计划已为最新"
         })
+
+    def get_normalized(self) -> str:
+        if not self.state.items:
+            return "<SYSTEM_REMINDER>当前任务计划为空</SYSTEM_REMINDER>"
+        return str(self.state.items)
 
     def reminder(self) -> str | None:
         if not self.state.items:

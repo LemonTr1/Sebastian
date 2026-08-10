@@ -22,8 +22,6 @@ def _hitl_confirm(name: str, args: dict) -> bool:
     )
     for k, v in brief.items():
         val_str = str(v)
-        if len(val_str) > 200:
-            val_str = val_str[:200] + "..."
         typer.echo(typer.style(f"    {k}: {val_str}", fg=typer.colors.YELLOW))
     typer.echo(
         typer.style(

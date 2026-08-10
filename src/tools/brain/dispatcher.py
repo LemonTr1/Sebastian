@@ -1,5 +1,6 @@
 import json
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 
 def dispatcher(task: str, type: str) -> str:
     from src.agents.file_agent import file_agent
@@ -45,19 +46,19 @@ DISPATCHER_SCHEMA = {
         "name": "dispatcher",
         "description": (
             "将任务分发到对应的子Agent执行。\n"
-            "文件/文档操作→File，搜索/下载/时间/浏览器/网页→Web，知识库→Memory。\n"
+            "文件/文档操作→File，搜索/下载/时间/浏览器/网页→Web，知识库→Memory。\n" + get_prompt_loader().load_prompt("routing-corrections")
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "task": {
                     "type": "string",
-                    "description": "自然语言任务描述。用Markdown代码块包裹代码/Shell命令/文本内容。",
+                    "description": "自然语言任务描述。。",
                 },
                 "type": {
                     "type": "string",
                     "enum": ["File", "Web", "Memory"],
-                    "description": "目标Agent类型。File=文件对象/文档操作；Web=搜索/下载/浏览器/时间；Memory=知识库。",
+                    "description": "目标Agent类型。File=文件/目录操作；Web=网络信息搜索/网络资源下载/浏览器操作；Memory=知识库信息存取。",
                 },
             },
             "required": ["task", "type"],
