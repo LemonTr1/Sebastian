@@ -104,8 +104,8 @@ class AgentRunner:
         return result
 
     def should_run_background(self, tool_name: str, tool_args: dict) -> bool:
-        """判断是否应该在后台运行工具"""
-        if tool_name != "run_script" and tool_name != "execute_in_sandbox":
+        """判断是否应该在后台运行工具，只有bash工具需要后台执行选项"""
+        if tool_name != "bash":
             return False
 
         if tool_args.get("run_in_background"):

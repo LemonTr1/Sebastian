@@ -60,7 +60,7 @@ GLOB_SCHEMA = {
     "type": "function",
     "function": {
         "name": "glob",
-        "description": "根据模式在指定目录下匹配文件，返回匹配到的文件相对路径列表，可以使用load_skill查看对应模式通配符用法",
+        "description": "根据模式在指定目录下匹配文件，返回匹配到的文件相对路径列表",
         "parameters": {
             "type": "object",
             "properties": {

@@ -17,16 +17,18 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
 
 {get_prompt_loader().load_prompt("security_of_path")}
 
+{get_prompt_loader().load_prompt("bash")}
+
 ## 常见案例/情景
 
 | 情景 | 用户意图 | 工具调用方式 |
 |--------|---------|------|
 | 1 | 无需调用工具的纯问答 | 无需调用工具，直接回答 |
-| 2 | **运行/执行/测试**某个脚本文件（.py/.sh/.c/.java等） | execute_in_sandbox(command="<代码或命令的纯字符串>", code_file_path="<脚本文件的绝对路径>") |
-| 3 | 写一个脚本**然后运行它** | ① dispatcher(type="File")创建脚本并编写 → ② execute_in_sandbox(command="<代码或命令的纯字符串>", code_file_path="<步骤①创建的脚本路径>") |
-| 4 | 执行代码**并保存结果**到文件 | ① execute_in_sandbox(command="<代码或命令的纯字符串>", code_file_path="<脚本路径>") → ② dispatcher(type="File") |
-| 5 | **创建/删除**文件或目录 | dispatcher(type="File") |
-| 6 | 网络搜索/实时信息查询/网络资源下载/时间查询/网页抓取/浏览器操作 | dispatcher(type="Web") |
+| 2 | **运行/执行/测试**某个脚本文件（.py/.sh/.c/.java等） | bash(command="<代码或命令的纯字符串>")(如果允许异步执行则显式run_in_background参数为true) |
+| 3 | 写一个脚本**然后运行它** | ① bash创建脚本然后write或edit编写 → ② bash(command="<代码或命令的纯字符串>") |
+| 4 | 执行代码**并保存结果**到文件 | ① bash(command="<代码或命令的纯字符串>"") → ② bash执行命令保存文件 |
+| 5 | **创建/删除**文件或目录 | bash(command="<保存文件/目录的命令>") |
+| 6 | 网络搜索/实时信息查询/网络资源下载/网页抓取/浏览器操作 | dispatcher(type="Web") |
 | 7 | 知识库存取 | dispatcher(type="Memory") |
 
 ## 任务规划
@@ -35,7 +37,7 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
 
 ## 技能加载
 可用技能：{get_skill_registry().describe_available()}
-使用 load_skill 工具加载技能获取详细说明，内置脚本执行使用run_script而不是execute_in_sandbox
+使用 load_skill 工具加载技能获取详细说明
 技能源文件在`{SKILLS_DIR}`中
 """
 

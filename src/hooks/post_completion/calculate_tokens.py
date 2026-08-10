@@ -1,5 +1,5 @@
 from src.hooks.hooks_registry import get_hooks_registry
-from src.tokens.tokens_caculator import get_total_session_tokens
+from src.utils.tokens_caculator import get_total_session_tokens
 
 def calculate_tokens(primitive_response):
     try:

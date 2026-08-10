@@ -4,7 +4,6 @@ from src.security.path_safety import resolve_safe_path
 from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
 
-
 def read_file(file_path: str, offset: int = -1, limit: int = -1) -> str:
     if (offset == -1 and limit != -1) or (offset != -1 and limit == -1):
         return json.dumps({
@@ -16,7 +15,7 @@ def read_file(file_path: str, offset: int = -1, limit: int = -1) -> str:
         return json.dumps(
             {
                 "success": False,
-                "summary": "不支持读取pdf或docx文档操作，请使用dispatcher('File')工具",
+                "summary": "不支持读取pdf或docx文档操作",
                 "content": None
             },
             ensure_ascii=False
@@ -78,7 +77,7 @@ READ_FILE_SCHEMA = {
     "type": "function",
     "function": {
         "name": "read_file",
-        "description": "读取文本文件内容，如果不传offset和limit参数表示读取完整文件内容，如果要传则必须同时设置offset和limit。注意：PDF文件或DOCX文件请使用 dispatcher('File') 工具。",
+        "description": "读取文本文件内容，如果不传offset和limit参数表示读取完整文件内容，如果要传则必须同时设置offset和limit。",
         "parameters": {
             "type": "object",
             "properties": {

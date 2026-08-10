@@ -1,16 +1,12 @@
 import json
 from src.tools.tools_registry import get_tools_registry
-from src.utils.load_prompt import get_prompt_loader
 
 def dispatcher(task: str, type: str) -> str:
-    from src.agents.file_agent import file_agent
     from src.agents.web_agent import web_agent
     from src.agents.memory_agent import memory_agent
 
     try:
-        if type == "File":
-            result = file_agent.run(task)
-        elif type == "Web":
+        if type == "Web":
             result = web_agent.run(task)
         elif type == "Memory":
             result = memory_agent.run(task)
@@ -46,7 +42,7 @@ DISPATCHER_SCHEMA = {
         "name": "dispatcher",
         "description": (
             "将任务分发到对应的子Agent执行。\n"
-            "文件/文档操作→File，搜索/下载/时间/浏览器/网页→Web，知识库→Memory。\n" + get_prompt_loader().load_prompt("routing-corrections")
+            "搜索/下载/时间/浏览器/网页→Web，知识库→Memory。"
         ),
         "parameters": {
             "type": "object",
@@ -57,8 +53,8 @@ DISPATCHER_SCHEMA = {
                 },
                 "type": {
                     "type": "string",
-                    "enum": ["File", "Web", "Memory"],
-                    "description": "目标Agent类型。File=文件/目录操作；Web=网络信息搜索/网络资源下载/浏览器操作；Memory=知识库信息存取。",
+                    "enum": ["Web", "Memory"],
+                    "description": "目标Agent类型。Web=网络信息搜索/网络资源下载/浏览器操作；Memory=知识库信息存取。",
                 },
             },
             "required": ["task", "type"],

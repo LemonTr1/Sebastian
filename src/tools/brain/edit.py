@@ -9,7 +9,7 @@ def edit(file_path: str, old_text: str, new_text: str, replace_all: bool = False
         return json.dumps(
             {
                 "success": False,
-                "summary": "不支持编辑PDF/DOCX/PPTX文件, 请使用 dispatcher('File') 处理文档"
+                "summary": "不支持编辑PDF/DOCX/PPTX文件"
             },
             ensure_ascii=False
         )

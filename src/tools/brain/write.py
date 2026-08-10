@@ -18,7 +18,7 @@ def write(file_path: str, content: str) -> str:
         return json.dumps(
             {
                 "success": False,
-                "summary": "不支持写PDF文件或docx文件, 请使用 dispatcher('File') 读取"
+                "summary": "不支持写PDF文件或docx文件"
             },
             ensure_ascii=False
         )

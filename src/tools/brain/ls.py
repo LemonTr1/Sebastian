@@ -72,4 +72,3 @@ LS_SCHEMA = {
 }
 
 get_tools_registry().register_tool("ls", ls, LS_SCHEMA, for_agent="Brain_Agent")
-get_tools_registry().register_tool("ls", ls, LS_SCHEMA, for_agent="File_Agent")
