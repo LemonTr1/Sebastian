@@ -82,7 +82,8 @@ class TodoManager:
             return None
         if self.state.rounds_since_update < PLAN_REMINDER_INTERVAL:
             return None
-        return "<SYSTEM_REMINDER>在继续之前使用todo更新任务状态表</SYSTEM_REMINDER>"
+        exceed = self.state.rounds_since_update - PLAN_REMINDER_INTERVAL + 1
+        return f"<SYSTEM_REMINDER>用户需要实时查看任务进度，而你已经有 {exceed} 轮没有更新了，请在继续之前使用todo更新任务状态表</SYSTEM_REMINDER>"
 
     #可视化，只是给用户看的
     def render(self) -> None:

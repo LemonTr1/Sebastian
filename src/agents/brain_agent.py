@@ -1,6 +1,7 @@
 from pathlib import Path
 from src.agent_runner import AgentRunner
-from src.tools.brain.skill_registry import get_skill_registry
+from src.tools.toolkits.skill_registry import get_skill_registry
+from src.tools.toolkits.subagent import get_sub_agent_registry
 from src.tools.tools_registry import get_tools_registry
 from src.utils.user_info import get_username
 from src.utils.datetime_utils import get_current_time
@@ -28,8 +29,7 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
 | 3 | 写一个脚本**然后运行它** | ① bash创建脚本然后write或edit编写 → ② bash(command="<代码或命令的纯字符串>") |
 | 4 | 执行代码**并保存结果**到文件 | ① bash(command="<代码或命令的纯字符串>"") → ② bash执行命令保存文件 |
 | 5 | **创建/删除**文件或目录 | bash(command="<保存文件/目录的命令>") |
-| 6 | 网络搜索/实时信息查询/网络资源下载/网页抓取/浏览器操作 | dispatcher(type="Web") |
-| 7 | 知识库存取 | dispatcher(type="Memory") |
+| 6 | 网络搜索/实时信息查询/网页抓取 | web_search和web_fetch |
 
 ## 任务规划
 - 多步任务必须用 todo 工具规划并生成状态表
@@ -39,6 +39,10 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
 可用技能：{get_skill_registry().describe_available()}
 使用 load_skill 工具加载技能获取详细说明
 技能源文件在`{SKILLS_DIR}`中
+
+## 子代理
+你可以通过agent工具调度指定子Agent来辅助完成任务，可供调度子Agent：
+{get_sub_agent_registry().describe_available()}
 """
 
 brain_agent = AgentRunner.create_runner(

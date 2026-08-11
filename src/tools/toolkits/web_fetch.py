@@ -14,7 +14,7 @@ def _ddgs_extract(url: str) -> dict:
         return {"success": True, "content": str(extracted)}
 
 
-def web_extract(url: str, timeout: int = 20) -> str:
+def web_fetch(url: str, timeout: int = 20) -> str:
     if not is_public_url(url):
         return json.dumps(
             {
@@ -49,10 +49,10 @@ def web_extract(url: str, timeout: int = 20) -> str:
         )
 
 
-WEB_EXTRACT_SCHEMA = {
+WEB_FETCH_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "web_extract",
+        "name": "web_fetch",
         "description": "提取指定URL的网页正文内容（纯文本/markdown）",
         "parameters": {
             "type": "object",
@@ -65,4 +65,4 @@ WEB_EXTRACT_SCHEMA = {
     },
 }
 
-get_tools_registry().register_tool("web_extract", web_extract, WEB_EXTRACT_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("web_fetch", web_fetch, WEB_FETCH_SCHEMA, for_agent="Brain_Agent")

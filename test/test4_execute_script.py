@@ -1,4 +1,4 @@
-from src.tools.brain.skill_registry import get_skill_registry
+from src.tools.toolkits.skill_registry import get_skill_registry
 
 if __name__ == "__main__":
     #所有参数必须都是str类型

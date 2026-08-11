@@ -4,7 +4,7 @@ from src.security.path_safety import resolve_safe_path
 from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
 
-def read_file(file_path: str, offset: int = -1, limit: int = -1) -> str:
+def read(file_path: str, offset: int = -1, limit: int = -1) -> str:
     if (offset == -1 and limit != -1) or (offset != -1 and limit == -1):
         return json.dumps({
             "success": False,
@@ -73,11 +73,11 @@ def read_file(file_path: str, offset: int = -1, limit: int = -1) -> str:
         )
 
 
-READ_FILE_SCHEMA = {
+READ_SCHEMA = {
     "type": "function",
     "function": {
-        "name": "read_file",
-        "description": "读取文本文件内容，如果不传offset和limit参数表示读取完整文件内容，如果要传则必须同时设置offset和limit。",
+        "name": "read",
+        "description": "读取文件内容，如果不传offset和limit参数表示读取完整文件内容，如果要传则必须同时设置offset和limit。",
         "parameters": {
             "type": "object",
             "properties": {
@@ -90,4 +90,4 @@ READ_FILE_SCHEMA = {
     },
 }
 
-get_tools_registry().register_tool("read_file", read_file, READ_FILE_SCHEMA, for_agent="Brain_Agent")
+get_tools_registry().register_tool("read", read, READ_SCHEMA, for_agent="Brain_Agent")

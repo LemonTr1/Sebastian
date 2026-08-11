@@ -1,7 +1,7 @@
 import importlib
 from pathlib import Path
 
-_TOOL_PACKAGES = ["file", "code", "web", "memory", "brain"]
+_TOOL_PACKAGES = ["toolkits"]
 
 for _pkg in _TOOL_PACKAGES:
     _dir = Path(__file__).parent / _pkg

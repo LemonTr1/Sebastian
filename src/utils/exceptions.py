@@ -3,3 +3,6 @@ class SecurityException(Exception):
 
 class CompactException(Exception):
     pass
+
+class SubAgentRuntimeException(Exception):
+    pass

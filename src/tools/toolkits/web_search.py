@@ -39,7 +39,7 @@ WEB_SEARCH_SCHEMA = {
     "type": "function",
     "function": {
         "name": "web_search",
-        "description": "使用DuckDuckGo进行网络搜索，返回相关结果列表",
+        "description": "根据关键词进行网络搜索，返回包含url的相关结果列表",
         "parameters": {
             "type": "object",
             "properties": {
@@ -52,4 +52,4 @@ WEB_SEARCH_SCHEMA = {
     },
 }
 
-get_tools_registry().register_tool("web_search", web_search, WEB_SEARCH_SCHEMA, for_agent="Web_Agent")
+get_tools_registry().register_tool("web_search", web_search, WEB_SEARCH_SCHEMA, for_agent="Brain_Agent")

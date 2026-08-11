@@ -1,14 +1,15 @@
 class ToolsRegistry:
     def __init__(self):
-        self.hitl_tools: list[str] = []
+        self.hitl_tools: set[str] = set()
         self.tools_map: dict[str, tuple] = {}
         self.agent_tools: dict[str, list[str]] = {}
 
     def register_tool(self, tool_name, tool_func, schema, hitl=False, for_agent=None):
         """注册工具，可指定归属Agent"""
-        self.tools_map[tool_name] = (tool_func, schema)
+        if tool_name not in self.tools_map:
+            self.tools_map[tool_name] = (tool_func, schema)
         if hitl:
-            self.hitl_tools.append(tool_name)
+            self.hitl_tools.add(tool_name)
         if for_agent:
             self.agent_tools.setdefault(for_agent, []).append(tool_name)
 
