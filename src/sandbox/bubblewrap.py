@@ -77,7 +77,11 @@ class BubblewrapSandbox:
             self._mount(bwrap_args, path, "deny_read")
 
         shell_args = ["/bin/bash", "-c", command]
-        cmd = bwrap_args + ["--"] + shell_args
+
+        if self.config.get("enabled", True):
+            cmd = bwrap_args + ["--"] + shell_args
+        else:
+            cmd = shell_args
 
         try:
             result = subprocess.run(

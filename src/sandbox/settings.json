@@ -1,5 +1,6 @@
 {
   "sandbox": {
+    "enabled": true,
     "deny_read": [
       "~/.ssh",
       "~/.gnupg",
