@@ -31,16 +31,18 @@
 
 ### Parameters
 
-| Parameter           | Type    | Required | Description                                                                                                   |
-|---------------------|---------|---|---------------------------------------------------------------------------------------------------------------|
-| `command`           | string  | Yes | The shell command to execute. Use single-line commands when possible. For multi-line, use heredocs or `&&` / `||` chaining. |
-| `run_in_background` | boolean | No | Execute commands or code asynchronously in the background without blocking the execution of subsequent tools when it is true. Default: false. |
+| Parameter           | Type    | Required | Description                                                                                                                                   |
+|---------------------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `command`           | string  | Yes      | The shell command to execute. Use single-line commands when possible. For multi-line, use heredocs or `&&` / `                                ||` chaining. |
+ | `description`         | string  | Yes      | The description of the command for logging or debugging purposes.                                                                               |
+| `run_in_background` | boolean | No       | Execute commands or code asynchronously in the background without blocking the execution of subsequent tools when it is true. Default: false. |
 
 ### Input schema
 
 ```json
 {
-  "command": "string (required)",
+  "command": "string (required)", 
+   "description": "string (required)",
   "run_in_background": "boolean (optional, default false)"
 }
 ```
@@ -110,57 +112,57 @@ The Bash tool runs inside a bubblewrap sandbox with the following rules:
 
 **Create a directory tree:**
 ```json
-{"command": "mkdir -p ~/workspace/project/src/components"}
+{"command": "mkdir -p ~/workspace/project/src/components", "description": "Create a directory tree for the project components"}
 ```
 
 **Delete a file:**
 ```json
-{"command": "rm ~/workspace/project/old-file.txt"}
+{"command": "rm ~/workspace/project/old-file.txt", "description": "Delete an old file that is no longer needed"}
 ```
 
 **Rename a file:**
 ```json
-{"command": "mv ~/workspace/project/old-name.ts ~/workspace/project/new-name.ts"}
+{"command": "mv ~/workspace/project/old-name.ts ~/workspace/project/new-name.ts", "description": "Rename a TypeScript file to reflect its new purpose"}
 ```
 
 **Copy a file:**
 ```json
-{"command": "cp ~/workspace/project/template.json ~/workspace/project/config.json"}
+{"command": "cp ~/workspace/project/template.json ~/workspace/project/config.json", "description": "Copy a template configuration file to the project directory"}
 ```
 
 **Download a file:**
 ```json
-{"command": "curl -L -o ~/workspace/data.zip https://example.com/data.zip"}
+{"command": "curl -L -o ~/workspace/data.zip https://example.com/data.zip", "description": "Download a ZIP archive from a remote server"}
 ```
 
 **Extract an archive:**
 ```json
-{"command": "unzip ~/workspace/data.zip -d ~/workspace/data/"}
+{"command": "unzip ~/workspace/data.zip -d ~/workspace/data/", "description": "Extract the downloaded ZIP archive into the data directory"}
 ```
 
 **Install packages:**
 ```json
-{"command": "pip install requests beautifulsoup4", "run_in_background": true}
+{"command": "pip install requests beautifulsoup4", "description": "Install Python packages for web scraping", "run_in_background": true}
 ```
 
 **Run tests:**
 ```json
-{"command": "cd ~/workspace/project && npm test"}
+{"command": "cd ~/workspace/project && npm test", "description": "Run the project's test suite to ensure code quality"}
 ```
 
 **Run a build:**
 ```json
-{"command": "cd ~/workspace/project && make -j$(nproc)", "run_in_background": true}
+{"command": "cd ~/workspace/project && make -j$(nproc)", "description": "Build the project using all available CPU cores", "run_in_background": true}
 ```
 
 **Check disk usage:**
 ```json
-{"command": "du -sh ~/workspace/project/* | sort -h"}
+{"command": "du -sh ~/workspace/project/* | sort -h", description": "Check disk usage of project files and sort by size"}
 ```
 
 **List running processes:**
 ```json
-{"command": "ps aux | grep node"}
+{"command": "ps aux | grep node", "description": "List all running processes and filter for Node.js processes"}
 ```
 
 ### Error handling

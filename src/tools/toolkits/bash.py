@@ -9,7 +9,7 @@ TIMEOUT = 180
 
 logger = get_log()
 
-def bash(command: str, run_in_background: bool = False) -> str:
+def bash(command: str, description: str, run_in_background: bool = False) -> str:
     try:
         security_guard(command)
     except SecurityException as e:
@@ -70,9 +70,10 @@ BASH_SCHEMA = {
             "type": "object",
             "properties": {
                 "command": {"type": "string", "description": "执行的命令或代码"},
+                "description": {"type": "string", "description": "用自然语言描述命令的功能和目的"},
                 "run_in_background": {"type": "boolean", "description": "可选，是否在后台以异步方式运行，true表示以异步方式运行，默认为false"},
             },
-            "required": ["command"],
+            "required": ["command", "description"],
         },
     },
 }

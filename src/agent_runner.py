@@ -72,6 +72,10 @@ class AgentRunner:
         self.background_tasks: dict[str, dict] = {}
         self.background_results: dict[str, str] = {}
         self.background_lock = threading.Lock()
+        #hitl审批需要加锁
+        self.pre_tool_use_lock = threading.Lock()
+        #统计本轮tokens消耗需要加锁
+        self.post_completion_lock = threading.Lock()
 
     def _ensure_system_prompt(self):
         if not self.context or self.context[0].get("role") != "system":
@@ -103,7 +107,7 @@ class AgentRunner:
 
         return result
 
-    def should_run_background(self, tool_name: str, tool_args: dict) -> bool:
+    def should_run_background(self, tool_args: dict) -> bool:
         """判断是否应该在后台运行工具"""
         if tool_args.get("run_in_background"):
             return True
@@ -171,11 +175,12 @@ class AgentRunner:
                 continue
 
             #在此插入PreToolUse钩子
-            hook_result = get_hooks_registry().trigger_hooks("PreToolUse", self.name, tc)
-            if hook_result is not None:
-                aborted = True
-                self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": hook_result})
-                continue
+            with self.pre_tool_use_lock:
+                hook_result = get_hooks_registry().trigger_hooks("PreToolUse", self.name, tc)
+                if hook_result is not None:
+                    aborted = True
+                    self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": hook_result})
+                    continue
 
             try:
                 name = tc["function"]["name"]
@@ -188,7 +193,7 @@ class AgentRunner:
                 ))
 
                 #执行工具
-                if self.should_run_background(name, args):
+                if self.should_run_background(args):
                     bg_id = self.start_background_task(tc["id"], name, tool_args)
                     new_messages.append({
                         "role": "tool",
@@ -288,10 +293,11 @@ class AgentRunner:
                 self.context = []
                 raise SubAgentRuntimeException(f"<SYSTEM_REMINDER>{self.name}出错无法恢复，请重试</SYSTEM_REMINDER>")
 
-            result = get_hooks_registry().trigger_hooks("PostCompletion", response)
-            if result is not None:
-                logger.error(f"PostCompletion钩子触发错误：{result}")
-                typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
+            with self.post_completion_lock:
+                result = get_hooks_registry().trigger_hooks("PostCompletion", response)
+                if result is not None:
+                    logger.error(f"PostCompletion钩子触发错误：{result}")
+                    typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
 
             assistant_msg = self._extract_assistant_msg(response)
             self.context.append(assistant_msg)
@@ -400,10 +406,11 @@ class AgentRunner:
 
                 #在每个chunk结束后触发PostCompletion钩子，主要用于统计Token消耗
                 if chunk.usage:
-                    result = get_hooks_registry().trigger_hooks("PostCompletion", chunk)
-                    if result is not None:
-                        logger.error(f"PostCompletion钩子触发错误：{result}")
-                        typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
+                    with self.post_completion_lock:
+                        result = get_hooks_registry().trigger_hooks("PostCompletion", chunk)
+                        if result is not None:
+                            logger.error(f"PostCompletion钩子触发错误：{result}")
+                            typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
 
             tool_calls_list = [
                 collected_tool_calls[i] for i in sorted(collected_tool_calls.keys())

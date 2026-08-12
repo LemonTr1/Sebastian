@@ -135,7 +135,7 @@ class SubAgentRegistry:
             lines.append(f"- {name}: {description} (可用工具: {', '.join(tools) if tools else 'None'})")
         return "\n".join(lines)
 
-    def agent(self, agent_name: str, task: str):
+    def agent(self, agent_name: str, task: str, run_in_background: bool = False):
         """主Agent用于调度子Agent的工具"""
         try:
             #先给子Agent动态注册工具
@@ -191,6 +191,7 @@ AGENT_SCHEMA = {
             "properties": {
                 "agent_name": {"type": "string", "description": "子Agent的名称"},
                 "task": {"type": "string", "description": "以自然语言描述的任务"},
+                "run_in_background": {"type": "boolean", "description": "可选，是否在后台以异步方式运行，true表示以异步方式运行，默认为false"},
             },
             "required": ["agent_name", "task"],
         },
