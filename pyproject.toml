@@ -1,21 +1,30 @@
 [project]
 name = "sebastian"
 version = "0.2.0"
+description = "基于 LLM 的多 Agent 协作终端助手"
+readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "lem0ntr1" },
+]
+keywords = ["llm", "multi-agent", "agent", "cli", "sandbox", "security"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: Console",
+    "Natural Language :: Chinese (Simplified)",
+    "Intended Audience :: Developers",
+]
 dependencies = [
     "typer>=0.9",
-    "chromadb",
     "openai>=1.0",
-    "sentence-transformers",
-    "python-dotenv",
-    "ddgs",
-    "kreuzberg",
-    "pydantic",
-    "huggingface_hub",
-    "playwright",
-    "python-docx",
-    "python-pptx",
-    "py7zr",
+    "python-dotenv>=1.0",
+    "ddgs>=9.0",
 ]
 
 [project.scripts]

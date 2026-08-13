@@ -9,6 +9,7 @@ from src.tools.toolkits.todo_manager import todo
 from src.tools.tools_registry import ToolsRegistry
 from src.logs.app_log import get_log
 from src.utils.compaction_pipeline import CompactionPipeline, reactive_compact
+from src.utils.memory_system import MEMORY_SYSTEM
 from src.utils.exceptions import CompactException, SubAgentRuntimeException
 
 #以下为response.choice[0].message对象结构
@@ -234,13 +235,7 @@ class AgentRunner:
     #给子Agent用的（退出AgentLoop即清空上下文）
     def run(self, task: str, max_turns: int = 50) -> str:
         self._ensure_system_prompt()
-
-        try:
-            self.context = CompactionPipeline.compact(self.context)
-        except CompactException as e:
-            raise SubAgentRuntimeException(f"\n [ERROR]{e} \n ")
-
-        self.context.append({"role": "user", "content": task})
+        question = {"role": "user", "content": task}
 
         tool_schemas = (
             [v["schema"] for v in self.tool_map.values()]
@@ -249,13 +244,19 @@ class AgentRunner:
         )
 
         turn = 0
+        #AgentLoop
         while True:
             turn += 1
             if turn > max_turns:
                 self.context = []
                 raise SubAgentRuntimeException("<SYSTEM_REMINDER>已达到最大对话轮次，请精简问题后重试</SYSTEM_REMINDER>")
 
-            kwargs = dict(model=self.model, messages=self.context)
+            try:
+                self.context = CompactionPipeline.compact(self.context)
+            except CompactException as e:
+                raise SubAgentRuntimeException(f"\n [ERROR]{e} \n ")
+
+            kwargs = dict(model=self.model, messages=self.context + [question])
             if tool_schemas:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
@@ -313,13 +314,9 @@ class AgentRunner:
     #流式输出，给brain_agent用的
     def run_stream(self, task: str, on_token=None, max_turns: int = 50) -> None:
         self._ensure_system_prompt()
+        memories_content = MEMORY_SYSTEM.load_memories(self.context)
 
-        try:
-            self.context = CompactionPipeline.compact(self.context)
-        except CompactException as e:
-            typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
-
-        self.context.append({"role": "user", "content": task})
+        question = {"role": "user", "content": memories_content + "\n\n" if memories_content else "" + task}
 
         tool_schemas = (
             [v["schema"] for v in self.tool_map.values()]
@@ -328,12 +325,28 @@ class AgentRunner:
         )
 
         turn = 0
+        #AgentLoop
         while True:
             turn += 1
             if turn > max_turns:
                 typer.echo("已达到最大对话轮次，请精简问题后重试")
                 return
-            kwargs = dict(model=self.model, messages=self.context)
+
+            # 保存压缩前快照，用于准确提取记忆
+            pre_compress = [
+                m if isinstance(m, dict) else {"role": m.get("role", ""), "content": str(m.get("content", ""))}
+                for m in self.context
+            ]
+
+            # 压缩管线
+            try:
+                self.context = CompactionPipeline.compact(self.context)
+            except CompactException as e:
+                logger.error(f"\n [ERROR]{e} \n ")
+                typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
+                pass
+
+            kwargs = dict(model=self.model, messages=self.context + [question])
             if tool_schemas:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
@@ -425,6 +438,8 @@ class AgentRunner:
             self.context.append(assistant_msg)
 
             if not tool_calls_list:
+                MEMORY_SYSTEM.extract_memories(pre_compress)
+                MEMORY_SYSTEM.consolidate_memories()
                 return
 
             used_todo = self._process_tool_calls(tool_calls_list)

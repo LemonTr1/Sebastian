@@ -6,6 +6,7 @@ os.environ['https_proxy'] = ''
 os.environ['all_proxy'] = ''
 
 import re
+import sys
 
 from dotenv import load_dotenv, set_key
 load_dotenv(override=True)
@@ -195,6 +196,54 @@ def _run_chat(session_id: str):
             )
 
 
+def _prompt_api_key_with_prefix(prompt: str, prefix_len: int = 3) -> str:
+    """读取API_KEY，前缀明文回显，其余字符显示为*（POSIX平台逐字符读取）"""
+    styled_prompt = typer.style(prompt, fg=typer.colors.CYAN, bold=True)
+
+    if os.name != "posix":
+        return typer.prompt(prompt, hide_input=True)
+
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old_attrs = termios.tcgetattr(fd)
+    buffer = []
+
+    def repaint():
+        visible = "".join(buffer[:prefix_len]) + "*" * max(0, len(buffer) - prefix_len)
+        sys.stdout.write("\r" + styled_prompt + ": " + visible + " ")
+        sys.stdout.flush()
+
+    try:
+        # 先进入raw模式再打印提示符，避免输入竞态（TCSAFLUSH会丢弃输入队列）
+        tty.setraw(fd)
+        sys.stdout.write(styled_prompt + ": ")
+        sys.stdout.flush()
+        while True:
+            ch = sys.stdin.read(1)
+            if ch in ("\r", "\n"):
+                break
+            if ch in ("\x7f", "\x08"):
+                if buffer:
+                    buffer.pop()
+                    repaint()
+                continue
+            if ch == "\x03":
+                raise KeyboardInterrupt
+            if ch == "\x1b":
+                continue
+            if ch.isprintable():
+                buffer.append(ch)
+                repaint()
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_attrs)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+    return "".join(buffer)
+
+
 @app.command()
 def setup():
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
@@ -204,7 +253,7 @@ def setup():
             pass
 
     model = typer.prompt("请输入模型名称 MODEL")
-    api_key = typer.prompt("请输入模型的API_KEY", hide_input=True)
+    api_key = _prompt_api_key_with_prefix("请输入模型的API_KEY")
     base_url = typer.prompt("请输入模型的BASE_URL")
 
     set_key(env_path, "DEEPSEEK_MODEL", model)

@@ -4,10 +4,15 @@ import shutil
 from typing import Literal
 from pathlib import Path
 import json
+from src.logs.app_log import get_log
+
+logger = get_log()
 
 HOME = Path.home()
 
-SETTINGS = Path(__file__).parent / "settings.json"
+DEFAULT_SETTINGS = Path(__file__).parent / "settings.json"
+
+SETTINGS = Path.home() / ".sebastian" / "settings.json"
 
 class BubblewrapSandbox:
     def __init__(self):
@@ -15,7 +20,23 @@ class BubblewrapSandbox:
         self.config = self._load_config()
 
     def _load_config(self):
-        with open(str(SETTINGS), "r", encoding="utf-8") as f:
+        try:
+            with open(str(SETTINGS), "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if "sandbox" in data:
+                    return data["sandbox"]
+                return data
+        except FileNotFoundError:
+            logger.warning(f"未找到用户配置文件 {SETTINGS}，将使用默认配置。")
+            pass
+        except json.JSONDecodeError as e:
+            logger.error(f"用户配置文件 {SETTINGS} 解析失败：{str(e)}，将使用默认配置。")
+            pass
+        except Exception as e:
+            logger.warning(f"用户配置文件 {SETTINGS} 出现错误: {str(e)}，将使用默认配置。")
+            pass
+
+        with open(str(DEFAULT_SETTINGS), "r", encoding="utf-8") as f:
             data = json.load(f)
             if "sandbox" in data:
                 return data["sandbox"]

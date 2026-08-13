@@ -3,14 +3,14 @@
 
 **ALWAYS prefer structured tools over Bash when the operation has a dedicated tool:**
 
-| Use structured tool | Instead of Bash                                                        |
-|---------------------|------------------------------------------------------------------------|
-| `Read`              | `cat`, `head`, `tail`, `less`, `more`                                  |
-| `Write`             | `echo "..." > file`, `tee`, `>` redirection to overwrite existed files |
-| `Edit`              | `sed -i`, `sed`, `awk` for in-place text replacement                   |
-| `Glob`              | `ls`, `find` for listing files by pattern                              |
-| `Grep`              | `grep`, `rg`, `ack`, `ag` for searching file contents                  |
-| `Ls`                | `ls -la` for directory listing                                         |
+| Use structured tool | Instead of Bash                                                                                    |
+|---------------------|----------------------------------------------------------------------------------------------------|
+| `Read`              | `cat`, `head`, `tail`, `less`, `more`                                                              |
+| `Write`             | `echo "..." > file`, `tee`, `>` redirection to create if file is not existed and then overwrite it |
+| `Edit`              | `sed -i`, `sed`, `awk` for in-place text replacement                                               |
+| `Glob`              | `ls`, `find` for listing files by pattern                                                          |
+| `Grep`              | `grep`, `rg`, `ack`, `ag` for searching file contents                                              |
+| `Ls`                | `ls -la` for directory listing                                                                     |
 
 **Use Bash ONLY when:**
 - Deleting files or directories (`rm`, `rmdir`)

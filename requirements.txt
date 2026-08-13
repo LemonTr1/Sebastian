@@ -1,0 +1,25 @@
+# Sebastian — 多Agent智能任务助手 依赖清单
+#
+# 环境要求：
+#   - Python >= 3.10
+#   - Linux（bubblewrap 沙箱依赖 Linux 命名空间）
+#
+# 系统级依赖（pip 无法安装，需通过系统包管理器安装）：
+#   - bubblewrap   : sudo apt install bubblewrap          （沙箱隔离）
+#   - python3-tk   : sudo apt install python3-tk          （HITL 审批弹窗）
+#
+# 安装方式：
+#   pip install -r requirements.txt
+#   或推荐：pip install -e . （从 pyproject.toml 安装，自动注册 sebastian 命令）
+
+# CLI 交互框架（Typer，基于 Click，终端彩色输出/交互式提示）
+typer>=0.9
+
+# LLM SDK（兼容 OpenAI / DeepSeek / Ollama / vLLM 等 OpenAI API 格式服务）
+openai>=1.0
+
+# 环境变量配置（.env 文件的加载与写入，sebastian setup 依赖）
+python-dotenv>=1.0
+
+# 网页搜索（DuckDuckGo 搜索，web_search/web_fetch 工具依赖）
+ddgs>=9.0
