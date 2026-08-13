@@ -6,7 +6,6 @@ from src.tools.tools_registry import get_tools_registry
 from src.utils.user_info import get_username
 from src.utils.datetime_utils import get_current_time
 from src.utils.load_prompt import get_prompt_loader
-from src.utils.memory_system import MEMORY_SYSTEM
 
 uname = get_username()
 current_time = get_current_time()
@@ -45,7 +44,10 @@ BRAIN_AGENT_INSTRUCTIONS = f"""
 你可以通过agent工具调度指定子Agent来辅助完成任务，可供调度子Agent：
 {get_sub_agent_registry().describe_available()}
 
-{MEMORY_SYSTEM.build_system()}
+## 后台机制
+bash和agent工具支持后台运行并在完成后通知
+- **必须放后台**：当任务耗时较长，或后续任务的进行不依赖它的结果时 → 放后台执行，避免阻塞
+- **可放前台**：当只有当前这**一个任务**，没有后续任务，或后续任务的进行**依赖**当前任务结果时 → 直接以同步方式执行
 """
 
 brain_agent = AgentRunner.create_runner(

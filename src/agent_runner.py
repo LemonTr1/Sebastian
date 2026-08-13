@@ -79,8 +79,15 @@ class AgentRunner:
         self.post_completion_lock = threading.Lock()
 
     def _ensure_system_prompt(self):
+        content = self.instructions
+        if self.name == "Brain_Agent":
+            mem_section = MEMORY_SYSTEM.build_system()
+            if mem_section:
+                content = self.instructions + mem_section
         if not self.context or self.context[0].get("role") != "system":
-            self.context.insert(0, {"role": "system", "content": self.instructions})
+            self.context.insert(0, {"role": "system", "content": content})
+        else:
+            self.context[0]["content"] = content
 
     def _extract_assistant_msg(self, response) -> dict:
         """从 LLM 返回的原始响应里提取 assistant 消息"""
@@ -235,7 +242,7 @@ class AgentRunner:
     #给子Agent用的（退出AgentLoop即清空上下文）
     def run(self, task: str, max_turns: int = 50) -> str:
         self._ensure_system_prompt()
-        question = {"role": "user", "content": task}
+        self.context.append({"role": "user", "content": task})
 
         tool_schemas = (
             [v["schema"] for v in self.tool_map.values()]
@@ -251,12 +258,16 @@ class AgentRunner:
                 self.context = []
                 raise SubAgentRuntimeException("<SYSTEM_REMINDER>已达到最大对话轮次，请精简问题后重试</SYSTEM_REMINDER>")
 
-            try:
-                self.context = CompactionPipeline.compact(self.context)
-            except CompactException as e:
-                raise SubAgentRuntimeException(f"\n [ERROR]{e} \n ")
+            if turn % 5 == 1:
+                # 压缩管线
+                try:
+                    self.context = CompactionPipeline.compact(self.context)
+                except CompactException as e:
+                    logger.error(f"\n [ERROR]{e} \n ")
+                    typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
+                    pass
 
-            kwargs = dict(model=self.model, messages=self.context + [question])
+            kwargs = dict(model=self.model, messages=self.context)
             if tool_schemas:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
@@ -314,9 +325,15 @@ class AgentRunner:
     #流式输出，给brain_agent用的
     def run_stream(self, task: str, on_token=None, max_turns: int = 50) -> None:
         self._ensure_system_prompt()
-        memories_content = MEMORY_SYSTEM.load_memories(self.context)
+        # 记忆选择：基于含本轮提问的上下文
+        memories_content = MEMORY_SYSTEM.load_memories(
+            self.context + [{"role": "user", "content": task}]
+        )
 
-        question = {"role": "user", "content": memories_content + "\n\n" if memories_content else "" + task}
+        # 记忆与提问一起进入user消息
+        question = {"role": "user", "content":
+            (memories_content + "\n\n" + task) if memories_content else task}
+        self.context.append(question)
 
         tool_schemas = (
             [v["schema"] for v in self.tool_map.values()]
@@ -332,21 +349,16 @@ class AgentRunner:
                 typer.echo("已达到最大对话轮次，请精简问题后重试")
                 return
 
-            # 保存压缩前快照，用于准确提取记忆
-            pre_compress = [
-                m if isinstance(m, dict) else {"role": m.get("role", ""), "content": str(m.get("content", ""))}
-                for m in self.context
-            ]
+            if turn % 5 == 1:
+                # 压缩管线
+                try:
+                    self.context = CompactionPipeline.compact(self.context)
+                except CompactException as e:
+                    logger.error(f"\n [ERROR]{e} \n ")
+                    typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
+                    pass
 
-            # 压缩管线
-            try:
-                self.context = CompactionPipeline.compact(self.context)
-            except CompactException as e:
-                logger.error(f"\n [ERROR]{e} \n ")
-                typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
-                pass
-
-            kwargs = dict(model=self.model, messages=self.context + [question])
+            kwargs = dict(model=self.model, messages=self.context)
             if tool_schemas:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
@@ -438,7 +450,7 @@ class AgentRunner:
             self.context.append(assistant_msg)
 
             if not tool_calls_list:
-                MEMORY_SYSTEM.extract_memories(pre_compress)
+                MEMORY_SYSTEM.extract_memories(self.context)
                 MEMORY_SYSTEM.consolidate_memories()
                 return
 

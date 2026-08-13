@@ -8,9 +8,30 @@ from src.config import get_client, MODEL
 
 logger = get_log()
 
+
+def _create_completion(messages: list, max_tokens: int):
+    """记忆相关API调用：优先关闭推理模型的思考（deepseek-v4-flash 会把max_tokens
+    全部消耗在思维链上导致content为空），后端拒绝该参数时自动回退到普通调用
+    （兼容 OpenAI 官方 API / Ollama / vLLM 等严格校验参数的端点）"""
+    try:
+        return get_client().chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            max_tokens=max_tokens,
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+    except Exception:
+        logger.warning("后端拒绝 thinking 参数，回退到普通调用")
+        return get_client().chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            max_tokens=max_tokens,
+        )
+
+
 class Memory:
     def __init__(self):
-        self.CONSOLIDATE_THREDSHOLD = 10
+        self.CONSOLIDATE_THRESHOLD = 10
         self.MEMORY_TYPES: list[str] = ["user", "feedback", "project", "reference"]
         self.MEMORY_DIR = Path.home() / ".sebastian" / ".memory"
         if not self.MEMORY_DIR.is_dir():
@@ -31,7 +52,7 @@ class Memory:
         for line in parts[1].strip().splitlines():
             if ":" in line:
                 k, v = line.split(":", 1)
-                meta[k.strip()] = v.strip().strip("'").strip("'")
+                meta[k.strip()] = v.strip().strip('"').strip("'")
         return meta, parts[2].strip()
 
     def write_memory_file(self, name: str, mem_type: str, description: str, body: str):
@@ -125,12 +146,14 @@ class Memory:
         )
 
         try:
-            response = get_client().chat.completions.create(
-                model = MODEL,
+            response = _create_completion(
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens = 500,
+                max_tokens=500,
             )
-            text = response.choices[0].message.content.strip()
+            text = (response.choices[0].message.content or "").strip()
+            if not text:
+                logger.warning("记忆选择API返回空内容，无法选择相关记忆")
+                return []
             match = re.search(r'\[.*?\]', text, re.DOTALL)
             if match:
                 indices = json.loads(match.group())
@@ -166,7 +189,13 @@ class Memory:
         for msg in messages[-10:]:
             role = msg.get("role", "?")
             content = msg.get("content", "")
-            dialogue_parts.append(f"{role}: {content.strip()}")
+            if isinstance(content, list):
+                content = " ".join(
+                    str(item.get("text", "")) for item in content
+                    if item.get("type") == "text"
+                )
+            if isinstance(content, str) and content.strip():
+                dialogue_parts.append(f"{role}: {content}")
         dialogue = "\n".join(dialogue_parts)
         if not dialogue.strip():
             return
@@ -188,12 +217,14 @@ class Memory:
         )
 
         try:
-            response = get_client().chat.completions.create(
-                model = MODEL,
-                messages = [{"role": "user", "content": prompt}],
-                max_tokens = 1000,
+            response = _create_completion(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1000,
             )
-            text = response.choices[0].message.content.strip()
+            text = (response.choices[0].message.content or "").strip()
+            if not text:
+                logger.warning("记忆提取API返回空内容，无法提取记忆")
+                return
             match = re.search(r'\[.*\]', text, re.DOTALL)
             if not match:
                 return
@@ -209,8 +240,7 @@ class Memory:
                 if desc and body:
                     self.write_memory_file(name, mem_type, desc, body)
                     count += 1
-            if count:
-                typer.echo(typer.style(f"\n[Memory: extracted {count} new memories]", fg=typer.colors.GREEN, bold=True))
+            typer.echo(typer.style(f"\n[Memory: extracted {count} new memories]", fg=typer.colors.GREEN, bold=True))
 
         except Exception:
             logger.error("调用API提取记忆出错")
@@ -220,7 +250,7 @@ class Memory:
     def consolidate_memories(self):
         """Merge duplicate or expired memories. Trigger when the file count meets or exceeds the threshold."""
         files = self.list_memory_files()
-        if len(files) < self.CONSOLIDATE_THREDSHOLD:
+        if len(files) < self.CONSOLIDATE_THRESHOLD:
             return
 
         catalog = "\n\n".join(
@@ -239,12 +269,14 @@ class Memory:
         )
 
         try:
-            response = get_client().chat.completions.create(
-                model = MODEL,
-                messages = [{"role": "user", "content": prompt}],
+            response = _create_completion(
+                messages=[{"role": "user", "content": prompt}],
                 max_tokens=3000,
             )
-            text = response.choices[0].message.content.strip()
+            text = (response.choices[0].message.content or "").strip()
+            if not text:
+                logger.warning("记忆整合API返回空内容，无法整合记忆")
+                return
             match = re.search(r'\[.*\]', text, re.DOTALL)
             if not match:
                 return
@@ -263,7 +295,7 @@ class Memory:
                 if desc and body:
                     self.write_memory_file(name, mem_type, desc, body)
 
-            typer.echo(typer.style("\n[Memory: consolidated {len(files)} → {len(items)} memories]", fg=typer.colors.GREEN, bold=True))
+            typer.echo(typer.style(f"\n[Memory: consolidated {len(files)} → {len(items)} memories]", fg=typer.colors.GREEN, bold=True))
 
         except Exception:
             logger.error(f"调用API整合记忆文件失败")
