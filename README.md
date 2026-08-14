@@ -140,11 +140,11 @@ LLM 输出 → [命令安全] 拦截 rm -rf /、fork bomb 等 21 种危险模式
 
 Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 Agent 完成任务后被销毁，仅将最终结果返回给 Brain 进行自然语言汇总。子 Agent 定义采用纯 Markdown 格式（`YAML frontmatter` + 正文），支持用户自定义覆盖。
 
-| 子 Agent | 工具集 | 职责 |
-|----------|--------|------|
-| **CodeWriter** | read, ls, glob, write, edit, grep | 阅读并理解现有代码，生成新代码 |
-| **CodeReviewer** | read, ls, glob, grep | 审查代码质量、风格与潜在问题 |
-| **TestRunner** | read, ls, bash, grep, glob | 执行测试并汇报结果（禁止修改测试代码） |
+| 系统默认子 Agent        | 工具集 | 职责 |
+|--------------------|--------|------|
+| **CodeWriter**     | read, ls, glob, write, edit, grep | 阅读并理解现有代码，生成新代码 |
+| **CodeReviewer**   | read, ls, glob, grep | 审查代码质量、风格与潜在问题 |
+| **TestRunner**     | read, ls, bash, grep, glob | 执行测试并汇报结果（禁止修改测试代码） |
 | **WebSearchAgent** | web_search, web_fetch | 网络搜索与网页内容提取 |
 
 ### 工具系统
