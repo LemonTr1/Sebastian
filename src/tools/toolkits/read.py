@@ -49,7 +49,7 @@ def read(file_path: str, offset: int = -1, limit: int = -1) -> str:
                     ensure_ascii=False
                 )
             start_index = offset - 1
-            end_index = start_index + limit
+            end_index = min(start_index + limit, len(lines)-1)
             content = ""
             for index in range(start_index, end_index+1):
                 content += f"{index+1}:  {lines[index]} \n"

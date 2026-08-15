@@ -1,5 +1,6 @@
 import json
 import glob as g
+from pathlib import Path
 from src.security.path_safety import resolve_safe_path
 from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
@@ -25,7 +26,7 @@ def glob(pattern: str, scope: str) -> str:
         matched_files = g.glob(pattern, root_dir=safe_scope, recursive=True)
 
         # 过滤匹配结果，确保所有文件都在指定的scope目录下
-        filtered_files = [f for f in matched_files]
+        filtered_files = [f for f in matched_files if Path(f).is_relative_to(safe_scope)]
 
         if len(filtered_files) > MAX_RESULTS:
             return json.dumps(

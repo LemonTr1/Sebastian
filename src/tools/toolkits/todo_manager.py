@@ -28,7 +28,7 @@ class TodoManager:
         #BrainAgent列出的计划不能超过10条
         if len(items) > 10:
             return json.dumps({
-                "success":"False",
+                "success":False,
                 "error": "Too many items. Maximum allowed is 10."
             }, ensure_ascii=False)
 
@@ -41,13 +41,13 @@ class TodoManager:
             #content字段必须存在
             if not content:
                 return json.dumps({
-                    "success": "False",
+                    "success": False,
                     "error": f"Item index:{index}: 此处的content参数不能为空"
                 }, ensure_ascii=False)
 
             if status not in ["pending", "in_progress", "completed"]:
                 return json.dumps({
-                    "success": "False",
+                    "success": False,
                     "error": f"Item index:{index}: status参数必须是'pending', 'in_progress'或'completed'"
                 }, ensure_ascii=False)
 
@@ -61,14 +61,14 @@ class TodoManager:
 
         if in_progress_count > 1:
                 return json.dumps({
-                    "success": "False",
+                    "success": False,
                     "error": "Only one plan item can be in_progress"
                 }, ensure_ascii=False)
 
         self.state.items = normalized
         self.state.rounds_since_update = 0
         return json.dumps({
-            "success": "True",
+            "success": True,
             "summary": f"任务计划已为最新"
         })
 

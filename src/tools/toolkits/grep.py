@@ -25,10 +25,7 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
     cmd = ["grep", "-rHn", "-E"]  # -r=recursive, -n=line numbers, -E=extended regex, -H=Since we want to show the filename even if there's only one file
     if not case_sensitive:
         cmd.append("-i")
-    cmd.append("-m")
-    cmd.append(str(MAX_RESULTS))
-    cmd.append(pattern)
-    cmd.append(str(search_path))
+    cmd.extend(["-m", str(MAX_RESULTS), "--", pattern, str(search_path)])
 
     try:
         result = subprocess.run(

@@ -43,7 +43,7 @@ def tool_result_budget(messages: list) -> list:
             except Exception as e:
                 logger.error(f"未知错误：保存 {file_path} 失败：{e}")
                 raise CompactException
-            messages[i]["content"] = f"<persisted-output>\nFull output: {file_path}\n Preview:\n{messages[i]["content"][:2000]}\n</persisted-output>"
+            messages[i]['content'] = f"<persisted-output>\nFull output: {file_path}\n Preview:\n{messages[i]['content'][:2000]}\n</persisted-output>"
 
     return messages
 

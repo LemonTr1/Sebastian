@@ -7,7 +7,7 @@ from src.tools.tools_registry import get_tools_registry
 
 def ls(path: str) -> str:
     try:
-        path = resolve_safe_path(path, "real")
+        path = resolve_safe_path(path)
     except SecurityException as e:
         return json.dumps(
             {

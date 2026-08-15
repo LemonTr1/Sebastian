@@ -115,8 +115,11 @@ class AgentRunner:
 
         return result
 
-    def should_run_background(self, tool_args: dict) -> bool:
+    def should_run_background(self, name: str, tool_args: dict) -> bool:
         """判断是否应该在后台运行工具"""
+        if not name.lower() in ["bash", "agent"]:
+            return False
+
         if tool_args.get("run_in_background"):
             return True
 
@@ -128,8 +131,14 @@ class AgentRunner:
         cmd = f"{tool_name}: {json.dumps(tool_args, ensure_ascii=False)}"
 
         def worker():
-            func = self.tool_map[tool_name]["func"]
-            result = func(**tool_args)
+            try:
+                func = self.tool_map[tool_name]["func"]
+                result = func(**tool_args)
+            except Exception as e:
+                result = json.dumps({
+                    "success": False,
+                    "error": f"后台任务：{bg_id}出现异常: {str(e)}"
+                }, ensure_ascii=False)
             with self.background_lock:
                 self.background_tasks[bg_id]["status"] = "completed"
                 self.background_results[bg_id] = result
@@ -201,12 +210,12 @@ class AgentRunner:
                 ))
 
                 #执行工具
-                if self.should_run_background(args):
+                if self.should_run_background(name, args):
                     bg_id = self.start_background_task(tc["id"], name, tool_args)
                     new_messages.append({
                         "role": "tool",
                         "tool_call_id": tc["id"],
-                        "content": f"<SYSTEM_REMINDER>Background task {bg_id} started, result will be available when complete.</SYSTEN_REMINDER>"
+                        "content": f"<SYSTEM_REMINDER>Background task {bg_id} started, result will be available when complete.</SYSTEM_REMINDER>"
                     })
                 else:
                     raw = func(**tool_args)
@@ -221,7 +230,7 @@ class AgentRunner:
                 if name == "todo":
                     used_todo = True
                     if self.context[0]["role"] == "system":
-                        self.context[0]["context"] = self.context[0].get("context", "") + "\n\n" + "<当前任务计划>" + "\n" + todo().get_normalized()
+                        self.context[0]["content"] = self.context[0].get("content", "") + "\n\n" + "<当前任务计划>" + "\n" + todo().get_normalized()
 
             except Exception as e:
                 tool_name = tc.get("function", {}).get("name", "unknown")
@@ -229,6 +238,8 @@ class AgentRunner:
                     {"error": f"工具 '{tool_name}' 异常: {str(e)}"},
                     ensure_ascii=False,
                 )
+                new_messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
+                logger.error(f"工具 '{tool_name}' 异常: {str(e)}")
                 aborted = True
 
         # 注入后台任务运行结果

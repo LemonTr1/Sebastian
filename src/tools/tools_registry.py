@@ -11,7 +11,9 @@ class ToolsRegistry:
         if hitl:
             self.hitl_tools.add(tool_name)
         if for_agent:
-            self.agent_tools.setdefault(for_agent, []).append(tool_name)
+            self.agent_tools.setdefault(for_agent, [])
+            if tool_name not in self.agent_tools[for_agent]:
+                self.agent_tools[for_agent].append(tool_name)
 
     def get_tool(self, tool_name) -> tuple | None:
         """获取工具元(格式：<工具函数，工具schema>)"""
