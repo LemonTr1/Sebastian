@@ -4,8 +4,11 @@ import threading
 from json import JSONDecodeError
 from pathlib import Path
 import json
+import time
+import random
 import typer
 from src.logs.app_log import get_log
+from src.tools.tools_registry import get_tools_registry
 
 logger = get_log()
 
@@ -13,6 +16,14 @@ DURABLE_PATH = Path.home() / ".sebastian" / ".scheduled_tasks.json"
 
 @dataclass
 class CronJob:
+    """
+    Args:
+        id: Cron job的ID
+        cron: Unix标准的CronJob五段表达式
+        prompt: 触发时注入给Agent的消息
+        recurring: True=周期性, False=一次性
+        durable: True=跨会话
+    """
     id: str
     cron: str
     prompt: str
@@ -123,7 +134,7 @@ class CronSchedule:
         durable = [asdict(j) for j in self.scheduled_jobs.values() if j.durable]
         DURABLE_PATH.write_text(json.dumps(durable, indent=2, ensure_ascii=False))
 
-    def _load_durable_jobs(self):
+    def load_durable_jobs(self):
         """Load durable jobs from .scheduled_task.json."""
         if not DURABLE_PATH.is_file():
             DURABLE_PATH.write_text("")
@@ -149,3 +160,168 @@ class CronSchedule:
             logger.error(f"加载持久化定时任务时出现异常：{str(e)}")
 
     def schedule_job(self, cron: str, prompt: str, recurring: bool = True, durable: bool = True) -> CronJob | str:
+        """Register a new cron job. Returns CronJob or error string"""
+        err = self.validate_cron(cron)
+        if err:
+            return err
+        job = CronJob(
+            id=f"cron_{random.randint(0, 999999):06d}",
+            cron = cron,
+            prompt = prompt,
+            recurring = recurring,
+            durable = durable
+        )
+        with self.cron_lock:
+            self.scheduled_jobs[job.id] = job
+        if durable:
+            self.save_durable_jobs()
+        typer.echo(typer.style(f"\n> [cron register] {job.id} '{cron}' -> {prompt[:40]}", fg=typer.colors.GREEN))
+        logger.info(f"{job.id} '{cron}' -> {prompt}")
+        return job
+
+    def cancel_job(self, job_id: str) -> str | None:
+        """Cancel a cron job"""
+        with self.cron_lock:
+            job = self.scheduled_jobs.pop(job_id, None)
+        if not job:
+            return None
+        #如果被取消的定时任务durable（即已经在.json文件中保存，则重写.json文件）
+        if job.durable:
+            self.save_durable_jobs()
+        typer.echo(typer.style(f"\n> [cron cancel] {job_id}", fg=typer.colors.YELLOW))
+        logger.info(f"{job_id} cancelled")
+        return f"Cancelled {job_id}"
+
+    def cron_scheduler_loop(self):
+        """Run cron job in independent daemon thread"""
+        while True:
+            time.sleep(1)
+            now = datetime.now()
+            minute_marker = now.strftime("%Y-%m-%d %H:%M")
+            with self.cron_lock:
+                for job in list(self.scheduled_jobs.values()):
+                    try:
+                        if self.cron_matches(job.cron, now):
+                            if self._last_fired.get(job.id) != minute_marker:
+                                self.cron_queue.append(job)
+                                self._last_fired[job.id] = minute_marker
+                                typer.echo(typer.style(f"\n> [cron fire] {job.id} -> {job.prompt[:40]}", fg=typer.colors.GREEN))
+                                logger.info(f"Cron fire: {job.id} -> {job.prompt}")
+                            if not job.recurring:
+                                self.scheduled_jobs.pop(job.id, None)
+                                if job.durable:
+                                    self.save_durable_jobs()
+                    except Exception as e:
+                        typer.echo(typer.style(f"\n> [cron error] {job.id}: {str(e)}", fg=typer.colors.RED))
+                        logger.error(f"Cron error: {job.id}: {str(e)}")
+
+    def consume_cron_queue(self) -> list[CronJob]:
+        """Consume fired jobs from cron_queue"""
+        with self.cron_lock:
+            fired = list(self.cron_queue)
+            self.cron_queue.clear()
+        return fired
+
+    def has_cron_queue(self) -> bool:
+        """Return whether fired cron jobs are waiting to be delivered."""
+        with self.cron_lock:
+            #cron_queue非空为True,空为False
+            return bool(self.cron_queue)
+
+    # -------------Cron Tools：Schedule,List,Cancel ---------------
+    def run_schedule_cron(self, cron: str, prompt: str, recurring: bool = True, durable: bool = True) -> str:
+        result = self.schedule_job(cron, prompt, recurring, durable)
+        if isinstance(result, str):
+            return json.dumps({
+                "success": False,
+                "error": result
+            }, ensure_ascii=False)
+        return json.dumps({
+            "success": True,
+            "summary": f"Scheduled {result.id}: '{cron}' -> {prompt}"
+        }, ensure_ascii=False)
+
+    def run_list_crons(self) -> str:
+        with self.cron_lock:
+            jobs = list(self.scheduled_jobs.values())
+        if not jobs:
+            return json.dumps({
+                "success": False,
+                "error": "No existed cron jobs "
+            }, ensure_ascii=False)
+        lines = []
+        for j in jobs:
+            tag = "recurring" if j.recurring else "one-shot"
+            dur = "durable" if j.durable else "session"
+            lines.append(f" {j.id}: '{j.cron}' -> {j.prompt[:40]} [{tag}, {dur}]")
+        return "\n".join(lines)
+
+    def run_cancel_cron(self, job_id: str) -> str:
+        result = self.cancel_job(job_id)
+        if result is None:
+            return json.dumps({
+                "success": False,
+                "error": f"Cron job: {job_id} is not found"
+            }, ensure_ascii=False)
+        return json.dumps({
+            "success": True,
+            "summary": result
+        }, ensure_ascii=False)
+
+CRON_SCHEDULE = CronSchedule()
+
+SCHEDULE_CRON_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "schedule_cron",
+        "description": "Schedule a cron job. cron is 5-field(Unix format): minute hour day-of-month month day-of-week.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "cron": {"type": "string", "description": "5-field cron expression"},
+                "prompt": {"type": "string", "description": "Message to inject when fired"},
+                "recurring": {"type": "boolean", "description": "True=recurring, False=one-shot"},
+                "durable": {"type": "boolean", "description": "True=persist to disk"}
+            },
+            "required": ["cron", "prompt"]
+        }
+    }
+}
+
+LIST_CRONS_SCHEMA= {
+    "type": "function",
+    "function": {
+        "name": "list_crons",
+        "description": "List all registered cron jobs.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    }
+}
+
+CANCEL_CRON_SCHEMA = {
+    "type": "function",
+    "function": {
+        "name": "cancel_cron",
+        "description": "Cancel a cron job by ID.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "job_id": {"type": "string", "description": "Job's ID"}
+            },
+            "required": ["job_id"]
+        }
+    }
+}
+
+get_tools_registry().register_tool("schedule_cron", CRON_SCHEDULE.run_schedule_cron, SCHEDULE_CRON_SCHEMA, for_agent="Brain_Agent")
+get_tools_registry().register_tool("list_crons", CRON_SCHEDULE.run_list_crons, LIST_CRONS_SCHEMA, for_agent="Brain_Agent")
+get_tools_registry().register_tool("cancel_cron", CRON_SCHEDULE.run_cancel_cron, CANCEL_CRON_SCHEMA, for_agent="Brain_Agent")
+
+#启动守护线程
+CRON_SCHEDULE.load_durable_jobs()
+threading.Thread(target=CRON_SCHEDULE.cron_scheduler_loop, daemon=True).start()
+typer.echo(typer.style(f"\n> [cron] scheduler thread started", fg=typer.colors.GREEN))
+logger.info(f"Scheduler thread started")
