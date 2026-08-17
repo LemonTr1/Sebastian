@@ -36,7 +36,7 @@ class CronSchedule:
         self.cron_queue: list[CronJob] = []
         self.cron_lock = threading.Lock()
         self.agent_lock = threading.Lock()
-        self._last_fired: dict[str, str] = {}
+        self._last_fired: dict[str, str] = {} #因为五段表达式无法精确到秒，该数据结构保证同一个cron job在同一分钟内不会触发多次
 
     def _cron_field_matches(self, field: str, value: int) -> bool:
         """Match single cron field against value"""
@@ -175,7 +175,7 @@ class CronSchedule:
             self.scheduled_jobs[job.id] = job
         if durable:
             self.save_durable_jobs()
-        typer.echo(typer.style(f"\n> [cron register] {job.id} '{cron}' -> {prompt[:40]}", fg=typer.colors.GREEN))
+        typer.echo(typer.style(f"\n> [cron register] {job.id} '{cron}' -> {prompt}", fg=typer.colors.GREEN))
         logger.info(f"{job.id} '{cron}' -> {prompt}")
         return job
 
@@ -205,7 +205,7 @@ class CronSchedule:
                             if self._last_fired.get(job.id) != minute_marker:
                                 self.cron_queue.append(job)
                                 self._last_fired[job.id] = minute_marker
-                                typer.echo(typer.style(f"\n> [cron fire] {job.id} -> {job.prompt[:40]}", fg=typer.colors.GREEN))
+                                typer.echo(typer.style(f"\n> [cron fire] {job.id} -> {job.prompt}", fg=typer.colors.GREEN))
                                 logger.info(f"Cron fire: {job.id} -> {job.prompt}")
                             if not job.recurring:
                                 self.scheduled_jobs.pop(job.id, None)

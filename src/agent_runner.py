@@ -11,6 +11,7 @@ from src.logs.app_log import get_log
 from src.utils.compaction_pipeline import CompactionPipeline, reactive_compact
 from src.utils.memory_system import MEMORY_SYSTEM
 from src.utils.exceptions import CompactException, SubAgentRuntimeException
+from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
 
 #以下为response.choice[0].message对象结构
 #LLM的没有工具调用的回应格式：
@@ -334,17 +335,24 @@ class AgentRunner:
             self._process_tool_calls(tool_calls)
 
     #流式输出，给brain_agent用的
-    def run_stream(self, task: str, on_token=None, max_turns: int = 50) -> None:
+    def run_stream(self, task: str | None, on_token=None, max_turns: int = 50) -> None:
         self._ensure_system_prompt()
-        # 记忆选择：基于含本轮提问的上下文
-        memories_content = MEMORY_SYSTEM.load_memories(
-            self.context + [{"role": "user", "content": task}]
-        )
+        if task is not None:
+            # 记忆选择：基于含本轮提问的上下文
+            memories_content = MEMORY_SYSTEM.load_memories(
+                self.context + [{"role": "user", "content": task}]
+            )
 
-        # 记忆与提问一起进入user消息
-        question = {"role": "user", "content":
-            (memories_content + "\n\n" + task) if memories_content else task}
-        self.context.append(question)
+            # 记忆与提问一起进入user消息
+            question = {"role": "user", "content":
+                (memories_content + "\n\n" + task) if memories_content else task}
+            self.context.append(question)
+
+        #将定时任务插入上下文
+        fired = CRON_SCHEDULE.consume_cron_queue()
+        for cron_job in fired:
+            self.context.append({"role": "user", "content": f"Finish scheduled job {cron_job.id}: {cron_job.prompt}"})
+            typer.echo(typer.style(f"\n> [inject cron] {cron_job.prompt}", fg=typer.colors.GREEN))
 
         tool_schemas = (
             [v["schema"] for v in self.tool_map.values()]

@@ -1,5 +1,6 @@
 """CLI命令行入口"""
 import os
+import threading
 
 os.environ['http_proxy'] = ''
 os.environ['https_proxy'] = ''
@@ -27,6 +28,7 @@ import time
 from datetime import datetime
 import json
 from src.utils.compaction_pipeline import compact_history
+from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
 
 logger = get_log()
 
@@ -110,16 +112,57 @@ def save_session(context: list, session_id: str):
     #保留最近10个会话文件，删除旧的
     clear_session()
 
+def cron_queue_processor_loop():
+    """agent_lock互斥锁保证与用户主线程并发执行"""
+    while True:
+        time.sleep(0.2)
+        if not CRON_SCHEDULE.has_cron_queue():
+            continue
+        if not CRON_SCHEDULE.agent_lock.acquire(blocking=False):
+            continue
+        try:
+            if not CRON_SCHEDULE.has_cron_queue():
+                continue
+            typer.echo(typer.style(f"\n> [queue processor]Independent thread of delivering scheduled starts",fg=typer.colors.GREEN))
+            brain_agent.run_stream(
+                None,
+                on_token=lambda token: typer.echo(token, nl=False),
+            )
+
+            #触发Stop钩子统计Token数
+            result = hooks_registry.get_hooks_registry().trigger_hooks("Stop")
+            if result is not None:
+                logger.error(f"Stop钩子触发错误：{result}")
+                typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
+            typer.echo()
+        except Exception as e:
+            typer.echo(
+                typer.style(
+                    f"Ops！Brain_Agent出现故障：{str(e)}",
+                    fg=typer.colors.RED,
+                    bold=True,
+                )
+            )
+            logger.error(f"Brain_Agent出现故障: {str(e)}")
+        finally:
+            CRON_SCHEDULE.agent_lock.release()
+
+
 def _run_chat(session_id: str):
     uname = get_username()
     logger.info(f"{uname} 登陆系统")
     typer.echo(
         typer.style(
-            f"Welcome {uname}！I'm Sebastian. [输入 'quit' 退出]",
+            f"Welcome {uname}！I'm Sebastian. [输入 '/quit' 退出]",
             fg=typer.colors.BLUE,
             bold=True,
         )
     )
+
+    #启动Scheduled Cron守护线程，在用户空闲时检查并运行定时任务
+    threading.Thread(target=cron_queue_processor_loop, daemon=True).start()
+    typer.echo(typer.style(f"\n> [queue processor] Successfully start",fg=typer.colors.GREEN, bold=True))
+    logger.info("Queue Processor Loop Successfully start")
 
     #初始化重要递归目录：~/.sebastian/session
     if not Path.is_dir(AGENT_SESSION_DIR):
@@ -175,11 +218,14 @@ def _run_chat(session_id: str):
             typer.echo(
                 typer.style("[Sebastian]: ", fg=typer.colors.BLUE, bold=True), nl=False
             )
-            #进入AgentLoop
-            brain_agent.run_stream(
-                question,
-                on_token=lambda token: typer.echo(token, nl=False),
-            )
+
+            with CRON_SCHEDULE.agent_lock:
+                #进入AgentLoop
+                brain_agent.run_stream(
+                    question,
+                    on_token=lambda token: typer.echo(token, nl=False),
+                )
+
             result = hooks_registry.get_hooks_registry().trigger_hooks("Stop")
             if result is not None:
                 logger.error(f"Stop钩子触发错误：{result}")
@@ -189,11 +235,12 @@ def _run_chat(session_id: str):
         except Exception as e:
             typer.echo(
                 typer.style(
-                    f"Ops！出现故障：{e}",
+                    f"Ops！Brain_Agent出现故障：{str(e)}",
                     fg=typer.colors.RED,
                     bold=True,
                 )
             )
+            logger.error(f"Brain_Agent出现故障: {str(e)}")
 
 
 def _prompt_api_key_with_prefix(prompt: str, prefix_len: int = 3) -> str:
