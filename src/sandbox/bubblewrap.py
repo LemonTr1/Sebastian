@@ -10,7 +10,7 @@ logger = get_log()
 
 HOME = Path.home()
 
-DEFAULT_SETTINGS = Path(__file__).parent / "settings.json"
+DEFAULT_SETTINGS = Path(__file__).parent.parent / "settings.json"
 
 SETTINGS = Path.home() / ".sebastian" / "settings.json"
 

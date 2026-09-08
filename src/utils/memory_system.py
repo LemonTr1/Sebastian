@@ -8,6 +8,7 @@ from src.config import get_client, MODEL
 
 logger = get_log()
 
+SETTINGS = Path.home() / ".sebastian" / "settings.json"
 
 def _create_completion(messages: list, max_tokens: int):
     """记忆相关API调用：优先关闭推理模型的思考（deepseek-v4-flash 会把max_tokens
@@ -40,6 +41,23 @@ class Memory:
         if not self.MEMORY_INDEX.is_file():
             #Create empty index file
             self.MEMORY_INDEX.write_text("", encoding="utf-8")
+        self.IS_ALLOWED = True
+        if SETTINGS.is_file():
+            try:
+                with open(str(SETTINGS), "r", encoding="utf-8") as f:
+                    info = json.load(f)
+                    if "memory" in info:
+                        self.IS_ALLOWED = info["memory"].get("enabled", True)
+                        self.CONSOLIDATE_THRESHOLD = info["memory"].get("consolidate_threshold", 10)
+            except FileNotFoundError as e:
+                logger.warning(f"未找到用户配置文件: {e}")
+                pass
+            except json.JSONDecodeError as e:
+                logger.error(f"用户配置文件解析失败: {e}")
+                pass
+            except Exception as e:
+                logger.error(f"出现错误：{e}")
+                pass
 
     def _parse_frontmatter(self, text: str) -> tuple[dict, str]:
         """Extract YAML frontmatter"""
@@ -308,6 +326,9 @@ class Memory:
             f"\n\n ## 可查看记忆: \n {index}\n "
             f"在接下来用户的消息里，你会看到相关的记忆内容，请遵守它们"
         ) if index else ""
+
+    def is_allowed(self) -> bool:
+        return self.IS_ALLOWED
 
 MEMORY_SYSTEM = Memory()
 

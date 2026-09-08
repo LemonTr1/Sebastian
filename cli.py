@@ -35,6 +35,8 @@ logger = get_log()
 app = typer.Typer(no_args_is_help=False, help="AutomaticTaskAssistant")
 
 AGENT_SESSION_DIR = Path.home() / ".sebastian" / "session"
+SETTINGS = Path.home() / ".sebastian" / "settings.json"
+DEFAULT_SETTINGS = Path(__file__).parent / "src" / "settings.json"
 
 @app.callback(invoke_without_command=True)
 def main(
@@ -159,21 +161,34 @@ def _run_chat(session_id: str):
         )
     )
 
-    #启动Scheduled Cron守护线程，在用户空闲时检查并运行定时任务
-    threading.Thread(target=cron_queue_processor_loop, daemon=True).start()
-    typer.echo(typer.style(f"\n> [queue processor] Successfully start",fg=typer.colors.GREEN, bold=True))
-    logger.info("Queue Processor Loop Successfully start")
-
-    #初始化重要递归目录：~/.sebastian/session
+    # 初始化重要递归目录：~/.sebastian/session
     if not Path.is_dir(AGENT_SESSION_DIR):
         Path(AGENT_SESSION_DIR).mkdir(parents=True, exist_ok=True)
 
-    #根据session_id初始化上下文内容
+    #初始化用户配置文件
+    if not SETTINGS.is_file():
+        logger.info(f"未找到用户配置文件，将使用默认配置创建")
+        try:
+            with open(str(DEFAULT_SETTINGS), "r", encoding="utf-8") as f:
+                default_settings = json.load(f)
+            with open(str(SETTINGS), "w", encoding="utf-8") as f:
+                json.dump(default_settings, f, ensure_ascii=False, indent=4)
+            logger.info(f"已创建默认用户配置文件：{str(SETTINGS)}")
+        except Exception as e:
+            logger.error(f"创建默认用户配置文件失败：{e}")
+            typer.echo(typer.style(f"创建默认用户配置文件失败：{e}", fg=typer.colors.RED, bold=True))
+
+    # 根据session_id初始化上下文内容
     restored = restore_context(session_id)
     if restored is not None:
         session_id = restored
 
     get_session_id_container().set_session_id(session_id)
+
+    #启动Scheduled Cron守护线程，在用户空闲时检查并运行定时任务
+    threading.Thread(target=cron_queue_processor_loop, daemon=True).start()
+    typer.echo(typer.style(f"\n> [queue processor] Successfully start",fg=typer.colors.GREEN, bold=True))
+    logger.info("Queue Processor Loop Successfully start")
 
     while True:
         try:

@@ -83,7 +83,7 @@ class AgentRunner:
         content = self.instructions
         if self.name == "Brain_Agent":
             mem_section = MEMORY_SYSTEM.build_system()
-            if mem_section:
+            if mem_section and MEMORY_SYSTEM.is_allowed():
                 content = self.instructions + mem_section
         if not self.context or self.context[0].get("role") != "system":
             self.context.insert(0, {"role": "system", "content": content})
@@ -341,7 +341,7 @@ class AgentRunner:
             # 记忆选择：基于含本轮提问的上下文
             memories_content = MEMORY_SYSTEM.load_memories(
                 self.context + [{"role": "user", "content": task}]
-            )
+            ) if MEMORY_SYSTEM.is_allowed() else ""
 
             # 记忆与提问一起进入user消息
             question = {"role": "user", "content":
@@ -469,8 +469,9 @@ class AgentRunner:
             self.context.append(assistant_msg)
 
             if not tool_calls_list:
-                MEMORY_SYSTEM.extract_memories(self.context)
-                MEMORY_SYSTEM.consolidate_memories()
+                if MEMORY_SYSTEM.is_allowed():
+                    MEMORY_SYSTEM.extract_memories(self.context)
+                    MEMORY_SYSTEM.consolidate_memories()
                 return
 
             used_todo = self._process_tool_calls(tool_calls_list)

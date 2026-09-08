@@ -70,5 +70,9 @@
     ],
     "unshare_net": false,
     "timeout": 180
+  },
+  "memory": {
+    "enabled": true,
+    "consolidate_threshold": 10
   }
 }
