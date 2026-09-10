@@ -26,6 +26,7 @@ Sebastian 是一个基于 LLM 的多 Agent 协作终端助手：主控 Agent 负
   - [Hook 系统](#hook-系统)
   - [上下文压缩](#上下文压缩)
   - [后台任务](#后台任务)
+  - [定时任务](#定时任务)
   - [会话管理](#会话管理)
   - [技能系统](#技能系统)
 - [快速开始](#快速开始)
@@ -64,10 +65,10 @@ Sebastian 的每一项设计决策都对应一条明确的设计原则。理解�
 **实现**：LLM 生成的每一条命令在执行前，均须经过四层纵深防御校验：
 
 ```
-LLM 输出 → [命令安全] 拦截 rm -rf /、fork bomb 等 21 种危险模式
-         → [路径安全] 强制绝对路径 + $HOME 限定 + 敏感目录黑名单
-         → [网络安全] 拦截内网/回环/组播地址，防范 SSRF
-用户输入 → [输入安全] 拦截提示注入/jailbreak
+LLM 输出 → [命令安全] 启发式拦截 rm -rf /、rm -rf ~、fork bomb、curl|sh 等危险模式
+         → [路径安全] 解析符号链接后强制落在 $HOME 内，并套用敏感路径黑名单
+         → [网络安全] 解析 DNS 后拦截私网/回环/组播等，失败则拒绝（请求前 SSRF 检查）
+用户输入 → [输入安全] 启发式拦截提示注入/jailbreak
 ```
 
 任何单一防护层被绕过均不会导致整体防线失效——纵深防御的意义在于消除单点故障。
@@ -80,7 +81,7 @@ LLM 输出 → [命令安全] 拦截 rm -rf /、fork bomb 等 21 种危险模式
 
 | 隔离层次 | 手段 | 隔离对象 |
 |----------|------|---------|
-| 进程级 | 代码在 bubblewrap 命名空间沙箱中执行 | 宿主文件系统（只读挂载）、38 个敏感目录（tmpfs 隐藏）、系统能力（`cap-drop ALL`） |
+| 进程级 | 代码在 bubblewrap 命名空间沙箱中执行 | 宿主文件系统（只读挂载）、34 个敏感目录（tmpfs 隐藏）、系统能力（`cap-drop ALL`） |
 | 进程级 | 审批确认窗口运行于独立 Python 子进程 | Tcl/Tk 线程安全问题——每个窗口拥有独立事件循环，任意线程调用均安全 |
 | 上下文级 | 子 Agent 独立上下文，任务完成即销毁 | 子 Agent 之间的对话污染与嵌套调度 |
 
@@ -98,7 +99,7 @@ LLM 输出 → [命令安全] 拦截 rm -rf /、fork bomb 等 21 种危险模式
 
 **原则**：自动化不等同于无人化。不可逆操作的最终决定权应始终保留给用户。
 
-**实现**：危险操作（bash / write / edit / agent 调度）执行前，系统弹出独立置顶确认窗口，完整展示工具参数（语法高亮），支持键盘快捷键与超时自动拒绝。同时，记忆系统使 Sebastian 能够在跨会话间记录用户偏好与约束——记忆内容均来源于用户在对话中的明确表述。
+**实现**：危险操作（bash / write / edit / agent 调度 / schedule_cron）执行前，系统弹出独立置顶确认窗口，完整展示工具参数（语法高亮），支持键盘快捷键与超时自动拒绝。同时，记忆系统使 Sebastian 能够在跨会话间记录用户偏好与约束——记忆内容均来源于用户在对话中的明确表述。
 
 ---
 
@@ -149,7 +150,7 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 
 ### 工具系统
 
-所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可使用全部 12 项；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
+所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可使用全部 15 项；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
 
 | 工具 | HITL | 说明 |
 |------|:----:|------|
@@ -161,10 +162,13 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 | `glob` | | 通配符匹配文件 |
 | `grep` | | 正则内容搜索 |
 | `web_search` | | DuckDuckGo 网页搜索（超时保护） |
-| `web_fetch` | | 网页正文提取（SSRF 防护前置） |
+| `web_fetch` | | 网页正文提取（请求前 SSRF 检查） |
 | `todo` | | 任务规划与进度可视化 |
 | `load_skill` | | 加载技能文档 |
 | `agent` | ✓ | 调度子 Agent（支持后台异步） |
+| `schedule_cron` | ✓ | 注册 Unix 五段定时任务 |
+| `list_crons` | | 列出已注册定时任务 |
+| `cancel_cron` | | 按 ID 取消定时任务 |
 
 ### 记忆系统
 
@@ -184,10 +188,10 @@ Sebastian 具备跨会话长期记忆能力，记忆数据存放于 `~/.sebastia
 
 | 层级 | 模块 | 职责 |
 |------|------|------|
-| 输入层 | `input_guard.py` | 提示注入/jailbreak 检测（中英文模式） |
-| 命令层 | `command_guard.py` | 拦截 `rm -rf /`、fork bomb、`dd` 裸设备写入等 21 种危险模式 |
-| 路径层 | `path_safety.py` | 绝对路径 + `$HOME` 限定 + 敏感目录/文件/扩展名黑名单 + 符号链接解析 |
-| 网络层 | `url_safety.py` | SSRF 防护（拦截私有 IP 段、回环、链路本地、组播、IPv6 ULA） |
+| 输入层 | `input_guard.py` | 提示注入/jailbreak 启发式检测（中英文模式） |
+| 命令层 | `command_guard.py` | 启发式拦截危险命令；不是完整 shell 策略，最终依赖沙箱与 HITL |
+| 路径层 | `path_safety.py` | 跟随符号链接后校验：必须落在 `$HOME` 内 + 敏感目录/文件/扩展名黑名单 |
+| 网络层 | `url_safety.py` | 请求前 SSRF 检查：解析 DNS，拦截私网/回环/链路本地/组播/ULA/CGNAT，解析失败则拒绝 |
 | 确认层 | HITL 确认窗口 | 破坏性操作须经用户确认方可执行 |
 
 ### 人机协同审批
@@ -204,8 +208,8 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 代码执行基于 **bubblewrap** 实现 Linux 命名空间隔离：
 
 - 命名空间：PID、IPC、UTS、cgroup 隔离；`--cap-drop ALL` 丢弃全部能力
-- 宿主文件系统只读挂载，`~` 可写；**38 个敏感目录**（`.ssh`、`.aws`、浏览器配置、凭据存储、Shell 历史等）以 tmpfs 覆盖隐藏
-- **21 个配置文件**（`.bashrc`、`.gitconfig`、语言工具链等）只读挂载
+- 宿主文件系统只读挂载，`~` 可写；**34 个敏感路径**（`.ssh`、`.aws`、浏览器配置、凭据存储、Shell 历史等）以 tmpfs 覆盖隐藏
+- **29 个配置路径**（`.bashrc`、`.gitconfig`、语言工具链等）只读挂载
 - 执行超时 180 秒；沙箱生命周期与父进程绑定，父进程退出时沙箱随之终止
 
 ### Hook 系统
@@ -235,6 +239,10 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 ### 后台任务
 
 `bash` 与 `agent` 工具支持 `run_in_background=true` 异步执行：任务在守护线程中运行，完成后通过 `<task_notification>` 主动通知 Brain Agent。Brain 的系统提示词内置后台调度规则：可并行执行的任务不串行等待，可异步完成的任务不阻塞主流程。
+
+### 定时任务
+
+`schedule_cron` / `list_crons` / `cancel_cron` 提供 Unix 五段 cron 调度。到期任务在用户空闲时注入 Brain Agent。注册定时任务需要 HITL 确认；任务可选择是否跨会话持久化到 `~/.sebastian/.scheduled_tasks.json`。
 
 ### 会话管理
 
@@ -273,6 +281,12 @@ pip install -r requirements.txt
 
 # 3. 安装系统依赖 (Ubuntu/Debian)
 sudo apt install bubblewrap python3-tk
+```
+
+运行安全相关单测：
+
+```bash
+python -m unittest discover -s test -v
 ```
 
 ### 配置 API Key
@@ -360,23 +374,24 @@ Sebastian/
 │   │
 │   ├── tools/
 │   │   ├── tools_registry.py       # 工具注册中心（单例，按Agent分配，HITL标记）
-│   │   └── toolkits/               # 12项工具实现
+│   │   └── toolkits/               # 15项工具实现
 │   │       ├── bash.py             # 沙箱命令执行（支持后台）
 │   │       ├── read.py / write.py / edit.py / ls.py / glob.py / grep.py
 │   │       ├── web_search.py / web_fetch.py
 │   │       ├── todo_manager.py     # 任务规划/进度提醒
 │   │       ├── skill_registry.py   # 技能文档加载
+│   │       ├── cron_schedule.py    # 定时任务
 │   │       └── subagent.py         # 子Agent生成/调度/动态工具注册
 │   │
 │   ├── security/                   # 4层安全防御
 │   │   ├── input_guard.py          # 提示注入检测
-│   │   ├── command_guard.py        # 高危命令拦截（21种模式）
+│   │   ├── command_guard.py        # 高危命令启发式拦截
 │   │   ├── path_safety.py          # 路径安全校验
 │   │   └── url_safety.py           # SSRF防护
 │   │
 │   ├── sandbox/
 │   │   ├── bubblewrap.py           # bwrap沙箱管理器
-│   │   └── settings.json           # 沙箱配置（38隐藏目录/21只读路径）
+│   │   └── settings.json           # 沙箱配置（34隐藏路径/29只读路径）
 │   │
 │   ├── hooks/                      # Event-driven钩子系统
 │   │   ├── hooks_registry.py       # 钩子注册中心（4事件）
@@ -403,8 +418,7 @@ Sebastian/
 │   │   └── load_prompt.py          # 提示词片段加载
 │   │
 │   └── logs/
-│       ├── app_log.py              # 循环日志记录器
-│       └── sebastian.log           # 日志文件
+│       └── app_log.py              # 日志（写入 ~/.sebastian/logs/）
 ```
 
 用户数据目录（`~/.sebastian/`）：
@@ -415,6 +429,8 @@ Sebastian/
 ├── .agents/            # 用户自定义子Agent（优先于内置）
 ├── .memory/            # 记忆文件 + MEMORY.md 索引
 ├── session/            # 会话存档（JSONL，保留最近10个）
+├── logs/               # 应用日志
+├── .scheduled_tasks.json
 ├── .transcripts/       # 上下文压缩时的对话存档
 └── .task_outputs/      # 大工具结果落盘
 ```

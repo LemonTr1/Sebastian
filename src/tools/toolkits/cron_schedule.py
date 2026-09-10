@@ -316,12 +316,17 @@ CANCEL_CRON_SCHEMA = {
     }
 }
 
-get_tools_registry().register_tool("schedule_cron", CRON_SCHEDULE.run_schedule_cron, SCHEDULE_CRON_SCHEMA, for_agent="Brain_Agent")
+get_tools_registry().register_tool("schedule_cron", CRON_SCHEDULE.run_schedule_cron, SCHEDULE_CRON_SCHEMA, hitl=True, for_agent="Brain_Agent")
 get_tools_registry().register_tool("list_crons", CRON_SCHEDULE.run_list_crons, LIST_CRONS_SCHEMA, for_agent="Brain_Agent")
 get_tools_registry().register_tool("cancel_cron", CRON_SCHEDULE.run_cancel_cron, CANCEL_CRON_SCHEMA, for_agent="Brain_Agent")
 
-#启动守护线程
-CRON_SCHEDULE.load_durable_jobs()
-threading.Thread(target=CRON_SCHEDULE.cron_scheduler_loop, daemon=True).start()
-typer.echo(typer.style(f"\n> [cron] scheduler thread started", fg=typer.colors.GREEN))
-logger.info(f"Scheduler thread started")
+
+def start_cron_scheduler():
+    """Load durable jobs and start the matcher thread. Call from CLI, not at import."""
+    if getattr(CRON_SCHEDULE, "_started", False):
+        return
+    CRON_SCHEDULE._started = True
+    CRON_SCHEDULE.load_durable_jobs()
+    threading.Thread(target=CRON_SCHEDULE.cron_scheduler_loop, daemon=True).start()
+    typer.echo(typer.style(f"\n> [cron] scheduler thread started", fg=typer.colors.GREEN))
+    logger.info("Scheduler thread started")

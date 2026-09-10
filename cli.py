@@ -28,7 +28,7 @@ import time
 from datetime import datetime
 import json
 from src.utils.compaction_pipeline import compact_history
-from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
+from src.tools.toolkits.cron_schedule import CRON_SCHEDULE, start_cron_scheduler
 
 logger = get_log()
 
@@ -186,6 +186,7 @@ def _run_chat(session_id: str):
     get_session_id_container().set_session_id(session_id)
 
     #启动Scheduled Cron守护线程，在用户空闲时检查并运行定时任务
+    start_cron_scheduler()
     threading.Thread(target=cron_queue_processor_loop, daemon=True).start()
     typer.echo(typer.style(f"\n> [queue processor] Successfully start",fg=typer.colors.GREEN, bold=True))
     logger.info("Queue Processor Loop Successfully start")

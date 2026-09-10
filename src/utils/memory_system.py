@@ -1,6 +1,8 @@
 from pathlib import Path
 import json
 import re
+import shutil
+import tempfile
 import time
 import typer
 from src.logs.app_log import get_log
@@ -73,13 +75,20 @@ class Memory:
                 meta[k.strip()] = v.strip().strip('"').strip("'")
         return meta, parts[2].strip()
 
+    def _memory_filename(self, name: str) -> str:
+        slug = name.lower().replace(" ", "-").replace("/", "-")
+        return f"{slug}.md"
+
+    def _format_memory(self, name: str, mem_type: str, description: str, body: str) -> str:
+        return f"---\nname: {name}\ndescription: {description}\ntype: {mem_type}\n---\n\n{body}\n"
+
     def write_memory_file(self, name: str, mem_type: str, description: str, body: str):
         """Write a memory file with frontmatter"""
-        slug = name.lower().replace(" ", "-").replace("/", "-")
-        filename = f"{slug}.md"
+        filename = self._memory_filename(name)
         filepath = self.MEMORY_DIR / filename
         filepath.write_text(
-            f"---\nname: {name}\ndescription: {description}\ntype: {mem_type}\n---\n\n{body}\n"
+            self._format_memory(name, mem_type, description, body),
+            encoding="utf-8",
         )
         self._rebuild_index()
         return filepath
@@ -300,20 +309,33 @@ class Memory:
                 return
             items = json.loads(match.group())
 
-            #Delete old files(Remain MEMORY.md)
-            for f in self.MEMORY_DIR.glob("*.md"):
-                if f.name != "MEMORY.md":
-                    f.unlink()
-
+            new_files: dict[str, str] = {}
             for mem in items:
                 name = mem.get("name", f"memory_{int(time.time())}")
                 mem_type = mem.get("type", "user")
-                desc= mem.get("description", "")
+                desc = mem.get("description", "")
                 body = mem.get("body", "")
                 if desc and body:
-                    self.write_memory_file(name, mem_type, desc, body)
+                    filename = self._memory_filename(name)
+                    new_files[filename] = self._format_memory(name, mem_type, desc, body)
 
-            typer.echo(typer.style(f"\n[Memory: consolidated {len(files)} → {len(items)} memories]", fg=typer.colors.GREEN, bold=True))
+            if not new_files:
+                return
+
+            staging = Path(tempfile.mkdtemp(prefix="sebastian-mem-"))
+            try:
+                for filename, text in new_files.items():
+                    (staging / filename).write_text(text, encoding="utf-8")
+                for filename in new_files:
+                    shutil.copy2(staging / filename, self.MEMORY_DIR / filename)
+                for f in self.MEMORY_DIR.glob("*.md"):
+                    if f.name != "MEMORY.md" and f.name not in new_files:
+                        f.unlink()
+                self._rebuild_index()
+            finally:
+                shutil.rmtree(staging, ignore_errors=True)
+
+            typer.echo(typer.style(f"\n[Memory: consolidated {len(files)} → {len(new_files)} memories]", fg=typer.colors.GREEN, bold=True))
 
         except Exception:
             logger.error(f"调用API整合记忆文件失败")

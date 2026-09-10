@@ -2,7 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-CURRENT_DIR = Path(__file__).parent.resolve()
+LOG_DIR = Path.home() / ".sebastian" / "logs"
 
 class AppLog:
     def __init__(
@@ -16,7 +16,8 @@ class AppLog:
         self.logger.setLevel(level)
         self.logger.handlers = []
 
-        log_path = CURRENT_DIR / log_file
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log_path = LOG_DIR / log_file
 
         # 按大小轮转
         handler = RotatingFileHandler(

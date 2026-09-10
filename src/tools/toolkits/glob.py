@@ -22,11 +22,15 @@ def glob(pattern: str, scope: str) -> str:
         )
 
     try:
-        # 使用glob在指定目录进行文件匹配
-        matched_files = g.glob(pattern, root_dir=safe_scope, recursive=True)
+        scope_real = Path(safe_scope).resolve()
+        matched_files = g.glob(pattern, root_dir=str(scope_real), recursive=True)
 
-        # 过滤匹配结果，确保所有文件都在指定的scope目录下
-        filtered_files = [f for f in matched_files if Path(f).is_relative_to(safe_scope)]
+        filtered_files = []
+        for f in matched_files:
+            candidate = Path(f)
+            full = candidate.resolve() if candidate.is_absolute() else (scope_real / f).resolve()
+            if full.is_relative_to(scope_real):
+                filtered_files.append(str(full.relative_to(scope_real)))
 
         if len(filtered_files) > MAX_RESULTS:
             return json.dumps(

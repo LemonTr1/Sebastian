@@ -2,6 +2,7 @@ import json
 import random
 import time
 import threading
+from collections.abc import Callable
 import typer
 from src.config import get_client, MODEL
 from src.hooks.hooks_registry import get_hooks_registry
@@ -63,7 +64,7 @@ class AgentRunner:
     def __init__(
         self,
         name: str,
-        instructions: str,
+        instructions: str | Callable[[], str],
         registry: ToolsRegistry,
         model: str = None,
     ):
@@ -86,12 +87,17 @@ class AgentRunner:
         #统计本轮tokens消耗需要加锁
         self.post_completion_lock = threading.Lock()
 
+    def _resolve_instructions(self) -> str:
+        if callable(self.instructions):
+            return self.instructions()
+        return self.instructions
+
     def _ensure_system_prompt(self):
-        content = self.instructions
+        content = self._resolve_instructions()
         if self.name == "Brain_Agent":
             mem_section = MEMORY_SYSTEM.build_system()
             if mem_section and MEMORY_SYSTEM.is_allowed():
-                content = self.instructions + mem_section
+                content = content + mem_section
             #跨轮保留当前任务计划（替换式，不累积）
             if todo().state.items:
                 content = content.rstrip() + "\n\n" + "<当前任务计划>\n" + todo().get_normalized() + "\n</当前任务计划>"
@@ -534,7 +540,7 @@ class AgentRunner:
 
     #初始化Agent,返回AgentRunner对象（代替构造函数）
     @classmethod
-    def create_runner(cls, name: str, instructions: str, registry: ToolsRegistry, model: str = None):
+    def create_runner(cls, name: str, instructions: str | Callable[[], str], registry: ToolsRegistry, model: str = None):
         return cls(name=name, instructions=instructions, registry=registry, model=model)
 
 #将工具函数的参数从dict类型转化为更方便人类阅读的dict类型

@@ -7,12 +7,13 @@ from src.utils.user_info import get_username
 from src.utils.datetime_utils import get_current_time
 from src.utils.load_prompt import get_prompt_loader
 
-uname = get_username()
-current_time = get_current_time()
-
 SKILLS_DIR = Path.home() / ".sebastian" / "skills"
 
-BRAIN_AGENT_INSTRUCTIONS = f"""
+
+def build_brain_instructions() -> str:
+    uname = get_username()
+    current_time = get_current_time()
+    return f"""
 你是 Sebastian 的主控大脑（Triage），负责理解用户意图、调度子Agent执行任务，最终用自然语言输出结果。
 当前用户名为 {uname}，当前时间为：{current_time}。
 
@@ -50,8 +51,12 @@ bash和agent工具支持后台运行并在完成后通知
 - **可放前台**：当只有当前这**一个任务**，没有后续任务，或后续任务的进行**依赖**当前任务结果时 → 直接以同步方式执行
 """
 
+
+# 兼容旧测试脚本对常量名的引用；内容仍按调用时生成。
+BRAIN_AGENT_INSTRUCTIONS = build_brain_instructions()
+
 brain_agent = AgentRunner.create_runner(
     name="Brain_Agent",
-    instructions=BRAIN_AGENT_INSTRUCTIONS,
+    instructions=build_brain_instructions,
     registry=get_tools_registry(),
 )
