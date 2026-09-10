@@ -28,6 +28,7 @@ Sebastian is an LLM-powered multi-agent terminal assistant: a central Brain Agen
   - [Background Tasks](#background-tasks)
   - [Scheduled Tasks](#scheduled-tasks)
   - [Session Management](#session-management)
+  - [Plan / Build Modes](#plan--build-modes)
   - [Skill System](#skill-system)
 - [Quick Start](#quick-start)
 - [CLI Commands](#cli-commands)
@@ -250,6 +251,15 @@ The `bash` and `agent` tools support `run_in_background=true` for async executio
 - Auto-saved on exit; restored via `sebastian -s <SESSION_ID>`; the 10 most recent sessions are retained
 - In-chat: `/clear` wipes history, `/compact` compacts manually
 
+### Plan / Build Modes
+
+Sebastian provides two working modes — **Plan (read-only planning)** and **Build (execution)**, defaulting to Build on login:
+
+- `/plan` enters Plan: the Brain can only use `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons`; execution tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`) are removed from the tool schemas and rejected at runtime; the system prompt is dynamically injected with research-and-planning-focused guidance, requiring the model to ask the user whether to execute immediately or revise the plan once it is ready
+- `/build` exits Plan: all tools are restored
+- The mode is runtime-only (not persisted); scheduled (cron) tasks are **forced to run in Build mode** and the previous mode is restored afterwards
+- The terminal prompt shows the current mode (`[user|PLAN]:`)
+
 ### Skill System
 
 Skill documents live in `~/.sebastian/skills/<name>/SKILL.md` (YAML frontmatter + Markdown body), loaded on demand by the Brain Agent through the `load_skill` tool. Skills are fully pluggable — adding or removing files requires no code changes. Deployed example skills include: nmap, theHarvester, tcpdump, tshark, traceroute, whois, SSL certificate checking, subdomain enumeration, and more.
@@ -345,6 +355,8 @@ sebastian setup                 # API configuration wizard (masked key input)
 | Command | Description |
 |---------|-------------|
 | `quit` / `/quit` / `/exit` | Save session and exit |
+| `/plan` | Enter Plan read-only planning mode (9 research/planning tools only) |
+| `/build` | Exit Plan mode, restore all tools |
 | `/clear` | Clear the current conversation history |
 | `/compact` | Manually trigger LLM summarization compaction |
 | `Ctrl+C` / `Ctrl+D` | Exit without saving |

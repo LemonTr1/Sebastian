@@ -18,6 +18,7 @@ from src.utils.compaction_pipeline import (
     build_persisted_placeholder,
 )
 from src.utils.memory_system import MEMORY_SYSTEM
+from src.utils.agent_mode import AGENT_MODE
 from src.utils.exceptions import CompactException, SubAgentRuntimeException
 from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
 
@@ -98,6 +99,9 @@ class AgentRunner:
             mem_section = MEMORY_SYSTEM.build_system()
             if mem_section and MEMORY_SYSTEM.is_allowed():
                 content = content + mem_section
+            #Plan 模式：动态注入只读规划提示词
+            if AGENT_MODE.is_plan():
+                content = content.rstrip() + "\n\n" + AGENT_MODE.describe(self.tool_map.keys())
             #跨轮保留当前任务计划（替换式，不累积）
             if todo().state.items:
                 content = content.rstrip() + "\n\n" + "<当前任务计划>\n" + todo().get_normalized() + "\n</当前任务计划>"
@@ -150,6 +154,13 @@ class AgentRunner:
 
         return result
 
+    def _active_tool_map(self) -> dict:
+        """当前模式下 Brain 的可用工具表（Plan 模式施加白名单）"""
+        if self.name == "Brain_Agent" and AGENT_MODE.is_plan():
+            allowed = AGENT_MODE.allowed_tools()
+            return {k: v for k, v in self.tool_map.items() if k in allowed}
+        return self.tool_map
+
     def should_run_background(self, name: str, tool_args: dict) -> bool:
         """判断是否应该在后台运行工具"""
         if not name.lower() in ["bash", "agent"]:
@@ -160,14 +171,15 @@ class AgentRunner:
 
         return False
 
-    def start_background_task(self, tool_call_id: str, tool_name: str, tool_args: dict) -> str:
+    def start_background_task(self, tool_call_id: str, tool_name: str, tool_args: dict, tool_map: dict | None = None) -> str:
         self._bg_counter += 1
         bg_id = f"bg_task_{self._bg_counter}"
         cmd = f"{tool_name}: {json.dumps(tool_args, ensure_ascii=False)}"
 
         def worker():
             try:
-                func = self.tool_map[tool_name]["func"]
+                active_map = tool_map or self.tool_map
+                func = active_map[tool_name]["func"]
                 result = func(**tool_args)
             except Exception as e:
                 result = json.dumps({
@@ -215,9 +227,10 @@ class AgentRunner:
         return notifications
 
     #执行工具函数
-    def _process_tool_calls(self, tool_calls: list) -> bool:
+    def _process_tool_calls(self, tool_calls: list, tool_map: dict | None = None) -> bool:
         aborted = False
         used_todo = False
+        active_map = tool_map if tool_map is not None else self.tool_map
 
         new_messages = []
         for tc in tool_calls:
@@ -230,6 +243,21 @@ class AgentRunner:
                 self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": err})
                 continue
 
+            name = tc.get("function", {}).get("name", "")
+            #Plan 模式硬限制：白名单外的工具直接拒绝（先于钩子与执行）
+            if name and name not in active_map:
+                result = json.dumps(
+                    {
+                        "error": f"工具 '{name}' 在当前 Plan 模式下不可用。"
+                        f"可用工具：{sorted(active_map.keys())}。"
+                        f"请专注于规划，或引导用户输入 /build 退出 Plan 模式后再执行。"
+                    },
+                    ensure_ascii=False,
+                )
+                new_messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
+                logger.warning(f"{self.name} 在 Plan 模式下尝试调用禁用工具：{name}")
+                continue
+
             #在此插入PreToolUse钩子
             with self.pre_tool_use_lock:
                 hook_result = get_hooks_registry().trigger_hooks("PreToolUse", self.name, tc)
@@ -239,10 +267,9 @@ class AgentRunner:
                     continue
 
             try:
-                name = tc["function"]["name"]
                 args = json.loads(tc["function"]["arguments"])
                 tool_args = {k: v for k, v in args.items()}
-                func = self.tool_map[name]["func"]
+                func = active_map[name]["func"]
                 typer.echo(typer.style(
                     f"\n> [TOOL] {self.name} 调用 {name}({_brief_args(tool_args)})",
                     fg=typer.colors.WHITE,
@@ -250,7 +277,7 @@ class AgentRunner:
 
                 #执行工具
                 if self.should_run_background(name, args):
-                    bg_id = self.start_background_task(tc["id"], name, tool_args)
+                    bg_id = self.start_background_task(tc["id"], name, tool_args, active_map)
                     new_messages.append({
                         "role": "tool",
                         "tool_call_id": tc["id"],
@@ -395,9 +422,11 @@ class AgentRunner:
             self.context.append({"role": "user", "content": f"Finish scheduled job {cron_job.id}: {cron_job.prompt}"})
             typer.echo(typer.style(f"\n> [inject cron] {cron_job.prompt}", fg=typer.colors.GREEN))
 
+        #Plan 模式对 Brain 施加工具白名单
+        active_map = self._active_tool_map()
         tool_schemas = (
-            [v["schema"] for v in self.tool_map.values()]
-            if self.tool_map
+            [v["schema"] for v in active_map.values()]
+            if active_map
             else None
         )
 
@@ -519,7 +548,7 @@ class AgentRunner:
                     MEMORY_SYSTEM.consolidate_memories()
                 return
 
-            used_todo = self._process_tool_calls(tool_calls_list)
+            used_todo = self._process_tool_calls(tool_calls_list, active_map)
             if used_todo:
                 #打印在终端给用户看
                 todo().render()

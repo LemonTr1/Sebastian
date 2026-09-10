@@ -28,6 +28,7 @@ import time
 from datetime import datetime
 import json
 from src.utils.compaction_pipeline import compact_history
+from src.utils.agent_mode import AGENT_MODE
 from src.tools.toolkits.cron_schedule import CRON_SCHEDULE, start_cron_scheduler
 
 logger = get_log()
@@ -126,10 +127,16 @@ def cron_queue_processor_loop():
             if not CRON_SCHEDULE.has_cron_queue():
                 continue
             typer.echo(typer.style(f"\n> [queue processor]Independent thread of delivering scheduled starts",fg=typer.colors.GREEN))
-            brain_agent.run_stream(
-                None,
-                on_token=lambda token: typer.echo(token, nl=False),
-            )
+            #定时任务强制以 Build 模式运行，执行完毕恢复原模式
+            prev_mode = AGENT_MODE.get()
+            AGENT_MODE.set(AGENT_MODE.BUILD)
+            try:
+                brain_agent.run_stream(
+                    None,
+                    on_token=lambda token: typer.echo(token, nl=False),
+                )
+            finally:
+                AGENT_MODE.set(prev_mode)
 
             #触发Stop钩子统计Token数
             result = hooks_registry.get_hooks_registry().trigger_hooks("Stop")
@@ -155,7 +162,7 @@ def _run_chat(session_id: str):
     logger.info(f"{uname} 登陆系统")
     typer.echo(
         typer.style(
-            f"Welcome {uname}！I'm Sebastian. [输入 '/quit' 退出]",
+            f"Welcome {uname}！I'm Sebastian. [输入 '/quit' 退出 | '/plan' 规划模式 | '/build' 执行模式]",
             fg=typer.colors.BLUE,
             bold=True,
         )
@@ -193,7 +200,8 @@ def _run_chat(session_id: str):
 
     while True:
         try:
-            styled = typer.style(f"\n[{uname}]：", fg=typer.colors.GREEN, bold=True)
+            mode_suffix = "|PLAN" if AGENT_MODE.is_plan() else ""
+            styled = typer.style(f"\n[{uname}{mode_suffix}]：", fg=typer.colors.GREEN, bold=True)
             prompt = re.sub(r'(\x1b\[[0-9;]*m)', r'\001\1\002', styled)
             question = input(prompt)
         except (EOFError, KeyboardInterrupt):
@@ -218,6 +226,25 @@ def _run_chat(session_id: str):
             brain_agent.set_context(compact_history(brain_agent.get_context()))
             logger.info(f"{uname} 手动压缩历史对话")
             typer.echo(typer.style("已压缩历史对话", fg=typer.colors.GREEN, bold=True))
+            continue
+
+        if question.lower() == "/plan":
+            AGENT_MODE.set(AGENT_MODE.PLAN)
+            logger.info(f"{uname} 进入 Plan 模式")
+            typer.echo(typer.style(
+                "已进入 Plan 模式（只读规划）：仅可用 read/glob/grep/ls/todo/web_search/web_fetch/load_skill/list_crons，"
+                "输入 /build 退出并执行",
+                fg=typer.colors.CYAN, bold=True,
+            ))
+            continue
+
+        if question.lower() == "/build":
+            AGENT_MODE.set(AGENT_MODE.BUILD)
+            logger.info(f"{uname} 退出 Plan 模式，进入 Build 模式")
+            typer.echo(typer.style(
+                "已进入 Build 模式（全部工具可用，可执行任务），输入 /plan 可重新进入规划",
+                fg=typer.colors.CYAN, bold=True,
+            ))
             continue
 
         if not question.strip():

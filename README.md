@@ -28,6 +28,7 @@ Sebastian 是一个基于 LLM 的多 Agent 协作终端助手：主控 Agent 负
   - [后台任务](#后台任务)
   - [定时任务](#定时任务)
   - [会话管理](#会话管理)
+  - [规划/执行双模式](#规划执行双模式)
   - [技能系统](#技能系统)
 - [快速开始](#快速开始)
 - [CLI 命令](#cli-命令)
@@ -250,6 +251,15 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 - 退出时自动保存，`sebastian -s <SESSION_ID>` 恢复会话；自动保留最近 10 个会话
 - 对话内支持 `/clear` 清空历史、`/compact` 手动压缩
 
+### 规划/执行双模式
+
+Sebastian 提供 **Plan（只读规划）** 与 **Build（执行）** 双模式，登录默认 Build：
+
+- `/plan` 进入 Plan：Brain 仅可用 `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons`，执行类工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`）从工具 schema 中移除并被拒绝执行；system 提示词动态注入"以调研与规划为主"的行为引导，并要求模型在计划完成后主动询问用户：立即退出执行还是修改计划
+- `/build` 退出 Plan：恢复全部工具
+- 模式运行期有效不持久化；定时任务触发时**强制以 Build 运行**，执行完恢复原模式
+- 终端提示符显示当前模式（`[user|PLAN]：`）
+
 ### 技能系统
 
 技能文档存放于 `~/.sebastian/skills/<name>/SKILL.md`（YAML frontmatter + Markdown 正文），Brain Agent 通过 `load_skill` 工具按需加载。技能完全可插拔，添加或删除文件无需修改代码。已部署的示例技能包括：nmap、theHarvester、tcpdump、tshark、traceroute、whois、SSL 证书检查、子域名枚举等。
@@ -345,6 +355,8 @@ sebastian setup                 # API 配置向导（密钥掩码输入）
 | 命令 | 说明 |
 |------|------|
 | `quit` / `/quit` / `/exit` | 保存会话并退出 |
+| `/plan` | 进入 Plan 只读规划模式（仅 9 项调研/规划工具可用） |
+| `/build` | 退出 Plan 模式，恢复全部工具 |
 | `/clear` | 清空当前对话历史 |
 | `/compact` | 手动触发上下文 LLM 摘要压缩 |
 | `Ctrl+C` / `Ctrl+D` | 退出（不保存会话） |
