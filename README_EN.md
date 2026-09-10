@@ -221,14 +221,16 @@ An event-driven plugin mechanism injects custom logic at four points of the agen
 
 ### Context Compaction
 
-**Automatically triggered every 5 AgentLoop turns**, the four-layer progressive compaction pipeline:
+**Evaluated every AgentLoop turn**, the four-layer progressive compaction pipeline triggers per-layer by token budget (all thresholds are relative to the model context window, dynamically resolved from the model name in `.env`, defaulting to 128K for unknown models):
 
-1. **Persist large results**: tool results over 50KB are written to disk, only a preview remains in context
-2. **Snip messages**: keep the first 3 + last 47 messages when exceeding 50
-3. **Micro-compact**: old tool results are replaced with placeholders
-4. **LLM summarization**: over 500K characters, the conversation is summarized via API (the original is archived as a transcript)
+1. **Persist large results**: a single tool result exceeding the cap (max(12K, 5% of window) tokens) is immediately written to disk (sha256 content-addressed dedup); the context keeps only the path plus head/tail previews — oversized content never enters the context
+2. **Snip messages**: keep the first 3 + last 47 messages when exceeding 50, cut at user-message boundaries
+3. **Micro-compact**: when total tokens exceed 50% of the window, older tool results are persisted to disk first, then replaced with placeholders (lossless, re-readable anytime)
+4. **LLM summarization**: when total tokens exceed 75% of the window, the conversation is summarized via chunked API calls (each request stays bounded and cannot overflow); the original is archived as a transcript, the system prompt and the latest complete tool cycle are preserved
 
-Context overflow additionally triggers **reactive compaction** (up to 3 retries); `/compact` triggers it manually.
+Context overflow additionally triggers **reactive compaction** (the retry request is rebuilt from the compacted context, up to 3 retries — guaranteed to converge); at the end of each turn the terminal shows current context usage (colored by the 75%/95% thresholds); `/compact` triggers compaction manually. Token estimation is heuristic (CJK≈1, others≈0.25/char) with no extra dependency.
+
+**Four anti-reread defenses**: persisted placeholders carry usage guidance (sha256/size/paging hints); the persisted-file registry is injected into the system prompt (Brain and sub-agents, latest 20 entries); re-persisting identical content triggers a warning; ≥3 times triggers a circuit-breaker warning — the LLM cannot get stuck in a "read large file → compacted → re-read" loop.
 
 ### Background Tasks
 

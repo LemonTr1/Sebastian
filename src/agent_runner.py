@@ -8,7 +8,14 @@ from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.toolkits.todo_manager import todo
 from src.tools.tools_registry import ToolsRegistry
 from src.logs.app_log import get_log
-from src.utils.compaction_pipeline import CompactionPipeline, reactive_compact
+from src.utils.compaction_pipeline import (
+    CompactionPipeline,
+    reactive_compact,
+    persist_content,
+    NOTIFICATION_CAP,
+    PERSISTED_REGISTRY,
+    build_persisted_placeholder,
+)
 from src.utils.memory_system import MEMORY_SYSTEM
 from src.utils.exceptions import CompactException, SubAgentRuntimeException
 from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
@@ -85,10 +92,31 @@ class AgentRunner:
             mem_section = MEMORY_SYSTEM.build_system()
             if mem_section and MEMORY_SYSTEM.is_allowed():
                 content = self.instructions + mem_section
+            #跨轮保留当前任务计划（替换式，不累积）
+            if todo().state.items:
+                content = content.rstrip() + "\n\n" + "<当前任务计划>\n" + todo().get_normalized() + "\n</当前任务计划>"
+        #已落盘文件清单：Brain 与子 Agent 均注入，防止反复读取大文件
+        reg_section = PERSISTED_REGISTRY.describe()
+        if reg_section:
+            content = content.rstrip() + "\n\n" + reg_section
         if not self.context or self.context[0].get("role") != "system":
             self.context.insert(0, {"role": "system", "content": content})
         else:
             self.context[0]["content"] = content
+
+    def _update_system_plan(self):
+        """把最新任务计划替换进 system 提示词（同轮内替换式，不累积，保留落盘清单）"""
+        if not self.context or self.context[0].get("role") != "system":
+            return
+        content = self.context[0].get("content", "")
+        start = content.find("<当前任务计划>")
+        end = content.find("</当前任务计划>")
+        new_block = "<当前任务计划>\n" + todo().get_normalized() + "\n</当前任务计划>"
+        if start != -1 and end != -1:
+            content = content[:start] + new_block + content[end + len("</当前任务计划>"):]
+        else:
+            content = content.rstrip() + "\n\n" + new_block
+        self.context[0]["content"] = content
 
     def _extract_assistant_msg(self, response) -> dict:
         """从 LLM 返回的原始响应里提取 assistant 消息"""
@@ -165,6 +193,10 @@ class AgentRunner:
             with self.background_lock:
                 task = self.background_tasks.pop(bg_id)
                 output = self.background_results.pop(bg_id, "")
+            #后台输出超限时落盘，仅注入占位符（带防重读指引）
+            if len(output) > NOTIFICATION_CAP:
+                file_path, digest, hits = persist_content(output, source="background")
+                output = build_persisted_placeholder(output, file_path, digest, hits)
             notifications.append(
                 f"<task_notification>\n"
                 f"  <task_id>{bg_id}</task_id>\n"
@@ -230,8 +262,7 @@ class AgentRunner:
                 #标记本次AgentLoop中BrainAgent调用了任务管理工具
                 if name == "todo":
                     used_todo = True
-                    if self.context[0]["role"] == "system":
-                        self.context[0]["content"] = self.context[0].get("content", "") + "\n\n" + "<当前任务计划>" + "\n" + todo().get_normalized()
+                    self._update_system_plan()
 
             except Exception as e:
                 tool_name = tc.get("function", {}).get("name", "unknown")
@@ -270,14 +301,16 @@ class AgentRunner:
                 self.context = []
                 raise SubAgentRuntimeException("<SYSTEM_REMINDER>已达到最大对话轮次，请精简问题后重试</SYSTEM_REMINDER>")
 
-            if turn % 5 == 1:
-                # 压缩管线
-                try:
-                    self.context = CompactionPipeline.compact(self.context)
-                except CompactException as e:
-                    logger.error(f"\n [ERROR]{e} \n ")
-                    typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
-                    pass
+            # 每轮评估压缩管线（按预算逐层触发）
+            try:
+                self.context = CompactionPipeline.compact(self.context)
+            except CompactException as e:
+                logger.error(f"\n [ERROR]{e} \n ")
+                typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
+                pass
+            #压缩后兜底恢复system提示词
+            if self.context and self.context[0].get("role") != "system":
+                self._ensure_system_prompt()
 
             kwargs = dict(model=self.model, messages=self.context)
             if tool_schemas:
@@ -302,6 +335,8 @@ class AgentRunner:
                             logger.warning(f"{self.name}上下文过长，启动应急压缩，重试次数：{reactive_retries}")
                             try:
                                 self.context = reactive_compact(self.context)
+                                #关键：重试必须使用压缩后的上下文
+                                kwargs["messages"] = self.context
                                 break
                             except CompactException:
                                 reactive_retries += 1
@@ -368,14 +403,16 @@ class AgentRunner:
                 typer.echo("已达到最大对话轮次，请精简问题后重试")
                 return
 
-            if turn % 5 == 1:
-                # 压缩管线
-                try:
-                    self.context = CompactionPipeline.compact(self.context)
-                except CompactException as e:
-                    logger.error(f"\n [ERROR]{e} \n ")
-                    typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
-                    pass
+            # 每轮评估压缩管线（按预算逐层触发）
+            try:
+                self.context = CompactionPipeline.compact(self.context)
+            except CompactException as e:
+                logger.error(f"\n [ERROR]{e} \n ")
+                typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
+                pass
+            #压缩后兜底恢复system提示词
+            if self.context and self.context[0].get("role") != "system":
+                self._ensure_system_prompt()
 
             kwargs = dict(model=self.model, messages=self.context)
             if tool_schemas:
@@ -402,6 +439,8 @@ class AgentRunner:
                             logger.warning(f"{self.name}上下文过长，启动应急压缩，重试次数：{reactive_retries}")
                             try:
                                 self.context = reactive_compact(self.context)
+                                #关键：重试必须使用压缩后的上下文
+                                kwargs["messages"] = self.context
                                 break
                             except CompactException:
                                 reactive_retries += 1

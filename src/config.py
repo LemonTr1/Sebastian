@@ -12,6 +12,11 @@ MODEL = str(os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
 API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
+from src.utils.model_windows import resolve_context_window
+
+# 基于 .env 模型名动态解析上下文窗口，进程内只解析一次
+CONTEXT_WINDOW = resolve_context_window(MODEL)
+
 def get_client() -> OpenAI:
     _client = OpenAI(
         api_key=API_KEY,

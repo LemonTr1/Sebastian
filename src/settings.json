@@ -74,5 +74,9 @@
   "memory": {
     "enabled": true,
     "consolidate_threshold": 10
+  },
+  "context": {
+    "window_tokens": null,
+    "model_overrides": {}
   }
 }
