@@ -9,8 +9,8 @@
 四层：
   L1 落盘（persist）    单条工具结果超上限 → 落盘 + 头尾预览 (任何一条大结果都不能进上下文，防御性的)
   L2 裁剪（snip）       消息数超50条 → 保留前3+后47，user边界切割
-  L3 微压缩（micro）    总 token > 60% 窗口 → 旧工具结果落盘后换占位符 (压缩阈值远小于L1，用于清理历史久远的工具调用结果，已有<persisted-output>前缀的不会重复替换)
-  L4 摘要（summarize）  总 token > 80% 窗口 → 分段摘要，保留 system
+  L3 微压缩（micro）    总 token > 50% 窗口 → 旧工具结果落盘后换占位符 (压缩阈值远小于L1，用于清理历史久远的工具调用结果，已有<persisted-output>前缀的不会重复替换)
+  L4 摘要（summarize）  总 token > 75% 窗口 → 分段摘要，保留 system
   应急（reactive）        API 报 context_length_exceeded → 同上 + 最小尾部
 """
 import hashlib
@@ -205,7 +205,7 @@ def snip_compact(messages: list, max_message: int = SNIP_MAX_MESSAGES) -> list:
     if head_end >= tail_start:
         return messages
 
-    return messages[:head_end] + [{"role": "user", "content": f"<SYSTEM_REMINDER>snipped {tail_start - head_end} messages</SYSTEM_REMINDER>"}] + messages[tail_start:]
+    return messages[:head_end] + [{"role": "user", "content": f"{PERSISTED_PREFIX}snipped {tail_start - head_end} messages, but they have not been persisted</persisted-output>"}] + messages[tail_start:]
 
 
 # ---- L3：微压缩（先落盘再替换）----
