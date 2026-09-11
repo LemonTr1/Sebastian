@@ -286,7 +286,7 @@ def _run_chat(session_id: str):
             enabled = question.lower().endswith("on")
             MEMORY_SYSTEM.set_enabled(enabled)
             typer.echo(typer.style(
-                f"记忆已{'开启' if enabled else '关闭'}（~/.sebastian/.memory/）",
+                f"记忆已{'开启' if enabled else '关闭'}",
                 fg=typer.colors.CYAN, bold=True,
             ))
             continue
