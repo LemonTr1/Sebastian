@@ -7,6 +7,7 @@ os.environ['https_proxy'] = ''
 os.environ['all_proxy'] = ''
 
 import re
+import select
 import sys
 
 from dotenv import load_dotenv, set_key
@@ -18,8 +19,10 @@ from src.agents.brain_agent import brain_agent
 from src.utils.user_info import get_username
 try:
     import readline
+    readline.parse_and_bind("set enable-bracketed-paste on")
+    readline.parse_and_bind("set horizontal-scroll-mode off")
 except ImportError:
-    pass
+    readline = None
 import typer
 from src.logs.app_log import get_log
 from src.utils.session_id_container import get_session_id_container
@@ -32,6 +35,36 @@ from src.utils.agent_mode import AGENT_MODE
 from src.tools.toolkits.cron_schedule import CRON_SCHEDULE, start_cron_scheduler
 
 logger = get_log()
+
+
+def _stdin_pending() -> bool:
+    """True if more bytes are already waiting (typical of a multi-line paste)."""
+    if not sys.stdin.isatty():
+        return False
+    try:
+        return bool(select.select([sys.stdin], [], [], 0)[0])
+    except (OSError, ValueError):
+        return False
+
+
+def read_user_message(prompt: str) -> str:
+    """Read one user turn: drain pasted extra lines, honor trailing '\\' continuation.
+
+    `input()` stops at the first newline, so a paste would otherwise be sliced into
+    separate Agent turns. Prompt must not contain a leading newline — readline
+    mis-counts width and wraps/slices the edit buffer.
+    """
+    lines = [input(prompt)]
+    while _stdin_pending():
+        try:
+            lines.append(input())
+        except EOFError:
+            break
+    while lines and lines[-1].endswith("\\"):
+        lines[-1] = lines[-1][:-1]
+        lines.append(input("... "))
+    return "\n".join(lines)
+
 
 app = typer.Typer(no_args_is_help=False, help="AutomaticTaskAssistant")
 
@@ -201,9 +234,10 @@ def _run_chat(session_id: str):
     while True:
         try:
             mode_suffix = "|PLAN" if AGENT_MODE.is_plan() else ""
-            styled = typer.style(f"\n[{uname}{mode_suffix}]：", fg=typer.colors.GREEN, bold=True)
+            typer.echo()
+            styled = typer.style(f"[{uname}{mode_suffix}]：", fg=typer.colors.GREEN, bold=True)
             prompt = re.sub(r'(\x1b\[[0-9;]*m)', r'\001\1\002', styled)
-            question = input(prompt)
+            question = read_user_message(prompt)
         except (EOFError, KeyboardInterrupt):
             typer.echo(typer.style("\nBye", fg=typer.colors.BLUE, bold=True))
             raise typer.Exit(code=0)
