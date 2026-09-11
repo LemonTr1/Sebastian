@@ -57,6 +57,15 @@ def run_checkers(workdir: Path, expects: list, metrics: dict, reply: str) -> lis
                 needle = spec["text"]
                 ok = needle in (reply or "")
                 detail = f"reply contains {needle!r}: {ok}"
+            elif kind == "only_files":
+                allowed = {str(Path(p)) for p in spec["files"]}
+                actual = set()
+                for p in workdir.rglob("*"):
+                    if p.is_file() or p.is_symlink():
+                        actual.add(str(p.relative_to(workdir)))
+                extra = sorted(actual - allowed)
+                ok = not extra
+                detail = f"extra files={extra}" if extra else f"files={sorted(actual)}"
             else:
                 ok = False
                 detail = f"unknown checker: {kind}"

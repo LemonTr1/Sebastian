@@ -1,0 +1,30 @@
+{
+  "id": "extract_error_line",
+  "tags": [
+    "hard",
+    "basic"
+  ],
+  "ref_tool_rounds": 4,
+  "max_turns": 16,
+  "prompt": "工作目录是 {workdir}。从 app.log 中找出唯一一行 ERROR，原样写入 error.txt（只要这一行，不要其它内容）。不要创建除 error.txt 以外的新文件。",
+  "setup": [
+    {
+      "path": "app.log",
+      "content": "2026-09-11 10:00:01 INFO worker=1 heartbeat ok\n2026-09-11 10:00:02 INFO worker=2 heartbeat ok\n2026-09-11 10:00:03 INFO worker=3 heartbeat ok\n2026-09-11 10:00:04 INFO worker=4 heartbeat ok\n2026-09-11 10:00:05 INFO worker=5 heartbeat ok\n2026-09-11 10:00:06 INFO worker=6 heartbeat ok\n2026-09-11 10:00:07 INFO worker=7 heartbeat ok\n2026-09-11 10:00:08 INFO worker=8 heartbeat ok\n2026-09-11 10:00:09 INFO worker=9 heartbeat ok\n2026-09-11 10:00:10 INFO worker=10 heartbeat ok\n2026-09-11 10:00:11 INFO worker=11 heartbeat ok\n2026-09-11 10:00:12 INFO worker=12 heartbeat ok\n2026-09-11 10:00:13 INFO worker=13 heartbeat ok\n2026-09-11 10:00:14 INFO worker=14 heartbeat ok\n2026-09-11 10:00:15 INFO worker=15 heartbeat ok\n2026-09-11 10:00:16 INFO worker=16 heartbeat ok\n2026-09-11 10:00:17 INFO worker=17 heartbeat ok\n2026-09-11 10:00:18 INFO worker=18 heartbeat ok\n2026-09-11 10:00:19 INFO worker=19 heartbeat ok\n2026-09-11 10:00:20 INFO worker=20 heartbeat ok\n2026-09-11 10:00:21 INFO worker=21 heartbeat ok\n2026-09-11 10:00:22 INFO worker=22 heartbeat ok\n2026-09-11 10:00:23 INFO worker=23 heartbeat ok\n2026-09-11 10:00:24 INFO worker=24 heartbeat ok\n2026-09-11 10:00:25 INFO worker=25 heartbeat ok\n2026-09-11 10:00:26 INFO worker=26 heartbeat ok\n2026-09-11 10:00:27 INFO worker=27 heartbeat ok\n2026-09-11 10:00:28 INFO worker=28 heartbeat ok\n2026-09-11 10:00:29 INFO worker=29 heartbeat ok\n2026-09-11 10:00:30 INFO worker=30 heartbeat ok\n2026-09-11 10:00:31 INFO worker=31 heartbeat ok\n2026-09-11 10:00:32 INFO worker=32 heartbeat ok\n2026-09-11 10:00:33 INFO worker=33 heartbeat ok\n2026-09-11 10:00:34 INFO worker=34 heartbeat ok\n2026-09-11 10:00:35 INFO worker=35 heartbeat ok\n2026-09-11 10:00:36 INFO worker=36 heartbeat ok\n2026-09-11 10:00:37 INFO worker=37 heartbeat ok\n2026-09-11 10:00:38 INFO worker=38 heartbeat ok\n2026-09-11 10:00:39 INFO worker=39 heartbeat ok\n2026-09-11 10:00:40 INFO worker=40 heartbeat ok\n2026-09-11 10:00:41 ERROR disk full code=E42\n2026-09-11 10:00:42 INFO worker=42 heartbeat ok\n2026-09-11 10:00:43 INFO worker=43 heartbeat ok\n2026-09-11 10:00:44 INFO worker=44 heartbeat ok\n2026-09-11 10:00:45 INFO worker=45 heartbeat ok\n2026-09-11 10:00:46 INFO worker=46 heartbeat ok\n2026-09-11 10:00:47 INFO worker=47 heartbeat ok\n2026-09-11 10:00:48 INFO worker=48 heartbeat ok\n2026-09-11 10:00:49 INFO worker=49 heartbeat ok\n2026-09-11 10:00:50 INFO worker=50 heartbeat ok\n2026-09-11 10:00:51 INFO worker=51 heartbeat ok\n2026-09-11 10:00:52 INFO worker=52 heartbeat ok\n2026-09-11 10:00:53 INFO worker=53 heartbeat ok\n2026-09-11 10:00:54 INFO worker=54 heartbeat ok\n2026-09-11 10:00:55 INFO worker=55 heartbeat ok\n2026-09-11 10:00:56 INFO worker=56 heartbeat ok\n2026-09-11 10:00:57 INFO worker=57 heartbeat ok\n2026-09-11 10:00:58 INFO worker=58 heartbeat ok\n2026-09-11 10:00:59 INFO worker=59 heartbeat ok\n2026-09-11 10:00:60 INFO worker=60 heartbeat ok\n2026-09-11 10:00:61 INFO worker=61 heartbeat ok\n2026-09-11 10:00:62 INFO worker=62 heartbeat ok\n2026-09-11 10:00:63 INFO worker=63 heartbeat ok\n2026-09-11 10:00:64 INFO worker=64 heartbeat ok\n2026-09-11 10:00:65 INFO worker=65 heartbeat ok\n2026-09-11 10:00:66 INFO worker=66 heartbeat ok\n2026-09-11 10:00:67 INFO worker=67 heartbeat ok\n2026-09-11 10:00:68 INFO worker=68 heartbeat ok\n2026-09-11 10:00:69 INFO worker=69 heartbeat ok\n2026-09-11 10:00:70 INFO worker=70 heartbeat ok\n2026-09-11 10:00:71 INFO worker=71 heartbeat ok\n2026-09-11 10:00:72 INFO worker=72 heartbeat ok\n2026-09-11 10:00:73 INFO worker=73 heartbeat ok\n2026-09-11 10:00:74 INFO worker=74 heartbeat ok\n2026-09-11 10:00:75 INFO worker=75 heartbeat ok\n2026-09-11 10:00:76 INFO worker=76 heartbeat ok\n2026-09-11 10:00:77 INFO worker=77 heartbeat ok\n2026-09-11 10:00:78 INFO worker=78 heartbeat ok\n2026-09-11 10:00:79 INFO worker=79 heartbeat ok\n2026-09-11 10:00:80 INFO worker=80 heartbeat ok\n"
+    }
+  ],
+  "expect": [
+    {
+      "type": "file_equals",
+      "path": "error.txt",
+      "text": "2026-09-11 10:00:41 ERROR disk full code=E42"
+    },
+    {
+      "type": "only_files",
+      "files": [
+        "app.log",
+        "error.txt"
+      ]
+    }
+  ]
+}

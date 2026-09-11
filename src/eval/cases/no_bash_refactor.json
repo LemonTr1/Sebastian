@@ -1,0 +1,46 @@
+{
+  "id": "no_bash_refactor",
+  "tags": [
+    "hard",
+    "routing"
+  ],
+  "ref_tool_rounds": 5,
+  "max_turns": 16,
+  "prompt": "工作目录是 {workdir}。把函数 old_name 重命名为 new_name，并更新所有引用。禁止使用 bash 工具（不要 sed、不要 python -c）。只用 read/edit/write。",
+  "setup": [
+    {
+      "path": "util.py",
+      "content": "def old_name(x):\n    return x + 1\n"
+    },
+    {
+      "path": "user.py",
+      "content": "from util import old_name\n\ndef run():\n    return old_name(3)\n"
+    }
+  ],
+  "expect": [
+    {
+      "type": "file_contains",
+      "path": "util.py",
+      "text": "def new_name"
+    },
+    {
+      "type": "file_contains",
+      "path": "user.py",
+      "text": "new_name"
+    },
+    {
+      "type": "file_not_contains",
+      "path": "util.py",
+      "text": "old_name"
+    },
+    {
+      "type": "file_not_contains",
+      "path": "user.py",
+      "text": "old_name"
+    },
+    {
+      "type": "tool_not_called",
+      "name": "bash"
+    }
+  ]
+}

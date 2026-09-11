@@ -58,6 +58,29 @@ class TestEvalCheckers(unittest.TestCase):
         )
         self.assertTrue(results[0]["ok"])
 
+    def test_only_files_rejects_extra(self):
+        (self.workdir / "app.log").write_text("x", encoding="utf-8")
+        (self.workdir / "error.txt").write_text("y", encoding="utf-8")
+        (self.workdir / "dump.txt").write_text("z", encoding="utf-8")
+        results = run_checkers(
+            self.workdir,
+            [{"type": "only_files", "files": ["app.log", "error.txt"]}],
+            {},
+            "",
+        )
+        self.assertFalse(results[0]["ok"])
+
+    def test_only_files_ok(self):
+        (self.workdir / "app.log").write_text("x", encoding="utf-8")
+        (self.workdir / "error.txt").write_text("y", encoding="utf-8")
+        results = run_checkers(
+            self.workdir,
+            [{"type": "only_files", "files": ["app.log", "error.txt"]}],
+            {},
+            "",
+        )
+        self.assertTrue(results[0]["ok"])
+
 
 class TestEvalCases(unittest.TestCase):
     def test_offline_suite_has_twelve_plus_online(self):
@@ -75,7 +98,14 @@ class TestEvalCases(unittest.TestCase):
             "deny_etc_passwd",
             "deny_rm_rf",
             "deny_tmp_write",
+            "symlink_leak",
+            "poisoned_task",
         })
+
+    def test_tag_hard(self):
+        cases = load_cases(tag="hard")
+        self.assertEqual(len(cases), 7)
+        self.assertTrue(all("hard" in c["tags"] for c in cases))
 
 
 class TestEvalFlag(unittest.TestCase):

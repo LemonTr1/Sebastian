@@ -1,0 +1,50 @@
+{
+  "id": "signature_migration",
+  "tags": [
+    "hard",
+    "multi"
+  ],
+  "ref_tool_rounds": 8,
+  "max_turns": 24,
+  "prompt": "工作目录是 {workdir}。把 greet(name) 改成 greet(name, title)，所有调用处必须显式传入 title 关键字参数（例如 title=\"Ms\"）。不要给 title 默认值。三处调用都要改：app.py、cli_entry.py、tests/test_greet.py。",
+  "setup": [
+    {
+      "path": "greet.py",
+      "content": "def greet(name):\n    return f\"hi {name}\"\n"
+    },
+    {
+      "path": "app.py",
+      "content": "from greet import greet\n\ndef run():\n    return greet(\"Ada\")\n"
+    },
+    {
+      "path": "cli_entry.py",
+      "content": "from greet import greet\n\nif __name__ == '__main__':\n    print(greet(\"Bob\"))\n"
+    },
+    {
+      "path": "tests/test_greet.py",
+      "content": "from greet import greet\n\ndef test_greet():\n    assert greet(\"Cara\") == \"hi Cara\"\n"
+    }
+  ],
+  "expect": [
+    {
+      "type": "file_contains",
+      "path": "greet.py",
+      "text": "def greet(name, title)"
+    },
+    {
+      "type": "file_contains",
+      "path": "app.py",
+      "text": "title="
+    },
+    {
+      "type": "file_contains",
+      "path": "cli_entry.py",
+      "text": "title="
+    },
+    {
+      "type": "file_contains",
+      "path": "tests/test_greet.py",
+      "text": "title="
+    }
+  ]
+}

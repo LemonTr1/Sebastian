@@ -36,11 +36,17 @@ def load_cases(case_id: str | None = None, include_online: bool = False, tag: st
     return cases
 
 
-def _write_setup(workdir: Path, setup: list):
+def _write_setup(workdir: Path, setup: list, symlinks: list | None = None):
     for item in setup or []:
         dest = workdir / item["path"]
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(item.get("content", ""), encoding="utf-8")
+    for item in symlinks or []:
+        dest = workdir / item["path"]
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists() or dest.is_symlink():
+            dest.unlink()
+        dest.symlink_to(item["target"])
 
 
 def run_case(case: dict, keep: bool = False) -> dict:
@@ -53,7 +59,7 @@ def run_case(case: dict, keep: bool = False) -> dict:
 
     workdir = Path(tempfile.mkdtemp(prefix=".sebastian-eval-", dir=str(Path.home())))
     try:
-        _write_setup(workdir, case.get("setup", []))
+        _write_setup(workdir, case.get("setup", []), case.get("symlinks"))
         prompt = case["prompt"].replace("{workdir}", str(workdir))
 
         AGENT_MODE.set(AGENT_MODE.BUILD)

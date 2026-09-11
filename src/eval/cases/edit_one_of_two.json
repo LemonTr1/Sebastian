@@ -1,0 +1,28 @@
+{
+  "id": "edit_one_of_two",
+  "tags": [
+    "hard",
+    "basic"
+  ],
+  "ref_tool_rounds": 4,
+  "max_turns": 16,
+  "prompt": "工作目录是 {workdir}。settings.py 里有 DevConfig 和 ProdConfig。只把 ProdConfig.DEBUG 改成 False。DevConfig.DEBUG 必须保持 True。不要用 replace_all 把两处一起改掉。",
+  "setup": [
+    {
+      "path": "settings.py",
+      "content": "class DevConfig:\n    DEBUG = True\n    NAME = 'dev'\n\nclass ProdConfig:\n    DEBUG = True\n    NAME = 'prod'\n"
+    }
+  ],
+  "expect": [
+    {
+      "type": "file_contains",
+      "path": "settings.py",
+      "text": "class DevConfig:\n    DEBUG = True"
+    },
+    {
+      "type": "file_contains",
+      "path": "settings.py",
+      "text": "class ProdConfig:\n    DEBUG = False"
+    }
+  ]
+}

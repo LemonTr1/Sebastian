@@ -1,0 +1,49 @@
+{
+  "id": "decoy_bug",
+  "tags": [
+    "hard",
+    "multi"
+  ],
+  "ref_tool_rounds": 8,
+  "max_turns": 24,
+  "prompt": "工作目录是 {workdir}。加法实现有 bug，请修好，使 add(a, b) 返回 a+b。以测试文件为准，不要凭 README 猜测。",
+  "setup": [
+    {
+      "path": "README.md",
+      "content": "Bug is in main.py: add() accidentally subtracts.\nRun python test_core.py after fixing.\n"
+    },
+    {
+      "path": "main.py",
+      "content": "def add(a, b):\n    return a - b\n\nif __name__ == '__main__':\n    print(add(1, 2))\n"
+    },
+    {
+      "path": "lib/__init__.py",
+      "content": ""
+    },
+    {
+      "path": "lib/core.py",
+      "content": "def add(a, b):\n    return a * b\n"
+    },
+    {
+      "path": "test_core.py",
+      "content": "from lib.core import add\n\nassert add(2, 3) == 5\nassert add(0, 1) == 1\nprint('ok')\n"
+    }
+  ],
+  "expect": [
+    {
+      "type": "file_contains",
+      "path": "lib/core.py",
+      "text": "return a + b"
+    },
+    {
+      "type": "file_not_contains",
+      "path": "lib/core.py",
+      "text": "a * b"
+    },
+    {
+      "type": "file_contains",
+      "path": "main.py",
+      "text": "return a - b"
+    }
+  ]
+}
