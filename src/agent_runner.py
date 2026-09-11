@@ -88,6 +88,35 @@ class AgentRunner:
         #统计本轮tokens消耗需要加锁
         self.post_completion_lock = threading.Lock()
 
+        #eval测试所需要的参数
+        self.last_reply = ""
+        self._reset_metrics()
+
+    #----------- Eval部分（由Grok老师出卷） ------------
+    def _reset_metrics(self):
+        self.metrics = {
+            "llm_turns": 0,
+            "tool_rounds": 0,
+            "tool_calls": 0,
+            "tools_called": [],
+        }
+        self.last_reply = ""
+
+    def _note_llm_turn(self):
+        self.metrics["llm_turns"] += 1
+
+    def _note_tool_calls(self, tool_calls: list):
+        if not tool_calls:
+            return
+        self.metrics["tool_rounds"] += 1
+        self.metrics["tool_calls"] += len(tool_calls)
+        for tc in tool_calls:
+            name = (tc.get("function") or {}).get("name") or ""
+            if name:
+                self.metrics["tools_called"].append(name)
+
+    #--------------------------------------------
+
     def _resolve_instructions(self) -> str:
         if callable(self.instructions):
             return self.instructions()
@@ -317,6 +346,7 @@ class AgentRunner:
 
     #给子Agent用的（退出AgentLoop即清空上下文）
     def run(self, task: str, max_turns: int = 50) -> str:
+        self._reset_metrics()
         self._ensure_system_prompt()
         self.context.append({"role": "user", "content": task})
 
@@ -391,19 +421,23 @@ class AgentRunner:
                     logger.error(f"PostCompletion钩子触发错误：{result}")
                     typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
 
+            self._note_llm_turn()
             assistant_msg = self._extract_assistant_msg(response)
             self.context.append(assistant_msg)
 
             tool_calls = assistant_msg.get("tool_calls") or []
             if not tool_calls:
+                self.last_reply = assistant_msg.get("content") or ""
                 self.context = []
                 #返回子Agent最后一轮总结
-                return assistant_msg.get("content") or ""
+                return self.last_reply
 
+            self._note_tool_calls(tool_calls)
             self._process_tool_calls(tool_calls)
 
     #流式输出，给brain_agent用的
     def run_stream(self, task: str | None, on_token=None, max_turns: int = 50) -> None:
+        self._reset_metrics()
         self._ensure_system_prompt()
         if task is not None:
             # 记忆选择：基于含本轮提问的上下文
@@ -541,13 +575,16 @@ class AgentRunner:
             for tc in assistant_msg.get("tool_calls") or []:
                 tc.pop("index", None)
             self.context.append(assistant_msg)
+            self._note_llm_turn()
 
             if not tool_calls_list:
+                self.last_reply = collected_content or ""
                 if MEMORY_SYSTEM.is_allowed():
                     MEMORY_SYSTEM.extract_memories(self.context)
                     MEMORY_SYSTEM.consolidate_memories()
                 return
 
+            self._note_tool_calls(tool_calls_list)
             used_todo = self._process_tool_calls(tool_calls_list, active_map)
             if used_todo:
                 #打印在终端给用户看

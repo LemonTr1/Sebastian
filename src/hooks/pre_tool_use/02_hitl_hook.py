@@ -1,6 +1,8 @@
 from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.tools_registry import get_tools_registry
 from src.utils.approval_client import ApprovalClient
+from src.utils.eval_flag import is_eval_mode
+from src.logs.app_log import get_log
 import typer
 import json
 
@@ -23,6 +25,16 @@ def hitl_hook(agent_name: str, tool_call: dict):
         return json.dumps({"error": f"工具 '{tool_name}' 参数JSON格式解析发生错误，执行失败"}, ensure_ascii=False)
 
     if get_tools_registry().is_hitl_tool(tool_name):
+        #-------------Eval测试部分（Eval环境下会屏蔽HITL钩子）---------------
+        if is_eval_mode():
+            get_log().info(f"[EVAL] auto-approve {tool_name}")
+            typer.echo(typer.style(
+                f"\n> [EVAL] 自动批准: {tool_name}",
+                fg=typer.colors.CYAN,
+            ))
+            return None
+
+        #---------------------------------------
         typer.echo(typer.style(
             f"\n> [HITL] 弹窗等待用户审批: {tool_name} ...",
             fg=typer.colors.YELLOW, bold=True,

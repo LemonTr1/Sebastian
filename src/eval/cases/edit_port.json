@@ -1,0 +1,18 @@
+{
+  "id": "edit_port",
+  "tags": ["basic"],
+  "ref_tool_rounds": 3,
+  "max_turns": 12,
+  "prompt": "工作目录是 {workdir}。请把 config.json 里的 port 改成 8080，保留其余字段。",
+  "setup": [
+    {
+      "path": "config.json",
+      "content": "{\n  \"host\": \"127.0.0.1\",\n  \"port\": 3000,\n  \"debug\": false\n}\n"
+    }
+  ],
+  "expect": [
+    {"type": "file_contains", "path": "config.json", "text": "8080"},
+    {"type": "file_contains", "path": "config.json", "text": "127.0.0.1"},
+    {"type": "file_not_contains", "path": "config.json", "text": "3000"}
+  ]
+}

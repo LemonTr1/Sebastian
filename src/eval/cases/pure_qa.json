@@ -1,0 +1,12 @@
+{
+  "id": "pure_qa",
+  "tags": ["routing"],
+  "ref_tool_rounds": 0,
+  "max_turns": 6,
+  "prompt": "3 的阶乘是多少？直接给出数字。不要调用任何工具。",
+  "setup": [],
+  "expect": [
+    {"type": "assistant_contains", "text": "6"},
+    {"type": "tool_calls_eq", "value": 0}
+  ]
+}

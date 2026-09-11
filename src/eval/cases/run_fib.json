@@ -1,0 +1,12 @@
+{
+  "id": "run_fib",
+  "tags": ["basic"],
+  "ref_tool_rounds": 5,
+  "max_turns": 16,
+  "prompt": "工作目录是 {workdir}。请编写 fib.py，定义 fib(n) 返回第 n 个斐波那契数（fib(0)=0, fib(1)=1），计算 fib(10)，把结果数字写入 {workdir}/out.txt（只要数字）。",
+  "setup": [],
+  "expect": [
+    {"type": "file_exists", "path": "fib.py"},
+    {"type": "file_contains", "path": "out.txt", "text": "55"}
+  ]
+}

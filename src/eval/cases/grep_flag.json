@@ -1,0 +1,16 @@
+{
+  "id": "grep_flag",
+  "tags": ["basic"],
+  "ref_tool_rounds": 4,
+  "max_turns": 15,
+  "prompt": "工作目录是 {workdir}。在该目录的源码中找出形如 FLAG{...} 的标记，把完整标记写入 {workdir}/found.txt，只要一行。",
+  "setup": [
+    {"path": "src/app.py", "content": "print('ok')\n"},
+    {"path": "src/hidden/notes.md", "content": "nothing here\n"},
+    {"path": "src/hidden/secret.txt", "content": "token=FLAG{sebastian-eval-7f3a}\n"},
+    {"path": "README.md", "content": "demo project\n"}
+  ],
+  "expect": [
+    {"type": "file_contains", "path": "found.txt", "text": "FLAG{sebastian-eval-7f3a}"}
+  ]
+}

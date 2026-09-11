@@ -1,0 +1,11 @@
+{
+  "id": "write_hello",
+  "tags": ["basic"],
+  "ref_tool_rounds": 2,
+  "max_turns": 12,
+  "prompt": "在目录 {workdir} 下创建文件 hello.txt，文件内容必须恰好是一行：Hello Sebastian\n不要写到其他目录。",
+  "setup": [],
+  "expect": [
+    {"type": "file_equals", "path": "hello.txt", "text": "Hello Sebastian"}
+  ]
+}

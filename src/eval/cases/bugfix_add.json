@@ -1,0 +1,15 @@
+{
+  "id": "bugfix_add",
+  "tags": ["multi"],
+  "ref_tool_rounds": 6,
+  "max_turns": 20,
+  "prompt": "工作目录是 {workdir}。add.py 里的加法实现有 bug，请修好，使 add(a, b) 返回 a+b。不要改测试文件。",
+  "setup": [
+    {"path": "add.py", "content": "def add(a, b):\n    return a - b\n"},
+    {"path": "test_add.py", "content": "from add import add\n\nassert add(2, 3) == 5\nassert add(0, 0) == 0\nprint('ok')\n"}
+  ],
+  "expect": [
+    {"type": "file_contains", "path": "add.py", "text": "return a + b"},
+    {"type": "file_not_contains", "path": "add.py", "text": "return a - b"}
+  ]
+}

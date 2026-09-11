@@ -72,6 +72,9 @@ class TodoManager:
             "summary": f"任务计划已为最新"
         })
 
+    def reset(self):
+        self.state = PlanningState()
+
     def get_normalized(self) -> str:
         if not self.state.items:
             return "<SYSTEM_REMINDER>当前任务计划为空</SYSTEM_REMINDER>"

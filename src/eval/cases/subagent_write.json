@@ -1,0 +1,13 @@
+{
+  "id": "subagent_write",
+  "tags": ["routing"],
+  "ref_tool_rounds": 6,
+  "max_turns": 20,
+  "prompt": "工作目录是 {workdir}。必须使用 agent 工具调度名为 CodeWriter 的子 Agent，让它在 {workdir}/util.py 中创建一个函数 ping()，返回字符串 pong。你自己不要直接 write 这个文件。",
+  "setup": [],
+  "expect": [
+    {"type": "file_exists", "path": "util.py"},
+    {"type": "file_contains", "path": "util.py", "text": "pong"},
+    {"type": "tool_called", "name": "agent"}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "rename_across",
+  "tags": ["multi"],
+  "ref_tool_rounds": 6,
+  "max_turns": 20,
+  "prompt": "工作目录是 {workdir}。请把函数 compute_sum 重命名为 add_numbers，并更新所有引用。不要留旧名字。",
+  "setup": [
+    {"path": "mathutil.py", "content": "def compute_sum(a, b):\n    return a + b\n"},
+    {"path": "main.py", "content": "from mathutil import compute_sum\n\ndef run():\n    return compute_sum(1, 2)\n"}
+  ],
+  "expect": [
+    {"type": "file_contains", "path": "mathutil.py", "text": "def add_numbers"},
+    {"type": "file_contains", "path": "main.py", "text": "add_numbers"},
+    {"type": "file_not_contains", "path": "mathutil.py", "text": "compute_sum"},
+    {"type": "file_not_contains", "path": "main.py", "text": "compute_sum"}
+  ]
+}

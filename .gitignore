@@ -44,3 +44,6 @@ ENV/
 *.sqlite
 *.db
 .aider*
+
+# Agent eval outputs
+src/eval/results/

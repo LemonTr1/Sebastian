@@ -1,0 +1,12 @@
+{
+  "id": "web_search_one",
+  "tags": ["online"],
+  "ref_tool_rounds": 4,
+  "max_turns": 12,
+  "prompt": "使用 web_search 查询 Python 官方文档站点的域名，把你确认的域名写入 {workdir}/answer.txt（一行即可，例如 docs.python.org）。",
+  "setup": [],
+  "expect": [
+    {"type": "file_contains", "path": "answer.txt", "text": "docs.python.org"},
+    {"type": "tool_called", "name": "web_search"}
+  ]
+}
