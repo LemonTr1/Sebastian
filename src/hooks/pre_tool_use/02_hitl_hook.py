@@ -2,6 +2,7 @@ from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.tools_registry import get_tools_registry
 from src.utils.approval_client import ApprovalClient
 from src.utils.eval_flag import is_eval_mode
+from src.utils.memory_system import MEMORY_SYSTEM
 from src.logs.app_log import get_log
 import typer
 import json
@@ -32,6 +33,10 @@ def hitl_hook(agent_name: str, tool_call: dict):
                 f"\n> [EVAL] 自动批准: {tool_name}",
                 fg=typer.colors.CYAN,
             ))
+            return None
+
+        if tool_name in ("write", "edit") and MEMORY_SYSTEM.is_memory_path(args.get("file_path")):
+            get_log().info(f"[memory] skip HITL for {tool_name} {args.get('file_path')}")
             return None
 
         #---------------------------------------

@@ -99,10 +99,21 @@ def _follow_path(path: str, must_exist: bool) -> Path:
         raise SecurityException(f"无法解析路径（符号链接可能成环或目标不可达）：`{path}`") from e
 
 
+def _in_memory_dir(real_path: Path) -> bool:
+    try:
+        from src.utils.memory_system import MEMORY_DIR
+        root = MEMORY_DIR.resolve()
+        return real_path == root or real_path.is_relative_to(root)
+    except Exception:
+        return False
+
+
 def _assert_safe(real_path: Path) -> None:
     home_dir = Path.home().resolve()
     if not real_path.is_relative_to(home_dir):
         raise SecurityException(f"路径位于用户家目录外，严禁访问：{home_dir}")
+    if _in_memory_dir(real_path):
+        return
 
     for sd in ABSOLUTE_SENSITIVE_DIRS:
         sd_path = Path(sd).resolve()

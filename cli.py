@@ -32,6 +32,7 @@ from datetime import datetime
 import json
 from src.utils.compaction_pipeline import compact_history
 from src.utils.agent_mode import AGENT_MODE
+from src.utils.memory_system import MEMORY_SYSTEM
 from src.tools.toolkits.cron_schedule import CRON_SCHEDULE, start_cron_scheduler
 
 logger = get_log()
@@ -277,6 +278,15 @@ def _run_chat(session_id: str):
             logger.info(f"{uname} 退出 Plan 模式，进入 Build 模式")
             typer.echo(typer.style(
                 "已进入 Build 模式（全部工具可用，可执行任务），输入 /plan 可重新进入规划",
+                fg=typer.colors.CYAN, bold=True,
+            ))
+            continue
+
+        if question.lower() in ("/memory on", "/memory off"):
+            enabled = question.lower().endswith("on")
+            MEMORY_SYSTEM.set_enabled(enabled)
+            typer.echo(typer.style(
+                f"记忆已{'开启' if enabled else '关闭'}（~/.sebastian/.memory/）",
                 fg=typer.colors.CYAN, bold=True,
             ))
             continue

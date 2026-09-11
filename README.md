@@ -173,15 +173,7 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 
 ### 记忆系统
 
-Sebastian 具备跨会话长期记忆能力，记忆数据存放于 `~/.sebastian/.memory/`，由三条 LLM 流水线驱动：
-
-| 流程 | 触发时机 | 作用 |
-|------|---------|------|
-| **选择**（select） | 每轮对话开始 | 基于当前提问检索相关记忆，注入本轮上下文 |
-| **提取**（extract） | 每轮对话结束 | 从对话中提取用户偏好、约束与项目事实，写入记忆文件 |
-| **整合**（consolidate） | 记忆文件 ≥ 10 个 | 合并重复项、清理过期项、控制总量 |
-
-记忆索引动态拼接至系统提示词（每次进入 AgentLoop 时刷新），记忆内容通过 `<relevant_memories>` 标签注入用户消息。记忆相关 API 调用自动关闭推理模型思考（`thinking: disabled`），并在后端不支持时回退，避免推理过程占用输出预算。
+默认关闭。开启后记忆在 `~/.sebastian/.memory/`：`MEMORY.md` 只做索引，同目录其它 markdown 存条目。Agent **不会每轮读取**；用户说出稳定偏好时才写入，本任务确实需要旧偏好时才读索引。关闭时提示词完全不提该目录。`/memory on` 与 `/memory off` 立即切换。对该目录下文件的写/改不弹 HITL。
 
 ### 安全体系
 
@@ -357,6 +349,7 @@ sebastian setup                 # API 配置向导（密钥掩码输入）
 | `quit` / `/quit` / `/exit` | 保存会话并退出 |
 | `/plan` | 进入 Plan 只读规划模式（仅 9 项调研/规划工具可用） |
 | `/build` | 退出 Plan 模式，恢复全部工具 |
+| `/memory on` / `/memory off` | 开启或关闭 `~/.sebastian/.memory/` 记忆 |
 | `/clear` | 清空当前对话历史 |
 | `/compact` | 手动触发上下文 LLM 摘要压缩 |
 | `Ctrl+C` / `Ctrl+D` | 退出（不保存会话） |
@@ -417,7 +410,7 @@ Sebastian/
 │   │   └── security_of_path.md     # 路径安全底线规则
 │   │
 │   ├── utils/                      # 工具函数
-│   │   ├── memory_system.py        # 记忆系统（选择/提取/整合，关闭思考调用）
+│   │   ├── memory_system.py        # .memory/ 索引 + 条目，开关与提示词
 │   │   ├── compaction_pipeline.py  # 4层上下文压缩管线（预算驱动/无损降级/分段摘要）
 │   │   ├── model_windows.py        # 模型名→上下文窗口解析（.env 动态映射）
 │   │   ├── approval_client.py      # HITL确认窗口客户端（子进程IPC，线程安全）
@@ -439,7 +432,7 @@ Sebastian/
 ~/.sebastian/
 ├── skills/             # 技能文档（SKILL.md）
 ├── .agents/            # 用户自定义子Agent（优先于内置）
-├── .memory/            # 记忆文件 + MEMORY.md 索引
+├── .memory/            # MEMORY.md 索引 + 条目文件（需 /memory on）
 ├── session/            # 会话存档（JSONL，保留最近10个）
 ├── logs/               # 应用日志
 ├── .scheduled_tasks.json

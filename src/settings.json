@@ -72,8 +72,7 @@
     "timeout": 180
   },
   "memory": {
-    "enabled": true,
-    "consolidate_threshold": 10
+    "enabled": false
   },
   "context": {
     "window_tokens": null,

@@ -173,15 +173,7 @@ All tools are registered in a central `ToolsRegistry`; each tool carries four at
 
 ### Memory System
 
-Sebastian maintains long-term memory across sessions in `~/.sebastian/.memory/`, driven by three LLM pipelines:
-
-| Pipeline | Trigger | Purpose |
-|----------|---------|---------|
-| **Select** | Start of every turn | Retrieve memories relevant to the current question and inject them into context |
-| **Extract** | End of every turn | Extract user preferences, constraints, and project facts into memory files |
-| **Consolidate** | Memory files ≥ 10 | Merge duplicates, remove stale entries, cap the total |
-
-The memory index is dynamically appended to the system prompt (refreshed on every AgentLoop entry), and memory content is injected into the user message via `<relevant_memories>` tags. Memory-related API calls automatically disable reasoning-model thinking (`thinking: disabled`) with backend fallback, so reasoning never consumes the output budget.
+Off by default. When enabled, memory lives in `~/.sebastian/.memory/`: `MEMORY.md` is the index; sibling markdown files hold entries. The agent does **not** read memory every turn — it writes when the user states a stable preference, and reads the index only if this task needs prior prefs. When disabled, the prompt never mentions the directory. Toggle with `/memory on` and `/memory off`. Writes/edits under that directory skip HITL.
 
 ### Security System
 
@@ -356,6 +348,7 @@ sebastian setup                 # API configuration wizard (masked key input)
 |---------|-------------|
 | `quit` / `/quit` / `/exit` | Save session and exit |
 | `/plan` | Enter Plan read-only planning mode (9 research/planning tools only) |
+| `/memory on` / `/memory off` | Enable or disable `~/.sebastian/.memory/` |
 | `/build` | Exit Plan mode, restore all tools |
 | `/clear` | Clear the current conversation history |
 | `/compact` | Manually trigger LLM summarization compaction |
@@ -417,7 +410,7 @@ Sebastian/
 │   │   └── security_of_path.md     # Path-safety baseline rules
 │   │
 │   ├── utils/                      # Utilities
-│   │   ├── memory_system.py        # Memory system (select/extract/merge, thinking-disabled calls)
+│   │   ├── memory_system.py        # .memory/ index + entries, toggle and prompt
 │   │   ├── compaction_pipeline.py  # 4-layer context compaction pipeline
 │   │   ├── approval_client.py      # HITL dialog client (subprocess IPC, thread-safe)
 │   │   ├── approval_dialog.py      # HITL dialog process (tkinter, syntax highlighting)
@@ -438,7 +431,7 @@ User data directory (`~/.sebastian/`):
 ~/.sebastian/
 ├── skills/             # Skill documents (SKILL.md)
 ├── .agents/            # User-defined sub-agents (override built-ins)
-├── .memory/            # Memory files + MEMORY.md index
+├── .memory/            # MEMORY.md index + entry files (requires /memory on)
 ├── session/            # Session archives (JSONL, latest 10 kept)
 ├── logs/               # Application logs
 ├── .scheduled_tasks.json

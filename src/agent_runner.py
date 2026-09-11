@@ -125,8 +125,8 @@ class AgentRunner:
     def _ensure_system_prompt(self):
         content = self._resolve_instructions()
         if self.name == "Brain_Agent":
-            mem_section = MEMORY_SYSTEM.build_system()
-            if mem_section and MEMORY_SYSTEM.is_allowed():
+            mem_section = MEMORY_SYSTEM.instruction_block()
+            if mem_section:
                 content = content + mem_section
             #Plan 模式：动态注入只读规划提示词
             if AGENT_MODE.is_plan():
@@ -440,15 +440,7 @@ class AgentRunner:
         self._reset_metrics()
         self._ensure_system_prompt()
         if task is not None:
-            # 记忆选择：基于含本轮提问的上下文
-            memories_content = MEMORY_SYSTEM.load_memories(
-                self.context + [{"role": "user", "content": task}]
-            ) if MEMORY_SYSTEM.is_allowed() else ""
-
-            # 记忆与提问一起进入user消息
-            question = {"role": "user", "content":
-                (memories_content + "\n\n" + task) if memories_content else task}
-            self.context.append(question)
+            self.context.append({"role": "user", "content": task})
 
         #将定时任务插入上下文
         fired = CRON_SCHEDULE.consume_cron_queue()
@@ -579,9 +571,6 @@ class AgentRunner:
 
             if not tool_calls_list:
                 self.last_reply = collected_content or ""
-                if MEMORY_SYSTEM.is_allowed():
-                    MEMORY_SYSTEM.extract_memories(self.context)
-                    MEMORY_SYSTEM.consolidate_memories()
                 return
 
             self._note_tool_calls(tool_calls_list)
