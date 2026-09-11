@@ -471,4 +471,4 @@ MIT License
 
 ## Version
 
-**v0.2.0** — University course design project, actively iterating.
+**v1.0.0**
