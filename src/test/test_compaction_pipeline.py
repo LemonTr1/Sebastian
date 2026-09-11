@@ -23,7 +23,7 @@ from src.utils.compaction_pipeline import (
     estimate_tokens, estimate_messages,
     tool_result_budget, snip_compact, micro_compact, compact_history,
     reactive_compact, CompactionPipeline, persist_content, TOOL_RESULT_CAP,
-    PERSISTED_REGISTRY, _content_digest, build_persisted_placeholder,
+    PERSISTED_REGISTRY, _content_digest, build_persisted_placeholder, PERSISTED_PREFIX,
 )
 from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
 
@@ -295,6 +295,48 @@ br2._update_system_plan()
 check("todo update keeps registry", "<已落盘文件清单>" in br2.context[0]["content"])
 check("todo update keeps single plan", br2.context[0]["content"].count("<当前任务计划>") == 1)
 todo().state.items = []
+
+# ---------- 14. L4/应急：连续 user 段边界 + 摘要护栏 ----------
+consecutive = [
+    {"role": "system", "content": "sys"},
+    {"role": "user", "content": "TASK_MARKER"},
+    {"role": "user", "content": "CRON_MARKER_1"},
+    {"role": "user", "content": "CRON_MARKER_2"},
+    {"role": "assistant", "content": None, "tool_calls": [{"id": "t1", "type": "function", "function": {"name": "read", "arguments": "{}"}}]},
+    {"role": "tool", "tool_call_id": "t1", "content": "r"},
+]
+with patch("src.utils.compaction_pipeline.get_client", return_value=FakeSummaryClient()):
+    res_l4 = compact_history([dict(m) for m in consecutive])
+contents_l4 = [m.get("content", "") for m in res_l4]
+check("L4 keeps user task before cron", "TASK_MARKER" in contents_l4)
+check("L4 keeps all trailing cron users", "CRON_MARKER_1" in contents_l4 and "CRON_MARKER_2" in contents_l4)
+check("L4 system first", res_l4[0].get("role") == "system")
+check("L4 summary present", any("[Compacted]" in c for c in contents_l4))
+
+with patch("src.utils.compaction_pipeline.get_client", return_value=FakeSummaryClient()):
+    res_re = reactive_compact([dict(m) for m in consecutive])
+contents_re = [m.get("content", "") for m in res_re]
+check("reactive keeps user task before cron", "TASK_MARKER" in contents_re)
+check("reactive keeps all trailing cron users", "CRON_MARKER_1" in contents_re and "CRON_MARKER_2" in contents_re)
+check("reactive system first", res_re[0].get("role") == "system")
+
+old_summary = {
+    "role": "user",
+    "content": (
+        f"{PERSISTED_PREFIX}\n[Compacted]:\n OLD_SUMMARY_BODY\n [Reminder]:\n saved\n</persisted-output>"
+    ),
+}
+guard_conv = [
+    {"role": "system", "content": "sys"},
+    old_summary,
+    {"role": "user", "content": "TASK2"},
+    {"role": "user", "content": "CRON2"},
+]
+with patch("src.utils.compaction_pipeline.get_client", return_value=FakeSummaryClient()):
+    res_guard = compact_history([dict(m) for m in guard_conv])
+check("summary guard: old summary not re-kept raw", all("OLD_SUMMARY_BODY" not in m.get("content", "") for m in res_guard))
+check("summary guard: task kept", any(m.get("content") == "TASK2" for m in res_guard))
+check("summary guard: cron kept", any(m.get("content") == "CRON2" for m in res_guard))
 
 CRON_SCHEDULE.agent_lock.release()
 

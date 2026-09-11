@@ -38,6 +38,22 @@ TRANSCRIPTS_DIR = Path.home() / ".sebastian" / ".transcripts"
 
 PERSISTED_PREFIX = "<persisted-output>"
 
+# 摘要消息识别（摘要本身也是 role="user"，边界处理时必须排除）
+SUMMARY_PREFIXES = (
+    f"{PERSISTED_PREFIX}\n[Compacted]",
+    f"{PERSISTED_PREFIX}\n[Reactive compacted]",
+)
+
+
+def _is_summary_message(msg: dict) -> bool:
+    content = msg.get("content", "")
+    return isinstance(content, str) and content.startswith(SUMMARY_PREFIXES)
+
+
+def _is_plain_user(msg: dict) -> bool:
+    """普通用户消息（排除摘要消息）"""
+    return msg.get("role") == "user" and not _is_summary_message(msg)
+
 
 # ---- Token 估算（启发式，无外部依赖）----
 
@@ -189,16 +205,18 @@ def tool_result_budget(messages: list) -> list:
 # ---- L2：消息裁剪 ----
 
 def snip_compact(messages: list, max_message: int = SNIP_MAX_MESSAGES) -> list:
-    """第二层：保留前3条和最后47条上下文，切割点对齐 user 消息边界"""
+    """第二层：保留前3条（包括系统提示词）和最后47条上下文，切割点对齐 user 消息边界"""
     if len(messages) <= max_message:
         return messages
 
     keep_head, keep_tail = 3, max_message - 3
-    head_end, tail_start = 3, len(messages) - keep_tail
+    head_end, tail_start = keep_head, len(messages) - keep_tail
 
     while head_end < len(messages) and messages[head_end].get("role") in ["assistant", "tool"]:
         head_end += 1
 
+    #OpenAI API契约没有对role=='assistant'前必须为role=='user'的约束，所以这里我设计允许切除role=='assistant'前的用户信息，只保证
+    #role=='assistant'中的所有tool_calls都有相应的role=='tool'呼应
     while tail_start > 0 and messages[tail_start - 1].get("role") in ["assistant", "tool"]:
         tail_start -= 1
 
@@ -277,6 +295,7 @@ SUMMARY_PROMPT = (
 
 
 def _api_summarize(text: str) -> str:
+    """调用api对上下文进行浓缩概括"""
     try:
         response = get_client().chat.completions.create(
             model=MODEL,
@@ -329,11 +348,24 @@ def summerize_history(messages: list) -> str:
 
 
 def _tail_start_at_user_boundary(messages: list) -> int:
-    """从尾部向前找最近一条 user 消息作为切割点，保证工具调用配对完整"""
+    """定位最近一轮对话的起点（保留尾部从该处开始，其余交给摘要）。
+
+    连续多个 user 消息属于同一轮（用户任务后紧接着注入的 cron 任务等），
+    必须整体保留，否则只保留最后一条会把用户任务压缩掉；
+    摘要消息本身也是 user，遇到时必须停止吞并，避免旧摘要被原样保留。
+    """
+    last_user = -1
     for i in range(len(messages) - 1, -1, -1):
-        if messages[i].get("role") == "user":
-            return i
-    return len(messages)
+        if _is_plain_user(messages[i]):
+            last_user = i
+            break
+    if last_user == -1:
+        return len(messages)
+
+    start = last_user
+    while start > 0 and _is_plain_user(messages[start - 1]):
+        start -= 1
+    return start
 
 
 def compact_history(messages: list) -> list:
@@ -359,7 +391,7 @@ def compact_history(messages: list) -> list:
 
 
 def reactive_compact(messages: list) -> list:
-    """应急反应式压缩：先落盘超限结果，再分段摘要，保留最小尾部"""
+    """应急反应式压缩：先落盘超限结果，再分段摘要，保留最小尾部，仅在AgentLoop中API抛出上下文溢出异常时才会触发"""
     system_msg = messages[0] if messages and messages[0].get("role") == "system" else None
     try:
         tool_result_budget(messages)
@@ -389,6 +421,7 @@ class CompactionPipeline:
         """每轮评估：L1 恒执行（幂等），L2/L3/L4 按预算触发"""
         if not messages:
             return messages
+
         messages = tool_result_budget(messages)
 
         if len(messages) > SNIP_MAX_MESSAGES:
