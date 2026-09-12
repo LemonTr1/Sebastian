@@ -49,10 +49,24 @@ class Memory:
         if not MEMORY_INDEX.is_file():
             MEMORY_INDEX.write_text(_INDEX_TEMPLATE, encoding="utf-8")
 
+    def manifest_index(self) -> str | None:
+        if MEMORY_INDEX.is_file():
+            manifest_info = ""
+            try:
+                with open(str(MEMORY_INDEX), "r", encoding="utf-8") as f:
+                    manifest_info = f.read()
+            except Exception as e:
+                logger.error(f"读取MEMORY.md文件出错：{str(e)}")
+            if manifest_info != "" and manifest_info.startswith(_INDEX_TEMPLATE):
+                manifest_info = manifest_info[len(_INDEX_TEMPLATE):]
+            return manifest_info[:1000]
+        return None
+
     def instruction_block(self) -> str:
         if not self.IS_ALLOWED:
             return ""
         self.ensure_dir()
+        preview = self.manifest_index()
         index = str(MEMORY_INDEX)
         folder = str(MEMORY_DIR)
         return f"""
@@ -60,9 +74,10 @@ class Memory:
         用户通常不会手写记忆文件。不要在每轮开始时读取记忆。
         - 索引：`{index}`；条目在同目录 `{folder}` 的其它 markdown
         - 仅当本任务明确依赖「用户以前说过的偏好/约束」时，才 read 索引，再按需 read 条目
-        - 用户在本轮明确说出稳定偏好或约束时：write 新 `.md` 到该目录，并 edit 更新 MEMORY.md 索引
+        - 用户在本轮明确说出稳定偏好或约束时：write 新 `.md` 到该目录，并 edit 更新 MEMORY.md 索引，请注意：如果记忆索引项超过10条则**必须合并或清理旧的无关记忆，并在清理前告知用户请求指示**
         - 不要记对话流水或密钥；保持短小、条目化
         - 普通问答、一次性任务：直接做，不要碰记忆目录
+        - MEMORY.md文件部分预览：{preview if preview is not None else '(No Index)'} ... 
         """
 
     def set_enabled(self, enabled: bool) -> None:
