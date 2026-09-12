@@ -159,7 +159,11 @@ class AgentRunner:
 
     def _extract_assistant_msg(self, response) -> dict:
         """从 LLM 返回的原始响应里提取 assistant 消息"""
-        msg = response.choices[0].message
+        choices = getattr(response, "choices", None)
+        if not choices:
+            logger.warning("LLM 响应中没有 choices，返回空 assistant 消息")
+            return {"role": "assistant", "content": None}
+        msg = choices[0].message
 
         result = {"role": "assistant"}
 
@@ -482,17 +486,25 @@ class AgentRunner:
 
             stream = None
             retries = 0
+            use_stream_options = True
             while True:
                 if retries >= 5:
                     break
+                create_kwargs = dict(kwargs, stream=True)
+                if use_stream_options:
+                    create_kwargs["stream_options"] = {"include_usage": True}
                 try:
-                    stream = self.client.chat.completions.create(**kwargs, stream=True,
-                                                                 stream_options={"include_usage": True})
+                    stream = self.client.chat.completions.create(**create_kwargs)
                     break
                 except Exception as e:
+                    err = str(e).lower()
+                    # 供应商不支持 stream_options/include_usage → 去掉该参数重试一次
+                    if use_stream_options and ("stream_options" in err or "include_usage" in err):
+                        logger.warning(f"{self.name} 供应商不支持 stream_options/include_usage，回退为普通流式调用")
+                        use_stream_options = False
+                        continue
                     # 如果是上下文溢出导致的异常
-                    if "prompt_too_long" in str(e).lower() or "too many tokens" in str(
-                            e).lower() or "context_length_exceeded" in str(e).lower():
+                    if "prompt_too_long" in err or "too many tokens" in err or "context_length_exceeded" in err:
                         reactive_retries = 0
                         while True:
                             if reactive_retries >= 3:
@@ -523,7 +535,20 @@ class AgentRunner:
             has_tool_calls = False
 
             for chunk in stream:
-                delta = chunk.choices[0].delta
+                # usage-only 终止块（choices 为空，仅携带 usage）——先处理，避免索引越界
+                if getattr(chunk, "usage", None):
+                    with self.post_completion_lock:
+                        result = get_hooks_registry().trigger_hooks("PostCompletion", chunk)
+                        if result is not None:
+                            logger.error(f"PostCompletion钩子触发错误：{result}")
+                            typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
+
+                choices = getattr(chunk, "choices", None)
+                if not choices:
+                    continue
+                delta = choices[0].delta
+                if delta is None:
+                    continue
                 if delta.tool_calls:
                     has_tool_calls = True
                     for tc in delta.tool_calls:
@@ -547,14 +572,6 @@ class AgentRunner:
                     collected_content += token
                     if not has_tool_calls and on_token:
                         on_token(token)
-
-                #在每个chunk结束后触发PostCompletion钩子，主要用于统计Token消耗
-                if chunk.usage:
-                    with self.post_completion_lock:
-                        result = get_hooks_registry().trigger_hooks("PostCompletion", chunk)
-                        if result is not None:
-                            logger.error(f"PostCompletion钩子触发错误：{result}")
-                            typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
 
             tool_calls_list = [
                 collected_tool_calls[i] for i in sorted(collected_tool_calls.keys())

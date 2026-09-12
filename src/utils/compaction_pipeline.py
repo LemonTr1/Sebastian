@@ -302,6 +302,8 @@ def _api_summarize(text: str) -> str:
             messages=[{"role": "user", "content": SUMMARY_PROMPT + text}],
             max_tokens=2000,
         )
+        if not getattr(response, "choices", None):
+            raise CompactException("API压缩出错：响应中没有 choices")
         summary = response.choices[0].message.content
         if summary is None:
             summary = "(empty summary)"

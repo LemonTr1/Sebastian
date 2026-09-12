@@ -36,6 +36,11 @@ def make_chunk(content=None, tool_calls=None, usage=None):
     return SimpleNamespace(choices=[SimpleNamespace(delta=delta)], usage=usage)
 
 
+def usage_only_chunk(usage):
+    """OpenAI 规范：include_usage 时追加的终止块，choices 为空，仅带 usage"""
+    return SimpleNamespace(choices=[], usage=usage)
+
+
 def tc_chunk(index, call_id=None, name=None, arguments=None):
     fn = SimpleNamespace(name=name, arguments=arguments)
     return SimpleNamespace(index=index, id=call_id, function=fn)
@@ -118,6 +123,34 @@ check("build schema has bash", "bash" in first_tools2)
 
 ls_msgs = [m for m in runner2.context if m.get("role") == "tool" and m.get("tool_call_id") == "call_2"]
 check("ls executed in build", len(ls_msgs) == 1 and "success" in ls_msgs[0]["content"])
+
+# ---- 场景3：usage-only 终止块（空 choices）不应导致崩溃 ----
+from src.utils.tokens_caculator import get_total_session_tokens
+get_total_session_tokens().clear()
+runner3 = AgentRunner.create_runner("Brain_Agent", "base instructions", get_tools_registry())
+script3 = [
+    [
+        make_chunk(content="你好，我是 Sebastian"),
+        usage_only_chunk(USAGE),
+    ],
+]
+client3 = FakeStreamClient(script3)
+runner3.client = client3
+err3 = None
+with patch.object(CRON_SCHEDULE, "consume_cron_queue", return_value=[]):
+    try:
+        runner3.run_stream("你好", on_token=lambda t: None)
+    except Exception as e:
+        err3 = e
+check("usage-only chunk no crash", err3 is None, repr(err3))
+check("usage-only chunk content kept",
+      any(m.get("role") == "assistant" and m.get("content") == "你好，我是 Sebastian" for m in runner3.context))
+check("usage-only chunk usage counted",
+      get_total_session_tokens().accumulate_token() == 10, str(get_total_session_tokens().accumulate_token()))
+
+empty_msg = runner3._extract_assistant_msg(SimpleNamespace(choices=[]))
+check("extract_assistant_msg empty choices safe",
+      empty_msg.get("role") == "assistant" and empty_msg.get("content") is None)
 
 AGENT_MODE.set(AgentMode.BUILD)
 CRON_SCHEDULE.agent_lock.release()
