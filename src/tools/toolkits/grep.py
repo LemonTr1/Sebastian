@@ -22,10 +22,12 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
         }, ensure_ascii=False)
 
     # 构建grep命令
-    cmd = ["grep", "-rHn", "-E"]  # -r=recursive, -n=line numbers, -E=extended regex, -H=Since we want to show the filename even if there's only one file
+    cmd = ["grep", "-rHn", "-E", "-I"]  # -I=跳过二进制文件，避免命中被静默吞掉
     if not case_sensitive:
         cmd.append("-i")
-    cmd.extend(["-m", str(MAX_RESULTS), "--", pattern, str(search_path)])
+    # 不用 -m：它是"每文件"上限，会让单文件超限的命中静默丢失且无法翻页；
+    # 真正的全局上限改由 Python 侧统一截断（见下方 truncated 逻辑）
+    cmd.extend(["--", pattern, str(search_path)])
 
     try:
         result = subprocess.run(
@@ -72,6 +74,7 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
 
     # 解析grep结果: "[file_path] : [line_number:matched_text]"
     matches = []
+    truncated = False
     for line in result.stdout.strip().splitlines():
         if not line:
             continue
@@ -85,10 +88,13 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
         rel_path = file_path
         if rel_path.startswith(str(WORKDIR)):
             rel_path = rel_path[len(str(WORKDIR)):].lstrip("/")
+        if len(text) > MAX_LINE_LEN:
+            text = text[:MAX_LINE_LEN - 1] + "…"
+            truncated = True
         matches.append({
             "file": rel_path,
             "line": int(line_num),
-            "text": text[:MAX_LINE_LEN]
+            "text": text
         })
 
     if not matches:
@@ -98,13 +104,20 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
             "matches": []
         }, ensure_ascii=False)
 
-    summary = f"Found {len(matches)} match(es)"
-    if len(matches) >= MAX_RESULTS:
-        summary += f" (showing first {MAX_RESULTS}, refine your pattern for more precise results)"
+    # 全局上限：真正截断，避免超大结果撑爆上下文
+    total_found = len(matches)
+    if total_found > MAX_RESULTS:
+        matches = matches[:MAX_RESULTS]
+        truncated = True
+
+    summary = f"Found {total_found} match(es)"
+    if truncated:
+        summary += f", showing first {len(matches)} (结果已截断，请细化 pattern 或缩小 path 范围)"
 
     return json.dumps({
         "success": True,
         "summary": summary,
+        "truncated": truncated,
         "matches": matches
     }, ensure_ascii=False)
 
