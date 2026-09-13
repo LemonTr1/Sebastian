@@ -96,6 +96,8 @@ class BubblewrapSandbox:
 
         for path in self.config.get("deny_read", []):
             self._mount(bwrap_args, path, "deny_read")
+            
+        bwrap_args.extend(["--dev-bind", "/dev/null", "/dev/null"])
 
         shell_args = ["/bin/bash", "-c", command]
 
