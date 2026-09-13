@@ -74,7 +74,8 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
 
     # 解析grep结果: "[file_path] : [line_number:matched_text]"
     matches = []
-    truncated = False
+    truncated = False        # 命中行数被截断（有更多结果未返回）
+    lines_truncated = False  # 仅单行内容过长被截断（结果条数是完整的）
     for line in result.stdout.strip().splitlines():
         if not line:
             continue
@@ -90,7 +91,7 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
             rel_path = rel_path[len(str(WORKDIR)):].lstrip("/")
         if len(text) > MAX_LINE_LEN:
             text = text[:MAX_LINE_LEN - 1] + "…"
-            truncated = True
+            lines_truncated = True
         matches.append({
             "file": rel_path,
             "line": int(line_num),
@@ -113,11 +114,14 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
     summary = f"Found {total_found} match(es)"
     if truncated:
         summary += f", showing first {len(matches)} (结果已截断，请细化 pattern 或缩小 path 范围)"
+    if lines_truncated:
+        summary += "（部分匹配行过长，仅截断显示该行内容，结果条数完整）"
 
     return json.dumps({
         "success": True,
         "summary": summary,
         "truncated": truncated,
+        "lines_truncated": lines_truncated,
         "matches": matches
     }, ensure_ascii=False)
 
