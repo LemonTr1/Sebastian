@@ -4,7 +4,7 @@ import time
 import threading
 from collections.abc import Callable
 import typer
-from src.config import get_client, MODEL
+from src.config import get_client, MODEL, is_vision_model
 from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.toolkits.todo_manager import todo
 from src.tools.tools_registry import ToolsRegistry
@@ -322,6 +322,10 @@ class AgentRunner:
                     #让具备视觉能力的模型能接收到图片，而不是被 json.dumps 成字符串丢掉图像信息
                     if isinstance(raw, dict) and raw.get("__multimodal__"):
                         content_payload = raw.get("parts") or [{"type": "text", "text": ""}]
+                        #优雅降级：当前模型不支持视觉时，剥离 image_url，仅保留文本提示，
+                        #避免纯文本模型收到 image part 触发 OpenAI 兼容 API 400 报错导致 Agent 崩溃
+                        if not is_vision_model(self.model):
+                            content_payload = _downgrade_multimodal(content_payload)
                         new_messages.append({
                             "role": "tool",
                             "tool_call_id": tc["id"],
@@ -626,6 +630,25 @@ class AgentRunner:
         return cls(name=name, instructions=instructions, registry=registry, model=model)
 
 #将工具函数的参数从dict类型转化为更方便人类阅读的dict类型
+def _downgrade_multimodal(parts: list) -> list:
+    """非视觉模型降级：剥离 image_url part，仅保留文本，避免 API 400 报错。
+
+    只保留下唯一一条 text 提示，附带说明当前模型不支持视觉，图片内容已被省略。
+    """
+    text_parts = [
+        p for p in parts
+        if isinstance(p, dict) and p.get("type") == "text" and p.get("text")
+    ]
+    if text_parts:
+        base = text_parts[0]["text"]
+    else:
+        base = ""
+    return [{
+        "type": "text",
+        "text": base + "（当前模型不支持视觉能力，图片内容已省略。）"
+    }]
+
+
 def _brief_args(args: dict) -> str:
     parts = []
     for k, v in args.items():
