@@ -184,6 +184,72 @@ def build_persisted_placeholder(content: str, file_path: str, digest: str, hits:
     return "\n".join(parts)
 
 
+# ---- 图片工具（view_image）专用压缩 ----
+# view_image 的完整结果（base64 多模态 content）绝不进入上下文，避免多张大图长期累积撑爆窗口。
+# 策略：只保留"最近一轮"的图片供视觉模型查看，更早的旧图在每轮 Agent Loop 扫描时替换为占位符。
+
+def _is_view_image_msg(msg: dict) -> bool:
+    """按 content 特征识别 view_image 结果：tool 消息且 content 为含 image_url 的多模态 list"""
+    if msg.get("role") != "tool":
+        return False
+    content = msg.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(p, dict) and p.get("type") == "image_url"
+        for p in content
+    )
+
+
+def _latest_image_round_start(messages: list, last_img_idx: int) -> int:
+    """定位最近一张图所属轮次的起点。
+
+    一轮（agent loop）内多张图由同一 assistant 一次产生，紧邻排列。
+    从最后一张图向前，找到最近一个带 tool_calls 的 assistant 消息即为本轮起点；
+    找不到则仅把最后一张图当作本轮最小保留单元。
+    """
+    for i in range(last_img_idx - 1, -1, -1):
+        m = messages[i]
+        if m.get("role") == "assistant" and m.get("tool_calls"):
+            return i
+    return last_img_idx
+
+
+def build_image_placeholder(msg: dict) -> dict:
+    """把一条 view_image 的 tool 消息（多模态 content）替换为文本占位符"""
+    parts = msg.get("content") if isinstance(msg.get("content"), list) else []
+    desc = "[view_image]"
+    for p in parts:
+        if isinstance(p, dict) and p.get("type") == "text" and p.get("text"):
+            desc = p.get("text")
+            break
+    return {
+        "role": "tool",
+        "tool_call_id": msg.get("tool_call_id"),
+        "content": (
+            f"<view_image-placeholder>{desc}（图片内容已被压缩省略，当前轮不可见。"
+            "如需再次查看，请重新调用 view_image 工具。）</view_image-placeholder>"
+        ),
+    }
+
+
+def compact_view_images(messages: list) -> list:
+    """扫描全部 view_image 结果，只保留最近一轮图片，更早的旧图替换为占位符。"""
+    img_idx = [
+        i for i, m in enumerate(messages) if _is_view_image_msg(m)
+    ]
+    if not img_idx:
+        return messages
+
+    round_start = _latest_image_round_start(messages, img_idx[-1])
+    # 保留本轮（round_start…末尾）的图片，压缩该起点之前的旧图
+    for i in img_idx:
+        if i >= round_start:
+            continue
+        messages[i] = build_image_placeholder(messages[i])
+    return messages
+
+
 # ---- L1：大结果落盘 ----
 
 def tool_result_budget(messages: list) -> list:
@@ -396,6 +462,7 @@ def reactive_compact(messages: list) -> list:
     """应急反应式压缩：先落盘超限结果，再分段摘要，保留最小尾部，仅在AgentLoop中API抛出上下文溢出异常时才会触发"""
     system_msg = messages[0] if messages and messages[0].get("role") == "system" else None
     try:
+        compact_view_images(messages)
         tool_result_budget(messages)
         transcript_path = write_transcript(messages)
         summary = summerize_history(messages)
@@ -423,6 +490,8 @@ class CompactionPipeline:
         """每轮评估：L1 恒执行（幂等），L2/L3/L4 按预算触发"""
         if not messages:
             return messages
+
+        messages = compact_view_images(messages)
 
         messages = tool_result_budget(messages)
 
