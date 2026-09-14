@@ -318,12 +318,22 @@ class AgentRunner:
                     })
                 else:
                     raw = func(**tool_args)
-                    result = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
-                    new_messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": result
-                    })
+                    #多模态工具（如 view_image）：content 直接使用 OpenAI content-parts 列表（含 image_url），
+                    #让具备视觉能力的模型能接收到图片，而不是被 json.dumps 成字符串丢掉图像信息
+                    if isinstance(raw, dict) and raw.get("__multimodal__"):
+                        content_payload = raw.get("parts") or [{"type": "text", "text": ""}]
+                        new_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "content": content_payload
+                        })
+                    else:
+                        result = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
+                        new_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "content": result
+                        })
 
                 #标记本次AgentLoop中BrainAgent调用了任务管理工具
                 if name == "todo":
