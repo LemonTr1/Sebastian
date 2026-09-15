@@ -75,7 +75,7 @@ VIEW_IMAGE_SCHEMA = {
     "type": "function",
     "function": {
         "name": "view_image",
-        "description": "查看本地图片文件（png/jpg/jpeg/webp/gif/bmp），以图片形式加载给视觉模型，用于识别、描述、解读图片内容。",
+        "description": "查看本地图片文件（png/jpg/jpeg/webp/gif/bmp），以图片形式加载给视觉模型，用于识别、描述、解读图片内容。一轮任务需要看多张图时，必须在同一批工具调用里并行读完所有待读图片，严禁一张一张分轮读",
         "parameters": {
             "type": "object",
             "properties": {
