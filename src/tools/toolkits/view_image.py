@@ -56,7 +56,7 @@ def view_image(file_path: str) -> dict:
     return {
         "__multimodal__": True,
         "parts": [
-            {"type": "text", "text": f"已加载图片 {safe_path}（{mime}，{size / 1024:.0f}KB）"},
+            {"type": "text", "text": f"已加载图片 {safe_path}（{mime}，{size / 1024:.0f}KB）<SYSTEM_REMINDER>不要连续多次调用此工具，否则会撑爆上下文。</SYSTEM_REMINDER>"},
             {"type": "image_url", "image_url": {"url": data_uri}},
         ],
     }
