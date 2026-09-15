@@ -19,7 +19,7 @@ VISION_MODEL_KEYWORDS = (
     *tuple(
         filter(None, os.getenv("DEEPSEEK_VISION_MODEL_KEYWORDS", "").replace(",", " ").strip().split())
     ),
-    "gpt-4o", "gpt-4.1", "gpt-4-vision", "vl", "qwen-vl", "llava", "gemini", "4v",
+    "gpt-4o", "gpt-4.1", "gpt-4-vision", "vl", "qwen-vl", "llava", "gemini", "4v", "deepseek-flash"
 )
 
 
