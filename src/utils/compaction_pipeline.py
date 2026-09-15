@@ -24,7 +24,7 @@ from src.utils.exceptions import CompactException
 logger = get_log()
 
 # ---- 预算阈值（相对 CONTEXT_WINDOW）----
-TOOL_RESULT_CAP = max(12000, int(CONTEXT_WINDOW * 0.05))   # L1：单条结果落盘线（token）
+TOOL_RESULT_CAP = max(12_000_000, int(CONTEXT_WINDOW * 0.05))   # L1：单条结果落盘线（token）
 SNIP_MAX_MESSAGES = 50                                    # L2：消息数上限
 MICRO_TRIGGER = int(CONTEXT_WINDOW * 0.50)                # L3：总 token 触发线
 SUMMARY_TRIGGER = int(CONTEXT_WINDOW * 0.75)              # L4：总 token 触发线
