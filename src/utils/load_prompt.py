@@ -10,7 +10,7 @@ class PromptLoader:
         for f in self.prompt_file_list:
             if f.name == prompt_file_name + ".md":
                 return f.read_text(encoding="utf-8")
-        return "<SYSTEN_REMINDER>prompt加载失败，立即向用户反馈</SYSTEM_REMINDER>"
+        return "<SYSTEM_REMINDER>prompt加载失败，立即向用户反馈</SYSTEM_REMINDER>"
 
 PROMPT_LOADER = PromptLoader()
 

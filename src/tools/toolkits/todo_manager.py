@@ -107,6 +107,14 @@ class TodoManager:
         typer.echo(typer.style(f"任务进度：{completed}/{len(self.state.items)}", fg=typer.colors.YELLOW))
         typer.echo()
         return None
+    
+    #更新todo列表到上下文最末尾
+    def insert_todo_into_context(self, context: list[dict]) -> list[dict]:
+        if not self.state.items:
+            return context
+        #需要注意：这里我没有遍历上下文删除先前的<TODO>块是因为尽可能大得增加缓存命中量
+        context.append({"role": "user", "content": f"<TODO>\n{self.get_normalized()}\n</TODO>"})
+        return context
 
 TODO_SCHEMA = {
     "type": "function",

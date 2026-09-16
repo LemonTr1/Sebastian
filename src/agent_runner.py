@@ -131,9 +131,9 @@ class AgentRunner:
             #Plan 模式：动态注入只读规划提示词
             if AGENT_MODE.is_plan():
                 content = content.rstrip() + "\n\n" + AGENT_MODE.describe(self.tool_map.keys())
-            #跨轮保留当前任务计划（替换式，不累积）
-            if todo().state.items:
-                content = content.rstrip() + "\n\n" + "<当前任务计划>\n" + todo().get_normalized() + "\n</当前任务计划>"
+            #由于尽可能命中输入缓存，将todo状态表注入到每轮role=='user'中
+            # if todo().state.items:
+               # content = content.rstrip() + "\n\n" + "<当前任务计划>\n" + todo().get_normalized() + "\n</当前任务计划>"
         #已落盘文件清单：Brain 与子 Agent 均注入，防止反复读取大文件
         reg_section = PERSISTED_REGISTRY.describe()
         if reg_section:
@@ -615,6 +615,9 @@ class AgentRunner:
                 if reminder:
                     #插入一条系统提示
                     self.context.append({"role": "user", "content": reminder})
+            
+            #每轮AgentLoop结束后插入todo列表，确保todo列表不会被压缩管线压缩掉
+            self.context = todo().insert_todo_into_context(self.context)
 
     #提供外界获取上下文的接口
     def get_context(self):
