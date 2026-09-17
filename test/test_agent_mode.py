@@ -26,8 +26,8 @@ check("set plan", m.is_plan() and m.get() == AgentMode.PLAN)
 m.set(AgentMode.BUILD)
 check("set build", not m.is_plan())
 
-ALLOWED = {"read", "glob", "grep", "ls", "todo", "web_search", "web_fetch", "load_skill", "list_crons"}
-check("allowed 9 tools", m.allowed_tools() == frozenset(ALLOWED))
+ALLOWED = {"read", "glob", "grep", "ls", "todo", "web_search", "web_fetch", "load_skill", "list_crons", "question"}
+check("allowed 10 tools", m.allowed_tools() == frozenset(ALLOWED))
 
 ALL_TOOLS = ALLOWED | {"bash", "write", "edit", "agent", "schedule_cron", "cancel_cron"}
 forbidden = m.forbidden_tools(ALL_TOOLS)

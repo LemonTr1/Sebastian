@@ -30,6 +30,7 @@ Sebastian 是一个基于 LLM 的多 Agent 协作终端助手：主控 Agent 负
     - [记忆系统](#记忆系统)
     - [安全体系](#安全体系)
     - [人机协同审批](#人机协同审批)
+    - [Agent 提问窗口](#agent-提问窗口)
     - [沙箱系统](#沙箱系统)
     - [Hook 系统](#hook-系统)
     - [上下文压缩](#上下文压缩)
@@ -166,7 +167,7 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 
 ### 工具系统
 
-所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可使用全部 16 项；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
+所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可使用全部 17 项；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
 
 | 工具 | HITL | 说明 |
 |------|:----:|------|
@@ -186,6 +187,7 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 | `schedule_cron` | ✓ | 注册 Unix 五段定时任务 |
 | `list_crons` | | 列出已注册定时任务 |
 | `cancel_cron` | | 按 ID 取消定时任务 |
+| `question` | | 弹窗向用户提问（单选选项 + 自由输入，默认 300s 超时；超时/取消返回未作答） |
 
 ### 记忆系统
 
@@ -211,6 +213,18 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 - 参数卡片完整展示工具参数，附带语法高亮（字符串/数字/布尔分色）
 - 支持键盘快捷键（Y/Enter 允许，N/Esc 拒绝）、倒计时超时自动拒绝
 - 内置 dark / light / blue 三种主题
+
+### Agent 提问窗口
+
+`question` 工具让 Brain Agent 主动向用户提问并同步等待作答，采用与 HITL 相同的子进程窗口方案（`question_client.py` + `question_dialog.py`）：
+
+- **提问 ≠ 审批**：HITL 弹窗回答"是否允许执行"（返回布尔值），提问弹窗回答"具体选什么/是什么"（返回文本），因此 `question` **不是 HITL 工具**，不会触发审批弹窗
+- 支持"单选选项 + 自由输入"二合一：Agent 可给出 2-6 个互斥选项，用户也可直接点击输入框改填自定义回答；不留空校验（空回答会被拒绝提交，窗口不关）
+- 默认 300 秒倒计时（`timeout` 参数可调，范围 5-3600），归零自动关闭并返回未作答
+- 快捷键：Enter 提交、Esc 取消；窗口置顶居中
+- 结果为结构化状态：`answered` / `timeout` / `cancelled` / `busy` / `unavailable` / `error`。非 `answered` 时返回值附带 `hint`，引导 Agent 改用合理默认值继续或在正文中提问，而非反复弹窗打扰用户
+- 降级：Eval 模式与无图形环境（未设置 `DISPLAY`/`WAYLAND_DISPLAY`、未装 tkinter）下不弹窗，直接返回 `unavailable`
+- Plan 模式下可用（提问属于只读行为）
 
 ### 沙箱系统
 
@@ -263,7 +277,7 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 
 Sebastian 提供 **Plan（只读规划）** 与 **Build（执行）** 双模式，登录默认 Build：
 
-- `/plan` 进入 Plan：Brain 仅可用 `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons`，执行类工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`）从工具 schema 中移除并被拒绝执行；system 提示词动态注入"以调研与规划为主"的行为引导，并要求模型在计划完成后主动询问用户：立即退出执行还是修改计划
+- `/plan` 进入 Plan：Brain 仅可用 `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`，执行类工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`）从工具 schema 中移除并被拒绝执行；system 提示词动态注入"以调研与规划为主"的行为引导，并要求模型在计划完成后主动询问用户：立即退出执行还是修改计划
 - `/build` 退出 Plan：恢复全部工具
 - 模式运行期有效不持久化；定时任务触发时**强制以 Build 运行**，执行完恢复原模式
 - 终端提示符显示当前模式（`[user|PLAN]：`）
@@ -281,7 +295,7 @@ Sebastian 提供 **Plan（只读规划）** 与 **Build（执行）** 双模式�
 - **操作系统**：Linux（bubblewrap 沙箱依赖 Linux 命名空间）
 - **Python**：>= 3.10
 - **bubblewrap**：`sudo apt install bubblewrap`
-- **python3-tk**：`sudo apt install python3-tk`（HITL 确认窗口依赖）
+- **python3-tk**：`sudo apt install python3-tk`（HITL 确认窗口 / Agent 提问窗口依赖）
 - **网络**：可访问 DeepSeek API（或任何兼容 OpenAI API 格式的后端）
 
 ### 安装
@@ -395,10 +409,11 @@ Sebastian/
 │   │
 │   ├── tools/
 │   │   ├── tools_registry.py       # 工具注册中心（单例，按Agent分配，HITL标记）
-│   │   └── toolkits/               # 16项工具实现
+│   │   └── toolkits/               # 17项工具实现
 │   │       ├── bash.py             # 沙箱命令执行（支持后台）
 │   │       ├── read.py / write.py / edit.py / ls.py / glob.py / grep.py
 │   │       ├── web_search.py / web_fetch.py / view_image.py
+│   │       ├── question.py         # 弹窗提问（选项 + 自由输入）
 │   │       ├── todo_manager.py     # 任务规划/进度提醒
 │   │       ├── skill_registry.py   # 技能文档加载
 │   │       ├── cron_schedule.py    # 定时任务
@@ -431,6 +446,8 @@ Sebastian/
 │   │   ├── model_windows.py        # 模型名→上下文窗口解析（.env 动态映射）
 │   │   ├── approval_client.py      # HITL确认窗口客户端（子进程IPC，线程安全）
 │   │   ├── approval_dialog.py      # HITL确认窗口进程（tkinter，语法高亮）
+│   │   ├── question_client.py      # 提问窗口客户端（子进程IPC，wait/锁超时）
+│   │   ├── question_dialog.py      # 提问窗口进程（tkinter，选项+自由输入）
 │   │   ├── exceptions.py           # 自定义异常
 │   │   ├── tokens_caculator.py     # 累计Token计数
 │   │   ├── session_id_container.py # 会话ID容器
@@ -466,7 +483,7 @@ Sebastian/
 | **CLI 框架** | Typer |
 | **LLM SDK** | OpenAI（兼容 DeepSeek / OpenAI / Ollama / vLLM） |
 | **沙箱隔离** | bubblewrap（Linux 命名空间） |
-| **确认窗口** | tkinter（子进程隔离，需 python3-tk） |
+| **确认窗口** | tkinter（子进程隔离，需 python3-tk；HITL 审批 + Agent 提问） |
 | **网页搜索** | DuckDuckGo（ddgs）+ 百度搜索（baidusearch，降级） |
 | **网页正文提取** | ddgs + requests + beautifulsoup4 + lxml（降级） |
 | **配置管理** | python-dotenv |

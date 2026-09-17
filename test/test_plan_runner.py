@@ -22,20 +22,22 @@ from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
 
 CRON_SCHEDULE.agent_lock.acquire()
 
-ALLOWED = {"read", "glob", "grep", "ls", "todo", "web_search", "web_fetch", "load_skill", "list_crons"}
+ALLOWED = {"read", "glob", "grep", "ls", "todo", "web_search", "web_fetch", "load_skill", "list_crons", "question"}
 FORBIDDEN = {"bash", "write", "edit", "agent", "schedule_cron", "cancel_cron"}
+# view_image 属于 Build 全量工具，但不在 Plan 白名单内
+FULL = ALLOWED | FORBIDDEN | {"view_image"}
 
 AGENT_MODE.set(AgentMode.BUILD)
 runner = AgentRunner.create_runner("Brain_Agent", "base instructions", get_tools_registry())
 
 full_keys = set(runner.tool_map.keys())
-check("build full tools (15)", full_keys == ALLOWED | FORBIDDEN, str(full_keys))
+check("build full tools (17)", full_keys == FULL, str(full_keys))
 check("build active == full", set(runner._active_tool_map().keys()) == full_keys)
 
 # ---- 进入 Plan 模式 ----
 AGENT_MODE.set(AgentMode.PLAN)
 active = runner._active_tool_map()
-check("plan active only 9", set(active.keys()) == ALLOWED, str(set(active.keys())))
+check("plan active only 10", set(active.keys()) == ALLOWED, str(set(active.keys())))
 
 # system 提示词注入
 runner.context = []

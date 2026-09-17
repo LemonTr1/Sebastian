@@ -25,8 +25,10 @@ from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
 
 CRON_SCHEDULE.agent_lock.acquire()
 
-ALLOWED = ["read", "glob", "grep", "ls", "todo", "web_search", "web_fetch", "load_skill", "list_crons"]
+ALLOWED = ["read", "glob", "grep", "ls", "todo", "web_search", "web_fetch", "load_skill", "list_crons", "question"]
 FORBIDDEN = ["bash", "write", "edit", "agent", "schedule_cron", "cancel_cron"]
+# view_image 属于 Build 全量工具，但不在 Plan 白名单内
+FULL = ALLOWED + FORBIDDEN + ["view_image"]
 
 USAGE = SimpleNamespace(total_tokens=10)
 
@@ -86,7 +88,7 @@ with patch.object(CRON_SCHEDULE, "consume_cron_queue", return_value=[]):
     runner.run_stream("请规划一个清理临时文件的任务", on_token=lambda t: None)
 
 first_tools = [s["function"]["name"] for s in client.calls[0]["tools"]]
-check("plan schema only 9 tools", sorted(first_tools) == sorted(ALLOWED), str(sorted(first_tools)))
+check("plan schema only 10 tools", sorted(first_tools) == sorted(ALLOWED), str(sorted(first_tools)))
 check("plan schema excludes bash", "bash" not in first_tools)
 check("plan schema excludes all forbidden", not (set(first_tools) & set(FORBIDDEN)))
 
@@ -118,7 +120,7 @@ with patch.object(CRON_SCHEDULE, "consume_cron_queue", return_value=[]):
     runner2.run_stream("列出家目录", on_token=lambda t: None)
 
 first_tools2 = [s["function"]["name"] for s in client2.calls[0]["tools"]]
-check("build schema full 15 tools", sorted(first_tools2) == sorted(ALLOWED + FORBIDDEN), str(len(first_tools2)))
+check("build schema full 17 tools", sorted(first_tools2) == sorted(FULL), str(len(first_tools2)))
 check("build schema has bash", "bash" in first_tools2)
 
 ls_msgs = [m for m in runner2.context if m.get("role") == "tool" and m.get("tool_call_id") == "call_2"]

@@ -17,7 +17,7 @@ class AgentMode:
     # Plan 模式可用工具白名单（其余工具在 Plan 下被移除 schema 并拒绝执行）
     PLAN_ALLOWED_TOOLS = frozenset({
         "read", "glob", "grep", "ls", "todo",
-        "web_search", "web_fetch", "load_skill", "list_crons",
+        "web_search", "web_fetch", "load_skill", "list_crons", "question",
     })
 
     def __init__(self):

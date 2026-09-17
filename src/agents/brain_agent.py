@@ -31,6 +31,7 @@ def build_brain_instructions() -> str:
 | 4 | 执行代码**并保存结果**到文件 | ① bash(command="<代码或命令的纯字符串>"") → ② bash执行命令保存文件 |
 | 5 | **创建/删除**文件或目录 | bash(command="<保存文件/目录的命令>") |
 | 6 | 网络搜索/实时信息查询/网页抓取 | web_search和web_fetch |
+| 7 | 需要用户在方案间做选择或补充关键信息 | question(question="<问题全文>", options=["<选项1>","<选项2>"])（开放式问题省略options） |
 
 ## 任务规划
 - 多步任务必须用 todo 工具规划并生成状态表
