@@ -5,6 +5,7 @@
 TODO
 .openclaude-profile.json
 .openclaude
+.trae/
 
 # Python
 __pycache__/
