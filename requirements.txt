@@ -21,5 +21,11 @@ openai>=1.0
 # 环境变量配置（.env 文件的加载与写入，sebastian setup 依赖）
 python-dotenv>=1.0
 
-# 网页搜索（DuckDuckGo 搜索，web_search/web_fetch 工具依赖）
+# 网页搜索（DuckDuckGo 搜索 + 百度搜索降级，web_search/web_fetch 工具依赖）
 ddgs>=9.0
+baidusearch>=1.0
+
+# 网页正文提取降级（web_fetch 工具 DDGS 失败时使用 requests + BeautifulSoup）
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0

@@ -1,6 +1,6 @@
 [project]
 name = "sebastian"
-version = "0.2.0"
+version = "1.0.0"
 description = "基于 LLM 的多 Agent 协作终端助手"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,6 +25,10 @@ dependencies = [
     "openai>=1.0",
     "python-dotenv>=1.0",
     "ddgs>=9.0",
+    "baidusearch>=1.0",
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
 ]
 
 [project.scripts]

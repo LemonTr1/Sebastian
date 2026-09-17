@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/Python-%3E%3D3.10-blue)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v0.2.0-orange)]()
+[![Version](https://img.shields.io/badge/Version-v1.0.0-orange)]()
 
 Sebastian 是一个基于 LLM 的多 Agent 协作终端助手：主控 Agent 负责调度多个专业化子 Agent，在隔离沙箱中执行代码、操作文件、搜索网络，并具备跨会话的长期记忆能力。本项目源于一次大学课程设计，涵盖架构设计、安全防御与工程化实现等多个方面。
 
@@ -14,27 +14,42 @@ Sebastian 是一个基于 LLM 的多 Agent 协作终端助手：主控 Agent 负
 
 ## 目录
 
-- [设计哲学](#设计哲学)
-- [架构概览](#架构概览)
-- [核心特性](#核心特性)
-  - [多 Agent 协作](#多-agent-协作)
-  - [工具系统](#工具系统)
-  - [记忆系统](#记忆系统)
-  - [安全体系](#安全体系)
-  - [人机协同审批](#人机协同审批)
-  - [沙箱系统](#沙箱系统)
-  - [Hook 系统](#hook-系统)
-  - [上下文压缩](#上下文压缩)
-  - [后台任务](#后台任务)
-  - [定时任务](#定时任务)
-  - [会话管理](#会话管理)
-  - [规划/执行双模式](#规划执行双模式)
-  - [技能系统](#技能系统)
-- [快速开始](#快速开始)
-- [CLI 命令](#cli-命令)
-- [项目结构](#项目结构)
-- [技术栈](#技术栈)
-- [许可证](#许可证)
+- [Sebastian — 多 Agent 智能任务助手](#sebastian--多-agent-智能任务助手)
+  - [目录](#目录)
+  - [设计哲学](#设计哲学)
+    - [1. 声明式设计 —— 能力即文件](#1-声明式设计--能力即文件)
+    - [2. 指挥与执行分离 —— 主控 Agent 不直接执行任务](#2-指挥与执行分离--主控-agent-不直接执行任务)
+    - [3. 永不信任 LLM —— 模型输出须先通过安全检查](#3-永不信任-llm--模型输出须先通过安全检查)
+    - [4. 隔离优于信任 —— 以边界保障安全](#4-隔离优于信任--以边界保障安全)
+    - [5. 优雅降级 —— 允许故障，但必须具备自恢复能力](#5-优雅降级--允许故障但必须具备自恢复能力)
+    - [6. 人机协同 —— 机器提出请求，人类做出决定](#6-人机协同--机器提出请求人类做出决定)
+  - [架构概览](#架构概览)
+  - [核心特性](#核心特性)
+    - [多 Agent 协作](#多-agent-协作)
+    - [工具系统](#工具系统)
+    - [记忆系统](#记忆系统)
+    - [安全体系](#安全体系)
+    - [人机协同审批](#人机协同审批)
+    - [沙箱系统](#沙箱系统)
+    - [Hook 系统](#hook-系统)
+    - [上下文压缩](#上下文压缩)
+    - [后台任务](#后台任务)
+    - [定时任务](#定时任务)
+    - [会话管理](#会话管理)
+    - [规划/执行双模式](#规划执行双模式)
+    - [技能系统](#技能系统)
+  - [快速开始](#快速开始)
+    - [环境要求](#环境要求)
+    - [安装](#安装)
+    - [配置 API Key](#配置-api-key)
+    - [启动](#启动)
+  - [CLI 命令](#cli-命令)
+    - [启动命令](#启动命令)
+    - [对话内命令](#对话内命令)
+  - [项目结构](#项目结构)
+  - [技术栈](#技术栈)
+  - [许可证](#许可证)
+  - [版本](#版本)
 
 ---
 
@@ -151,7 +166,7 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 
 ### 工具系统
 
-所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可使用全部 15 项；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
+所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可使用全部 16 项；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
 
 | 工具 | HITL | 说明 |
 |------|:----:|------|
@@ -162,8 +177,9 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 | `ls` | | 列出目录内容 |
 | `glob` | | 通配符匹配文件 |
 | `grep` | | 正则内容搜索 |
-| `web_search` | | DuckDuckGo 网页搜索（超时保护） |
-| `web_fetch` | | 网页正文提取（请求前 SSRF 检查） |
+| `web_search` | | DuckDuckGo 网页搜索（超时保护；DDGS 失败自动降级百度搜索） |
+| `web_fetch` | | 网页正文提取（请求前 SSRF 检查；DDGS 失败自动降级 requests+BeautifulSoup） |
+| `view_image` | | 读取本地图片（png/jpg/jpeg/webp/gif/bmp，≤15MB）供视觉模型查看 |
 | `todo` | | 任务规划与进度可视化 |
 | `load_skill` | | 加载技能文档 |
 | `agent` | ✓ | 调度子 Agent（支持后台异步） |
@@ -254,7 +270,7 @@ Sebastian 提供 **Plan（只读规划）** 与 **Build（执行）** 双模式�
 
 ### 技能系统
 
-技能文档存放于 `~/.sebastian/skills/<name>/SKILL.md`（YAML frontmatter + Markdown 正文），Brain Agent 通过 `load_skill` 工具按需加载。技能完全可插拔，添加或删除文件无需修改代码。已部署的示例技能包括：nmap、theHarvester、tcpdump、tshark、traceroute、whois、SSL 证书检查、子域名枚举等。
+技能文档存放于 `~/.sebastian/skills/<name>/SKILL.md`（YAML frontmatter + Markdown 正文），Brain Agent 通过 `load_skill` 工具按需加载。技能完全可插拔，添加或删除文件无需修改代码。
 
 ---
 
@@ -379,10 +395,10 @@ Sebastian/
 │   │
 │   ├── tools/
 │   │   ├── tools_registry.py       # 工具注册中心（单例，按Agent分配，HITL标记）
-│   │   └── toolkits/               # 15项工具实现
+│   │   └── toolkits/               # 16项工具实现
 │   │       ├── bash.py             # 沙箱命令执行（支持后台）
 │   │       ├── read.py / write.py / edit.py / ls.py / glob.py / grep.py
-│   │       ├── web_search.py / web_fetch.py
+│   │       ├── web_search.py / web_fetch.py / view_image.py
 │   │       ├── todo_manager.py     # 任务规划/进度提醒
 │   │       ├── skill_registry.py   # 技能文档加载
 │   │       ├── cron_schedule.py    # 定时任务
@@ -416,7 +432,7 @@ Sebastian/
 │   │   ├── approval_client.py      # HITL确认窗口客户端（子进程IPC，线程安全）
 │   │   ├── approval_dialog.py      # HITL确认窗口进程（tkinter，语法高亮）
 │   │   ├── exceptions.py           # 自定义异常
-│   │   ├── tokens_caculator.py     # 累计令牌计数
+│   │   ├── tokens_caculator.py     # 累计Token计数
 │   │   ├── session_id_container.py # 会话ID容器
 │   │   ├── user_info.py            # 当前OS用户名
 │   │   ├── datetime_utils.py       # 格式化时间
@@ -451,11 +467,12 @@ Sebastian/
 | **LLM SDK** | OpenAI（兼容 DeepSeek / OpenAI / Ollama / vLLM） |
 | **沙箱隔离** | bubblewrap（Linux 命名空间） |
 | **确认窗口** | tkinter（子进程隔离，需 python3-tk） |
-| **网页搜索** | DuckDuckGo（ddgs） |
+| **网页搜索** | DuckDuckGo（ddgs）+ 百度搜索（baidusearch，降级） |
+| **网页正文提取** | ddgs + requests + beautifulsoup4 + lxml（降级） |
 | **配置管理** | python-dotenv |
 | **构建系统** | setuptools |
 
-依赖控制原则：仅保留代码实际使用的 4 个 pip 依赖（typer、openai、python-dotenv、ddgs），安装体积约 50MB。
+依赖控制原则：核心依赖保持精简，仅保留代码实际使用的 pip 包——CLI/LLM/配置类（typer、openai、python-dotenv）与网页搜索及正文提取降级类（ddgs、baidusearch、requests、beautifulsoup4、lxml）合计 8 个，按需内置。
 
 ---
 

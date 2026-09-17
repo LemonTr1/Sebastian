@@ -131,7 +131,7 @@ class AgentRunner:
             #Plan 模式：动态注入只读规划提示词
             if AGENT_MODE.is_plan():
                 content = content.rstrip() + "\n\n" + AGENT_MODE.describe(self.tool_map.keys())
-            #由于尽可能命中输入缓存，将todo状态表注入到每轮role=='user'中
+            #由于尽可能命中输入缓存，将todo状态表注入到上下文最末尾中
             # if todo().state.items:
                # content = content.rstrip() + "\n\n" + "<当前任务计划>\n" + todo().get_normalized() + "\n</当前任务计划>"
         #已落盘文件清单：Brain 与子 Agent 均注入，防止反复读取大文件
