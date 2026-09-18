@@ -29,3 +29,6 @@ baidusearch>=1.0
 requests>=2.31
 beautifulsoup4>=4.12
 lxml>=5.0
+
+# MCP 客户端（src/mcp，仅 stdio 传输；导入 fastmcp 会一并带上 mcp SDK）
+fastmcp>=4.0.5

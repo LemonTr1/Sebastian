@@ -77,5 +77,23 @@
   "context": {
     "window_tokens": null,
     "model_overrides": {}
+  },
+  // MCP server 配置（这里只是一个样例）
+  "mcp": {
+    "enabled": false,
+    "connect_timeout": 30,
+    "servers": {
+      "example-filesystem": {
+        "enabled": false,
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "~"
+        ],
+        "env": {},
+        "cwd": null
+      }
+    }
   }
 }
