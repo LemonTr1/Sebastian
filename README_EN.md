@@ -151,7 +151,7 @@ The Brain Agent routes subtasks to specialized sub-agents via the `agent` tool; 
 
 ### Tool System
 
-All tools are registered in a central `ToolsRegistry`; each tool carries four attributes: name, implementation, JSON Schema, and HITL flag. Tools are allocated per agent — the Brain Agent has access to all 15, while sub-agents receive their toolsets through dynamic registration at runtime (sub-agents are never allowed to dispatch other sub-agents).
+All tools are registered in a central `ToolsRegistry`; each tool carries four attributes: name, implementation, JSON Schema, and HITL flag. Tools are allocated per agent — the Brain Agent has access to 17 built-in tools, plus any tools exposed by enabled MCP servers (registered dynamically), while sub-agents receive their toolsets through dynamic registration at runtime (sub-agents are never allowed to dispatch other sub-agents).
 
 | Tool | HITL | Description |
 |------|:----:|-------------|
@@ -164,12 +164,41 @@ All tools are registered in a central `ToolsRegistry`; each tool carries four at
 | `grep` | | Regex content search |
 | `web_search` | | DuckDuckGo search (timeout-protected) |
 | `web_fetch` | | Web page extraction (pre-request SSRF check) |
+| `view_image` | | Read a local image (png/jpg/jpeg/webp/gif/bmp, ≤15MB) for vision models |
 | `todo` | | Task planning with progress visualization |
 | `load_skill` | | Load a skill document |
 | `agent` | ✓ | Dispatch a sub-agent (async-capable) |
 | `schedule_cron` | ✓ | Register a 5-field Unix cron job |
 | `list_crons` | | List registered cron jobs |
 | `cancel_cron` | | Cancel a cron job by ID |
+| `question` | | Pop-up question to the user (single/multi options + free input, 300s timeout; timeout/cancel returns unanswered) |
+
+### MCP Tool Integration
+
+Sebastian connects to third-party MCP servers over stdio and dynamically registers their exposed tools into `ToolsRegistry`, so the Brain Agent can call them like built-in tools. Enable them under the `mcp` section of `settings.json`:
+
+```json
+{
+  "mcp": {
+    "enabled": true,
+    "connect_timeout": 30,
+    "servers": {
+      "my-server": {
+        "enabled": true,
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "~"],
+        "env": {},
+        "cwd": null
+      }
+    }
+  }
+}
+```
+
+- **Naming**: tools are registered as `<server>__<tool>` (e.g. `my-server__read_file`) to avoid collisions with built-in tools or multiple servers.
+- **Log routing**: only a successful handshake prints to both the terminal and the log; a server's own stderr always goes to the `get_log` log file (prefix `[mcp:<server>]`), never echoed to the terminal.
+- **Graceful degradation**: if MCP is disabled globally, a server fails to start/list, or fastmcp is not installed, the issue is only logged and skipped — CLI startup is unaffected.
+- **Config location**: user `~/.sebastian/settings.json` takes precedence, falling back to the bundled `src/settings.json` when missing or corrupt.
 
 ### Memory System
 
@@ -379,10 +408,12 @@ Sebastian/
 │   │
 │   ├── tools/
 │   │   ├── tools_registry.py       # Central tool registry (per-agent allocation, HITL flags)
-│   │   └── toolkits/               # 15 tool implementations
+│   │   └── toolkits/               # 17 built-in tools + MCP bridge
 │   │       ├── bash.py             # Sandboxed command execution (async-capable)
 │   │       ├── read.py / write.py / edit.py / ls.py / glob.py / grep.py
-│   │       ├── web_search.py / web_fetch.py
+│   │       ├── web_search.py / web_fetch.py / view_image.py
+│   │       ├── question.py         # Pop-up question to the user
+│   │       ├── mcp.py              # Register MCP server tools into ToolsRegistry at startup
 │   │       ├── todo_manager.py     # Task planning / progress reminders
 │   │       ├── skill_registry.py   # Skill document loading
 │   │       ├── cron_schedule.py    # Scheduled tasks
@@ -397,6 +428,10 @@ Sebastian/
 │   ├── sandbox/
 │   │   ├── bubblewrap.py           # bwrap sandbox manager
 │   │   └── settings.json           # Sandbox config (34 hidden paths / 29 read-only paths)
+│   │
+│   ├── mcp/                        # MCP client interface (stdio only)
+│   │   ├── config.py               # Reads the mcp section of settings.json (user → bundled fallback)
+│   │   └── stdio_client.py         # Sync wrapper: connect/handshake/list/call/close
 │   │
 │   ├── hooks/                      # Event-driven hook system
 │   │   ├── hooks_registry.py       # Hook registry (4 events)
@@ -451,10 +486,12 @@ User data directory (`~/.sebastian/`):
 | **Sandbox Isolation** | bubblewrap (Linux namespaces) |
 | **Confirmation Dialog** | tkinter (subprocess isolation, requires python3-tk) |
 | **Web Search** | DuckDuckGo (ddgs) |
+| **Web Extraction** | ddgs + requests + beautifulsoup4 + lxml (degradation) |
+| **MCP Client** | fastmcp (stdlib + MCP SDK, stdio transport) |
 | **Config Management** | python-dotenv |
 | **Build System** | setuptools |
 
-Dependency discipline: only the 4 pip dependencies actually used by the code are kept (typer, openai, python-dotenv, ddgs) — about 50MB installed size.
+Dependency discipline: core dependencies stay lean — only the pip packages the code actually uses are kept: CLI/LLM/config (typer, openai, python-dotenv), web search & extraction with degradation (ddgs, baidusearch, requests, beautifulsoup4, lxml), and the MCP client (fastmcp), 9 in total, installed on demand.
 
 ---
 

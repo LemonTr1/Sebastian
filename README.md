@@ -167,7 +167,7 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 
 ### 工具系统
 
-所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可使用全部 17 项；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
+所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可用 17 项内置工具，并在接入 MCP server 后动态追加其暴露的工具；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
 
 | 工具 | HITL | 说明 |
 |------|:----:|------|
@@ -188,6 +188,33 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 | `list_crons` | | 列出已注册定时任务 |
 | `cancel_cron` | | 按 ID 取消定时任务 |
 | `question` | | 弹窗向用户提问（单选选项 + 自由输入，默认 300s 超时；超时/取消返回未作答） |
+
+### MCP 工具接入
+
+Sebastian 通过 stdio 方式接入第三方 MCP server，把 server 暴露的工具动态注册进 `ToolsRegistry`，Brain Agent 即可像使用内置工具一样调用。启用需在 `settings.json` 的 `mcp` 段配置：
+
+```json
+{
+  "mcp": {
+    "enabled": true,
+    "connect_timeout": 30,
+    "servers": {
+      "my-server": {
+        "enabled": true,
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "~"],
+        "env": {},
+        "cwd": null
+      }
+    }
+  }
+}
+```
+
+- **命名**：工具名以 `<server>__<tool>` 形式注册（如 `my-server__read_file`），避免与内置工具或多 server 重名冲突。
+- **日志分流**：启动时只有 server 握手成功才同时打印终端与写入日志；server 自身的 stderr 一律导向 `get_log` 日志文件（前缀 `[mcp:<server>]`），不回显终端。
+- **优雅降级**：MCP 全局关闭、某个 server 启动/枚举失败，或 fastmcp 未安装时，只记日志并跳过，不影响 CLI 启动。
+- **配置位置**：用户 `~/.sebastian/settings.json` 优先，缺失/损坏时回退到项目内置 `src/settings.json`。
 
 ### 记忆系统
 
@@ -409,11 +436,12 @@ Sebastian/
 │   │
 │   ├── tools/
 │   │   ├── tools_registry.py       # 工具注册中心（单例，按Agent分配，HITL标记）
-│   │   └── toolkits/               # 17项工具实现
+│   │   └── toolkits/               # 17项内置工具 + MCP桥接
 │   │       ├── bash.py             # 沙箱命令执行（支持后台）
 │   │       ├── read.py / write.py / edit.py / ls.py / glob.py / grep.py
 │   │       ├── web_search.py / web_fetch.py / view_image.py
 │   │       ├── question.py         # 弹窗提问（选项 + 自由输入）
+│   │       ├── mcp.py              # 启动时把MCP server工具动态注册进ToolsRegistry
 │   │       ├── todo_manager.py     # 任务规划/进度提醒
 │   │       ├── skill_registry.py   # 技能文档加载
 │   │       ├── cron_schedule.py    # 定时任务
@@ -428,6 +456,10 @@ Sebastian/
 │   ├── sandbox/
 │   │   ├── bubblewrap.py           # bwrap沙箱管理器
 │   │   └── settings.json           # 沙箱配置（34隐藏路径/29只读路径）
+│   │
+│   ├── mcp/                        # MCP客户端接口（仅stdio传输）
+│   │   ├── config.py               # 读settings.json的mcp段（用户→项目默认两级回退）
+│   │   └── stdio_client.py         # 同步Wrapper：连接/握手/列工具/调工具/关闭
 │   │
 │   ├── hooks/                      # Event-driven钩子系统
 │   │   ├── hooks_registry.py       # 钩子注册中心（4事件）
@@ -486,10 +518,11 @@ Sebastian/
 | **确认窗口** | tkinter（子进程隔离，需 python3-tk；HITL 审批 + Agent 提问） |
 | **网页搜索** | DuckDuckGo（ddgs）+ 百度搜索（baidusearch，降级） |
 | **网页正文提取** | ddgs + requests + beautifulsoup4 + lxml（降级） |
+| **MCP 客户端** | fastmcp（stdlib + MCP SDK，stdio 传输） |
 | **配置管理** | python-dotenv |
 | **构建系统** | setuptools |
 
-依赖控制原则：核心依赖保持精简，仅保留代码实际使用的 pip 包——CLI/LLM/配置类（typer、openai、python-dotenv）与网页搜索及正文提取降级类（ddgs、baidusearch、requests、beautifulsoup4、lxml）合计 8 个，按需内置。
+依赖控制原则：核心依赖保持精简，仅保留代码实际使用的 pip 包——CLI/LLM/配置类（typer、openai、python-dotenv）、网页搜索与正文提取降级类（ddgs、baidusearch、requests、beautifulsoup4、lxml）、以及 MCP 客户端（fastmcp）合计 9 个，按需内置。
 
 ---
 
