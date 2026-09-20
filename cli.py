@@ -32,25 +32,12 @@ from src.utils.agent_mode import AGENT_MODE
 from src.utils.memory_system import MEMORY_SYSTEM
 logger = get_log()
 
-
-def __getattr__(name: str):
-    """惰性加载重量级单例（PEP 562）。
-
-    brain_agent 导入即构造 OpenAI 客户端，没有 .env 凭证时会抛 OpenAIError；
-    cron_schedule 导入会拉起整条工具链（含 MCP server）；
-    hooks_registry 导入会级联拉起 src.tools（HITL 钩子依赖工具注册中心）。
-    惰性化后 `sebastian setup` / `--version` 等子命令无需凭证即可运行。
-    """
-    if name == "brain_agent":
-        from src.agents.brain_agent import brain_agent
-        return brain_agent
-    if name in ("CRON_SCHEDULE", "start_cron_scheduler"):
-        from src.tools.toolkits import cron_schedule
-        return getattr(cron_schedule, name)
-    if name == "hooks_registry":
-        from src.hooks import hooks_registry
-        return hooks_registry
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+# 注意：brain_agent / CRON_SCHEDULE / start_cron_scheduler / hooks_registry
+# 不在模块顶层导入，而是在使用它们的函数内局部导入——
+# brain_agent 导入即构造 OpenAI 客户端（无 .env 凭证会抛 OpenAIError），
+# cron_schedule/hooks_registry 会级联拉起整条工具链（含 MCP server）。
+# 惰性化后 `sebastian setup` / `--version` 等子命令无需凭证即可运行。
+# （不能用模块级 __getattr__：它只对 cli.xxx 属性访问生效，函数体内的裸全局名查找不会触发。）
 
 
 def _stdin_pending() -> bool:
@@ -105,6 +92,7 @@ def main(
 
 #进入AgentLoop前还原上下文内容
 def restore_context(session_id: str) -> str | None:
+    from src.agents.brain_agent import brain_agent
     session_file = AGENT_SESSION_DIR / f"{session_id}.jsonl"
     #如果存在保存过的历史会话文件
     if session_file.is_file():
@@ -166,6 +154,9 @@ def save_session(context: list, session_id: str):
 
 def cron_queue_processor_loop():
     """agent_lock互斥锁保证与用户主线程并发执行"""
+    from src.agents.brain_agent import brain_agent
+    from src.hooks import hooks_registry
+    from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
     while True:
         time.sleep(0.2)
         if not CRON_SCHEDULE.has_cron_queue():
@@ -216,6 +207,10 @@ def _run_chat(session_id: str):
             fg=typer.colors.RED, bold=True,
         ))
         raise typer.Exit(code=1)
+
+    from src.agents.brain_agent import brain_agent
+    from src.hooks import hooks_registry
+    from src.tools.toolkits.cron_schedule import CRON_SCHEDULE, start_cron_scheduler
 
     uname = get_username()
     logger.info(f"{uname} 登陆系统")
