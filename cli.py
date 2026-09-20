@@ -208,8 +208,11 @@ def _run_chat(session_id: str):
         ))
         raise typer.Exit(code=1)
 
-    from src.agents.brain_agent import brain_agent
+    # hooks 必须先于 brain_agent 导入：agent_runner 第 8 行会级联触发 src/hooks/__init__，
+    # 若 hooks 包在半初始化链中加载，钩子的注册顺序与失败处理都更脆弱；先导 hooks 可恢复
+    # 旧版顶层导入时代的稳定顺序。
     from src.hooks import hooks_registry
+    from src.agents.brain_agent import brain_agent
     from src.tools.toolkits.cron_schedule import CRON_SCHEDULE, start_cron_scheduler
 
     uname = get_username()

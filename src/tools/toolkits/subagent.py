@@ -4,7 +4,6 @@ import typer
 import re
 from typing import List, Optional, NamedTuple
 from src.logs.app_log import get_log
-from src.agent_runner import AgentRunner
 from src.tools.tools_registry import get_tools_registry
 from src.utils.exceptions import SubAgentRuntimeException
 
@@ -152,7 +151,9 @@ class SubAgentRegistry:
                         hitl=need_hitl ,for_agent=agent_name
                     )
 
-            #然后创建子Agent
+            #然后创建子Agent（惰性导入：本模块经 src/tools/__init__ 自动加载，
+            # 顶层导入 agent_runner 会与 agent_runner→tools_registry→toolkits 链形成循环依赖）
+            from src.agent_runner import AgentRunner
             sub_agent = AgentRunner.create_runner(
                 name=agent_name,
                 instructions=self.subagent_meta[agent_name].get("body", "You are a helpful assistant.Finish the task user provided"),

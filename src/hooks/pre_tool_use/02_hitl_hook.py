@@ -1,5 +1,4 @@
 from src.hooks.hooks_registry import get_hooks_registry
-from src.tools.tools_registry import get_tools_registry
 from src.utils.agent_mode import AGENT_MODE
 from src.utils.approval_client import ApprovalClient
 from src.utils.eval_flag import is_eval_mode
@@ -12,6 +11,11 @@ _approval_client = ApprovalClient(theme="dark")
 
 def hitl_hook(agent_name: str, tool_call: dict):
     """Human in the Loop钩子（三个功能：1.判断工具是否存在 2.tool_call中的参数格式是否正确 3.弹窗确认用户是否同意执行）"""
+    # 惰性导入：tools_registry 会拉起整条工具链（含 toolkits→subagent→agent_runner），
+    # 而 agent_runner 又依赖本钩子包——顶层导入会在特定导入顺序下形成循环依赖，
+    # 被 src/hooks/__init__ 的兜底 except 吞掉后导致本钩子静默丢失（HITL 失效）。
+    # 钩子触发时工具链必然已初始化完毕，函数内导入无环。
+    from src.tools.tools_registry import get_tools_registry
     tools, _ = get_tools_registry().get_tools_for_agent(agent_name)
     tool_name = tool_call["function"]["name"]
     existed_tools_list = []
