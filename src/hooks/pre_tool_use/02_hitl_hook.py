@@ -1,5 +1,6 @@
 from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.tools_registry import get_tools_registry
+from src.utils.agent_mode import AGENT_MODE
 from src.utils.approval_client import ApprovalClient
 from src.utils.eval_flag import is_eval_mode
 from src.utils.memory_system import MEMORY_SYSTEM
@@ -31,6 +32,15 @@ def hitl_hook(agent_name: str, tool_call: dict):
             get_log().info(f"[EVAL] auto-approve {tool_name}")
             typer.echo(typer.style(
                 f"\n> [EVAL] 自动批准: {tool_name}",
+                fg=typer.colors.CYAN,
+            ))
+            return None
+
+        #-------------Auto 模式：所有工具调用免人工审批---------------
+        if AGENT_MODE.is_auto():
+            get_log().info(f"[auto] skip HITL for {tool_name}")
+            typer.echo(typer.style(
+                f"\n> [AUTO] 自动批准: {tool_name}",
                 fg=typer.colors.CYAN,
             ))
             return None

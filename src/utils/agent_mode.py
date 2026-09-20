@@ -1,8 +1,9 @@
-"""Agent 运行模式（Plan / Build）。
+"""Agent 运行模式（Plan / Build / Auto）。
 
-- 登录默认 Build：Brain_Agent 拥有全部工具
+- 登录默认 Build：Brain_Agent 拥有全部工具，HITL 工具需人工审批
 - /plan 进入 Plan：只读规划模式，仅白名单工具可用（schema 移除 + 提示词引导）
 - /build 退出 Plan：恢复全部工具
+- /auto 进入 Auto：全部工具可用，且所有工具调用跳过人工审批
 - 模式运行期有效，不随会话持久化
 """
 from src.logs.app_log import get_log
@@ -13,6 +14,7 @@ logger = get_log()
 class AgentMode:
     BUILD = "build"
     PLAN = "plan"
+    AUTO = "auto"
 
     # Plan 模式可用工具白名单（其余工具在 Plan 下被移除 schema 并拒绝执行）
     PLAN_ALLOWED_TOOLS = frozenset({
@@ -32,6 +34,9 @@ class AgentMode:
 
     def is_plan(self) -> bool:
         return self._mode == self.PLAN
+
+    def is_auto(self) -> bool:
+        return self._mode == self.AUTO
 
     def allowed_tools(self) -> frozenset:
         return self.PLAN_ALLOWED_TOOLS

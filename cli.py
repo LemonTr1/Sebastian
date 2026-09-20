@@ -13,9 +13,6 @@ import sys
 from dotenv import load_dotenv, set_key
 load_dotenv(override=True)
 
-from src.hooks import hooks_registry
-
-from src.agents.brain_agent import brain_agent
 from src.utils.user_info import get_username
 try:
     import readline
@@ -33,9 +30,27 @@ import json
 from src.utils.compaction_pipeline import compact_history
 from src.utils.agent_mode import AGENT_MODE
 from src.utils.memory_system import MEMORY_SYSTEM
-from src.tools.toolkits.cron_schedule import CRON_SCHEDULE, start_cron_scheduler
-
 logger = get_log()
+
+
+def __getattr__(name: str):
+    """惰性加载重量级单例（PEP 562）。
+
+    brain_agent 导入即构造 OpenAI 客户端，没有 .env 凭证时会抛 OpenAIError；
+    cron_schedule 导入会拉起整条工具链（含 MCP server）；
+    hooks_registry 导入会级联拉起 src.tools（HITL 钩子依赖工具注册中心）。
+    惰性化后 `sebastian setup` / `--version` 等子命令无需凭证即可运行。
+    """
+    if name == "brain_agent":
+        from src.agents.brain_agent import brain_agent
+        return brain_agent
+    if name in ("CRON_SCHEDULE", "start_cron_scheduler"):
+        from src.tools.toolkits import cron_schedule
+        return getattr(cron_schedule, name)
+    if name == "hooks_registry":
+        from src.hooks import hooks_registry
+        return hooks_registry
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _stdin_pending() -> bool:
@@ -161,9 +176,11 @@ def cron_queue_processor_loop():
             if not CRON_SCHEDULE.has_cron_queue():
                 continue
             typer.echo(typer.style(f"\n> [queue processor]Independent thread of delivering scheduled starts",fg=typer.colors.GREEN))
-            #定时任务强制以 Build 模式运行，执行完毕恢复原模式
+            #定时任务在 Plan 模式下强制以 Build 模式运行（否则执行类工具被禁），执行完毕恢复原模式；
+            #Auto 模式工具齐全且免审批，无需切换
             prev_mode = AGENT_MODE.get()
-            AGENT_MODE.set(AGENT_MODE.BUILD)
+            if AGENT_MODE.is_plan():
+                AGENT_MODE.set(AGENT_MODE.BUILD)
             try:
                 brain_agent.run_stream(
                     None,
@@ -192,11 +209,19 @@ def cron_queue_processor_loop():
 
 
 def _run_chat(session_id: str):
+    from src.config import API_KEY
+    if not API_KEY:
+        typer.echo(typer.style(
+            "未检测到 API Key，请先运行 `sebastian setup` 完成模型配置",
+            fg=typer.colors.RED, bold=True,
+        ))
+        raise typer.Exit(code=1)
+
     uname = get_username()
     logger.info(f"{uname} 登陆系统")
     typer.echo(
         typer.style(
-            f"Welcome {uname}！I'm Sebastian. [输入 '/quit' 退出 | '/plan' 规划模式 | '/build' 执行模式]",
+            f"Welcome {uname}！I'm Sebastian. [输入 '/quit' 退出 | '/plan' 规划模式 | '/build' 执行模式 | '/auto' 免审批模式]",
             fg=typer.colors.BLUE,
             bold=True,
         )
@@ -234,7 +259,12 @@ def _run_chat(session_id: str):
 
     while True:
         try:
-            mode_suffix = "|PLAN" if AGENT_MODE.is_plan() else ""
+            if AGENT_MODE.is_plan():
+                mode_suffix = "|PLAN"
+            elif AGENT_MODE.is_auto():
+                mode_suffix = "|AUTO"
+            else:
+                mode_suffix = ""
             typer.echo()
             styled = typer.style(f"[{uname}{mode_suffix}]：", fg=typer.colors.GREEN, bold=True)
             prompt = re.sub(r'(\x1b\[[0-9;]*m)', r'\001\1\002', styled)
@@ -275,9 +305,18 @@ def _run_chat(session_id: str):
 
         if question.lower() == "/build":
             AGENT_MODE.set(AGENT_MODE.BUILD)
-            logger.info(f"{uname} 退出 Plan 模式，进入 Build 模式")
+            logger.info(f"{uname} 进入 Build 模式")
             typer.echo(typer.style(
-                "已进入 Build 模式（全部工具可用，可执行任务），输入 /plan 可重新进入规划",
+                "已进入 Build 模式（全部工具可用，危险操作需人工审批），输入 /plan 进入规划，/auto 免审批",
+                fg=typer.colors.CYAN, bold=True,
+            ))
+            continue
+
+        if question.lower() == "/auto":
+            AGENT_MODE.set(AGENT_MODE.AUTO)
+            logger.info(f"{uname} 进入 Auto 模式")
+            typer.echo(typer.style(
+                "已进入 Auto 模式（全部工具可用，所有工具调用不再人工审批，请谨慎使用），输入 /build 恢复审批",
                 fg=typer.colors.CYAN, bold=True,
             ))
             continue
@@ -334,7 +373,8 @@ def _prompt_api_key_with_prefix(prompt: str, prefix_len: int = 3) -> str:
     """读取API_KEY，前缀明文回显，其余字符显示为*（POSIX平台逐字符读取）"""
     styled_prompt = typer.style(prompt, fg=typer.colors.CYAN, bold=True)
 
-    if os.name != "posix":
+    if os.name != "posix" or not sys.stdin.isatty():
+        # 非 POSIX 或 stdin 被管道/重定向时，退回通用隐藏输入
         return typer.prompt(prompt, hide_input=True)
 
     import termios

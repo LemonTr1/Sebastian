@@ -300,14 +300,15 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 - 退出时自动保存，`sebastian -s <SESSION_ID>` 恢复会话；自动保留最近 10 个会话
 - 对话内支持 `/clear` 清空历史、`/compact` 手动压缩
 
-### 规划/执行双模式
+### 规划/执行/免审批三模式
 
-Sebastian 提供 **Plan（只读规划）** 与 **Build（执行）** 双模式，登录默认 Build：
+Sebastian 提供 **Plan（只读规划）**、**Build（执行）** 与 **Auto（免审批执行）** 三种模式，登录默认 Build：
 
 - `/plan` 进入 Plan：Brain 仅可用 `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`，执行类工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`）从工具 schema 中移除并被拒绝执行；system 提示词动态注入"以调研与规划为主"的行为引导，并要求模型在计划完成后主动询问用户：立即退出执行还是修改计划
-- `/build` 退出 Plan：恢复全部工具
-- 模式运行期有效不持久化；定时任务触发时**强制以 Build 运行**，执行完恢复原模式
-- 终端提示符显示当前模式（`[user|PLAN]：`）
+- `/build` 恢复 Build：全部工具可用，HITL 工具（`bash` / `write` / `edit` / `agent` / `schedule_cron`）执行前弹窗等待人工审批
+- `/auto` 进入 Auto：全部工具可用，且**所有工具调用跳过人工审批**（终端打印 `[AUTO] 自动批准` 并写日志），请谨慎使用；`/build` 恢复审批
+- 模式运行期有效不持久化；定时任务触发时若处于 Plan 则**强制以 Build 运行**，执行完恢复原模式（Auto 模式工具齐全且免审批，不切换）
+- 终端提示符显示当前模式（`[user|PLAN]：` / `[user|AUTO]：`）
 
 ### 技能系统
 
@@ -404,8 +405,9 @@ sebastian setup                 # API 配置向导（密钥掩码输入）
 | 命令 | 说明 |
 |------|------|
 | `quit` / `/quit` / `/exit` | 保存会话并退出 |
-| `/plan` | 进入 Plan 只读规划模式（仅 9 项调研/规划工具可用） |
-| `/build` | 退出 Plan 模式，恢复全部工具 |
+| `/plan` | 进入 Plan 只读规划模式（仅调研/规划工具可用） |
+| `/build` | 进入 Build 执行模式（全部工具可用，危险操作需审批） |
+| `/auto` | 进入 Auto 免审批模式（全部工具可用，不再人工审批） |
 | `/memory on` / `/memory off` | 开启或关闭 `~/.sebastian/.memory/` 记忆 |
 | `/clear` | 清空当前对话历史 |
 | `/compact` | 手动触发上下文 LLM 摘要压缩 |

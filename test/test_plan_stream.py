@@ -119,7 +119,8 @@ runner2.client = client2
 with patch.object(CRON_SCHEDULE, "consume_cron_queue", return_value=[]):
     runner2.run_stream("列出家目录", on_token=lambda t: None)
 
-first_tools2 = [s["function"]["name"] for s in client2.calls[0]["tools"]]
+# MCP 桥接工具（<server>__<tool>）取决于用户 settings，不计入内建全集断言
+first_tools2 = [s["function"]["name"] for s in client2.calls[0]["tools"] if "__" not in s["function"]["name"]]
 check("build schema full 17 tools", sorted(first_tools2) == sorted(FULL), str(len(first_tools2)))
 check("build schema has bash", "bash" in first_tools2)
 

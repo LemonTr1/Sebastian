@@ -272,14 +272,15 @@ The `bash` and `agent` tools support `run_in_background=true` for async executio
 - Auto-saved on exit; restored via `sebastian -s <SESSION_ID>`; the 10 most recent sessions are retained
 - In-chat: `/clear` wipes history, `/compact` compacts manually
 
-### Plan / Build Modes
+### Plan / Build / Auto Modes
 
-Sebastian provides two working modes — **Plan (read-only planning)** and **Build (execution)**, defaulting to Build on login:
+Sebastian provides three working modes — **Plan (read-only planning)**, **Build (execution)** and **Auto (approval-free execution)**, defaulting to Build on login:
 
-- `/plan` enters Plan: the Brain can only use `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons`; execution tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`) are removed from the tool schemas and rejected at runtime; the system prompt is dynamically injected with research-and-planning-focused guidance, requiring the model to ask the user whether to execute immediately or revise the plan once it is ready
-- `/build` exits Plan: all tools are restored
-- The mode is runtime-only (not persisted); scheduled (cron) tasks are **forced to run in Build mode** and the previous mode is restored afterwards
-- The terminal prompt shows the current mode (`[user|PLAN]:`)
+- `/plan` enters Plan: the Brain can only use `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`; execution tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`) are removed from the tool schemas and rejected at runtime; the system prompt is dynamically injected with research-and-planning-focused guidance, requiring the model to ask the user whether to execute immediately or revise the plan once it is ready
+- `/build` restores Build: all tools are available, and HITL tools (`bash` / `write` / `edit` / `agent` / `schedule_cron`) require manual approval via a pop-up before execution
+- `/auto` enters Auto: all tools are available and **every tool call skips manual approval** (the terminal prints `[AUTO] auto-approved` and the log records it) — use with caution; `/build` restores approval
+- The mode is runtime-only (not persisted); scheduled (cron) tasks are **forced to run in Build mode** when triggered from Plan, and the previous mode is restored afterwards (Auto already has full tools with no approval, so no switch happens)
+- The terminal prompt shows the current mode (`[user|PLAN]:` / `[user|AUTO]:`)
 
 ### Skill System
 
@@ -376,9 +377,10 @@ sebastian setup                 # API configuration wizard (masked key input)
 | Command | Description |
 |---------|-------------|
 | `quit` / `/quit` / `/exit` | Save session and exit |
-| `/plan` | Enter Plan read-only planning mode (9 research/planning tools only) |
+| `/plan` | Enter Plan read-only planning mode (research/planning tools only) |
+| `/build` | Enter Build execution mode (all tools, dangerous ops need approval) |
+| `/auto` | Enter Auto approval-free mode (all tools, no manual approval) |
 | `/memory on` / `/memory off` | Enable or disable `~/.sebastian/.memory/` |
-| `/build` | Exit Plan mode, restore all tools |
 | `/clear` | Clear the current conversation history |
 | `/compact` | Manually trigger LLM summarization compaction |
 | `Ctrl+C` / `Ctrl+D` | Exit without saving |

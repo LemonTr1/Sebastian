@@ -30,9 +30,10 @@ FULL = ALLOWED | FORBIDDEN | {"view_image"}
 AGENT_MODE.set(AgentMode.BUILD)
 runner = AgentRunner.create_runner("Brain_Agent", "base instructions", get_tools_registry())
 
-full_keys = set(runner.tool_map.keys())
+# MCP 桥接工具（<server>__<tool>）取决于用户 settings，不计入内建全集断言
+full_keys = {k for k in runner.tool_map.keys() if "__" not in k}
 check("build full tools (17)", full_keys == FULL, str(full_keys))
-check("build active == full", set(runner._active_tool_map().keys()) == full_keys)
+check("build active == full", set(runner._active_tool_map().keys()) == set(runner.tool_map.keys()))
 
 # ---- 进入 Plan 模式 ----
 AGENT_MODE.set(AgentMode.PLAN)
@@ -74,7 +75,7 @@ check("allowed tool executes in plan", len(ls_msgs) == 1 and "success" in ls_msg
 
 # ---- 退出 Plan 模式 ----
 AGENT_MODE.set(AgentMode.BUILD)
-check("build active restored", set(runner._active_tool_map().keys()) == full_keys)
+check("build active restored", set(runner._active_tool_map().keys()) == set(runner.tool_map.keys()))
 runner.context = []
 runner._ensure_system_prompt()
 check("plan section removed", "当前模式：Plan" not in runner.context[0]["content"])
