@@ -1,4 +1,4 @@
-"""上下文压缩管线回归测试（四层 + 应急 + 防重复读取 + 图片压缩 + 重试收敛）。
+"""上下文压缩管线回归测试（三层 + 应急 + 防重复读取 + 图片压缩 + 重试收敛）。
 
 纯单元测试，不触发真实 API（摘要/对话调用全部使用 fake client）。
 suite 期间持有 CRON_SCHEDULE.agent_lock，避免 cron 线程触发真实 API。
@@ -16,7 +16,7 @@ from src.utils.model_windows import resolve_context_window, _CACHE
 from src.config import MODEL, CONTEXT_WINDOW
 from src.utils.compaction_pipeline import (
     estimate_tokens, estimate_messages,
-    tool_result_budget, snip_compact, micro_compact, compact_history,
+    tool_result_budget, micro_compact, compact_history,
     reactive_compact, CompactionPipeline, persist_content, TOOL_RESULT_CAP,
     PERSISTED_REGISTRY, _content_digest, build_persisted_placeholder, PERSISTED_PREFIX,
     compact_view_images, IMAGE_TOKEN_COST,
@@ -178,36 +178,53 @@ class TestCompactionPipeline(unittest.TestCase):
         small[3]["content"] = "short result"
         self.assertEqual(tool_result_budget(small)[3]["content"], "short result")
 
-    # ---------- 4. L2 裁剪 ----------
-    def test_l2_snip(self):
-        long_msgs = [{"role": "system", "content": "sys"}]
-        for i in range(60):
-            long_msgs.append({"role": "user", "content": f"u{i}"})
-            long_msgs.append({"role": "assistant", "content": f"a{i}"})
-        snip = snip_compact([dict(m) for m in long_msgs])
-        self.assertLessEqual(len(snip), 51)
-        self.assertEqual(snip[0]["content"], "sys")
-        self.assertEqual(snip[1]["content"], "u0")
-        self.assertEqual(snip[-1]["content"], "a59")
-        self.assertEqual(snip_compact(long_msgs[:40]), long_msgs[:40])
+    # ---------- 4. L3 摘要：保留尾部按 token 收口 ----------
+    def test_tail_capped_by_tokens(self):
+        """微压缩只碰工具结果，单轮内堆积的 assistant 文本只能靠摘要层收口"""
+        conv = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "TASK"},
+        ]
+        for i in range(40):
+            conv.append({
+                "role": "assistant", "content": f"a{i} " + "y" * 4000,
+                "tool_calls": [{"id": f"t{i}", "type": "function", "function": {"name": "read", "arguments": "{}"}}],
+            })
+            conv.append({"role": "tool", "tool_call_id": f"t{i}", "content": "r" * 400})
 
-    def test_l2_tool_pairing_intact(self):
-        pair_msgs = [{"role": "system", "content": "sys"}]
-        for i in range(30):
-            pair_msgs.append({"role": "user", "content": f"u{i}"})
-            pair_msgs.append({"role": "assistant", "content": "a", "tool_calls": [{"id": f"c{i}", "type": "function", "function": {"name": "f", "arguments": "{}"}}]})
-            pair_msgs.append({"role": "tool", "tool_call_id": f"c{i}", "content": "r"})
-        pair_msgs.append({"role": "user", "content": "final"})
-        pair_msgs.append({"role": "assistant", "content": "done"})
-        snip2 = snip_compact(pair_msgs)
-        for i, m in enumerate(snip2):
+        with patch("src.utils.compaction_pipeline.get_client", return_value=FakeSummaryClient()):
+            with patch("src.utils.compaction_pipeline.KEEP_RECENT_TOKENS", 3000):
+                res = compact_history([dict(m) for m in conv])
+
+        self.assertEqual(res[0].get("role"), "system")
+        self.assertTrue(any("[Compacted]" in (m.get("content") or "") for m in res))
+        tail = res[2:]  # res[0]=system, res[1]=摘要
+        self.assertLessEqual(estimate_messages(tail), 3000)
+        self.assertLess(len(tail), len(conv))
+        # 收口后不能出现孤立 tool（其 assistant.tool_calls 已被裁掉）
+        for i, m in enumerate(tail):
             if m.get("role") == "tool":
-                prev = snip2[i - 1] if i > 0 else {}
+                prev = tail[i - 1] if i > 0 else {}
                 ids = [tc["id"] for tc in prev.get("tool_calls", [])] if prev.get("role") == "assistant" else []
                 self.assertIn(m.get("tool_call_id"), ids)
 
-    # ---------- 5. L3 微压缩 ----------
-    def test_l3_micro(self):
+    def test_tail_untouched_within_budget(self):
+        """预算内行为不变：整个最近一轮原样保留，不收口"""
+        conv = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "TASK"},
+            {"role": "assistant", "content": "a", "tool_calls": [{"id": "t1", "type": "function", "function": {"name": "read", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "t1", "content": "r"},
+            {"role": "assistant", "content": "a2", "tool_calls": [{"id": "t2", "type": "function", "function": {"name": "read", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "t2", "content": "r2"},
+        ]
+        with patch("src.utils.compaction_pipeline.get_client", return_value=FakeSummaryClient()):
+            res = compact_history([dict(m) for m in conv])
+        self.assertEqual(res[-1]["content"], conv[5]["content"])
+        self.assertTrue(any(m.get("content") == "TASK" for m in res))
+
+    # ---------- 5. L2 微压缩 ----------
+    def test_l2_micro(self):
         mid_msgs = [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": "q1"},
@@ -235,8 +252,8 @@ class TestCompactionPipeline(unittest.TestCase):
         ]
         self.assertEqual(CompactionPipeline.compact([dict(m) for m in short]), short)
 
-    # ---------- 7. L4 摘要 ----------
-    def test_l4_summary_system_preserved_and_bounded(self):
+    # ---------- 7. L3 摘要 ----------
+    def test_l3_summary_system_preserved_and_bounded(self):
         fake = FakeSummaryClient()
         big_conv = [{"role": "system", "content": "sys"}]
         for i in range(20):
@@ -408,7 +425,7 @@ class TestCompactionPipeline(unittest.TestCase):
         self.assertIn("<已落盘文件清单>", br2.context[0]["content"])
         self.assertEqual(br2.context[0]["content"].count("<当前任务计划>"), 1)
 
-    # ---------- 14. L4/应急：连续 user 段边界 + 摘要护栏 ----------
+    # ---------- 14. L3/应急：连续 user 段边界 + 摘要护栏 ----------
     def test_consecutive_user_boundary_and_summary_guard(self):
         consecutive = [
             {"role": "system", "content": "sys"},

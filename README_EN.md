@@ -92,7 +92,7 @@ Bypassing any single layer never compromises the whole defense — the value of 
 
 **Implementation**: Three tiers of fault tolerance work in combination:
 
-- **4-layer context compaction pipeline**: persist large results → snip messages → micro-compact → LLM summarization; the context never overflows
+- **3-layer context compaction pipeline**: persist large results → micro-compact → LLM summarization; the context never overflows
 - **Reactive compaction**: on `context_length_exceeded` errors, compact immediately and retry (up to 3 times) — conversations never break
 - **Exponential backoff retries**: API failures retry up to 5 times; empty responses from reasoning models are logged and handled gracefully instead of failing silently
 
@@ -249,12 +249,13 @@ An event-driven plugin mechanism injects custom logic at four points of the agen
 
 ### Context Compaction
 
-**Evaluated every AgentLoop turn**, the four-layer progressive compaction pipeline triggers per-layer by token budget (all thresholds are relative to the model context window, dynamically resolved from the model name in `.env`, defaulting to 128K for unknown models):
+**Evaluated every AgentLoop turn**, the three-layer progressive compaction pipeline triggers per-layer by token budget (all thresholds are relative to the model context window, dynamically resolved from the model name in `.env`, defaulting to 128K for unknown models):
 
 1. **Persist large results**: a single tool result exceeding the cap (5% of window tokens) is immediately written to disk (sha256 content-addressed dedup); the context keeps only the path plus head/tail previews — oversized content never enters the context
-2. **Snip messages**: keep the first 3 + last 47 messages when exceeding 50, cut at user-message boundaries
-3. **Micro-compact**: when total tokens exceed 50% of the window, older tool results are persisted to disk first, then replaced with placeholders (lossless, re-readable anytime)
-4. **LLM summarization**: when total tokens exceed 75% of the window, the conversation is summarized via chunked API calls (each request stays bounded and cannot overflow); the original is archived as a transcript, the system prompt and the latest complete tool cycle are preserved
+2. **Micro-compact**: when total tokens exceed 50% of the window, older tool results are persisted to disk first, then replaced with placeholders (lossless, re-readable anytime)
+3. **LLM summarization**: when total tokens exceed 75% of the window, the conversation is summarized via chunked API calls (each request stays bounded and cannot overflow); the original is archived as a transcript, the system prompt and the latest complete tool cycle are preserved — the retained tail is then capped by the same token budget (also lossless, originals already on disk), so text piled up within a single turn cannot defeat compaction convergence
+
+Triggers are token-based throughout — no message-count trimming. A count threshold is unrelated to window size, so on large windows it fires first and starves the token-based layers; and trimming without persisting irreversibly discards important messages.
 
 Context overflow additionally triggers **reactive compaction** (the retry request is rebuilt from the compacted context, up to 3 retries — guaranteed to converge); at the end of each turn the terminal shows current context usage (colored by the 75%/95% thresholds); `/compact` triggers compaction manually. Token estimation is heuristic (CJK≈1, others≈0.25/char) with no extra dependency.
 
@@ -450,7 +451,7 @@ Sebastian/
 │   │
 │   ├── utils/                      # Utilities
 │   │   ├── memory_system.py        # .memory/ index + entries, toggle and prompt
-│   │   ├── compaction_pipeline.py  # 4-layer context compaction pipeline
+│   │   ├── compaction_pipeline.py  # 3-layer context compaction pipeline
 │   │   ├── approval_client.py      # HITL dialog client (subprocess IPC, thread-safe)
 │   │   ├── approval_dialog.py      # HITL dialog process (tkinter, syntax highlighting)
 │   │   ├── exceptions.py           # Custom exceptions

@@ -1,17 +1,19 @@
-"""四层上下文压缩管线（预算驱动）。
+"""上下文压缩管线（预算驱动，三层 + 应急）。
 
 设计原则：
 - 每轮评估，逐层按预算触发，条件不满足零动作
-- 无损降级：任何替换前先落盘，占位符带路径，信息可回溯
-- 所有阈值相对模型上下文窗口（CONTEXT_WINDOW）计算
+- 无损降级：任何替换/裁剪前先落盘（或写入 transcript），占位符带路径，信息可回溯
+- 所有阈值相对模型上下文窗口（CONTEXT_WINDOW）计算，触发指标统一为 token
 - 摘要分段进行，单次 API 输入恒有界，不可能溢出
 
-四层：
+三层：
   L1 落盘（persist）    单条工具结果超上限 → 落盘 + 头尾预览 (任何一条大结果都不能进上下文，防御性的)
-  L2 裁剪（snip）       消息数超50条 → 保留前3+后47，user边界切割
-  L3 微压缩（micro）    总 token > 50% 窗口 → 旧工具结果落盘后换占位符 (压缩阈值远小于L1，用于清理历史久远的工具调用结果，已有<persisted-output>前缀的不会重复替换)
-  L4 摘要（summarize）  总 token > 75% 窗口 → 分段摘要，保留 system
+  L2 微压缩（micro）    总 token > 50% 窗口 → 旧工具结果落盘后换占位符 (压缩阈值远小于L1，用于清理历史久远的工具调用结果，已有<persisted-output>前缀的不会重复替换)
+  L3 摘要（summarize）  总 token > 75% 窗口 → 分段摘要，保留 system；保留尾部再按 token 预算收口
   应急（reactive）        API 报 context_length_exceeded → 同上 + 最小尾部
+
+注：不再按消息条数裁剪上下文。条数阈值与窗口大小无关，会在长窗口下抢跑、
+饿死 token 口径的微压缩/摘要；且裁剪不落盘，会不可逆地丢掉关键消息。
 """
 import hashlib
 import json
@@ -25,10 +27,9 @@ logger = get_log()
 
 # ---- 预算阈值（相对 CONTEXT_WINDOW）----
 TOOL_RESULT_CAP = int(CONTEXT_WINDOW * 0.05)              # L1：单条结果落盘线（token）
-SNIP_MAX_MESSAGES = 50                                    # L2：消息数上限
-MICRO_TRIGGER = int(CONTEXT_WINDOW * 0.50)                # L3：总 token 触发线
-SUMMARY_TRIGGER = int(CONTEXT_WINDOW * 0.75)              # L4：总 token 触发线
-KEEP_RECENT_TOKENS = int(CONTEXT_WINDOW * 0.08)           # L3：保留的近期原始消息预算
+MICRO_TRIGGER = int(CONTEXT_WINDOW * 0.50)                # L2：总 token 触发线
+SUMMARY_TRIGGER = int(CONTEXT_WINDOW * 0.75)              # L3：总 token 触发线
+KEEP_RECENT_TOKENS = int(CONTEXT_WINDOW * 0.08)           # L2：保留的近期原始消息预算（微压缩与摘要尾部收口共用）
 SUMMARY_CHUNK_CHARS = 60_000                              # 摘要分块大小（字符）
 PREVIEW_CHARS = 1000                                      # 落盘预览头/尾字符数
 NOTIFICATION_CAP = 20_000                                 # 后台通知落盘线（字符，agent_runner 使用）
@@ -72,7 +73,7 @@ def estimate_tokens(text: str) -> int:
 
 # 每张图片的固定估算成本。真实视觉开销约数百~2K token，
 # 若按 base64 字符数估算会高估 100~1000 倍（一张 2MB 图会被算成 ~50 万 token），
-# 导致有图时误触发 L3/L4/应急压缩并造成 CPU 卡顿。
+# 导致有图时误触发 L2/L3/应急压缩并造成 CPU 卡顿。
 IMAGE_TOKEN_COST = 1500
 
 
@@ -304,7 +305,7 @@ def compact_view_images(messages: list, keep_latest: bool = True) -> list:
 # ---- L1：大结果落盘 ----
 
 def tool_result_budget(messages: list) -> list:
-    """第一层：扫描全部工具结果，超限者落盘，上下文仅保留预览"""
+    """第一层（L1）：扫描全部工具结果，超限者落盘，上下文仅保留预览"""
     for i in range(len(messages)):
         msg = messages[i]
         content = msg.get("content", "")
@@ -319,31 +320,7 @@ def tool_result_budget(messages: list) -> list:
     return messages
 
 
-# ---- L2：消息裁剪 ----
-
-def snip_compact(messages: list, max_message: int = SNIP_MAX_MESSAGES) -> list:
-    """第二层：保留前3条（包括系统提示词）和最后47条上下文，切割点对齐 user 消息边界"""
-    if len(messages) <= max_message:
-        return messages
-
-    keep_head, keep_tail = 3, max_message - 3
-    head_end, tail_start = keep_head, len(messages) - keep_tail
-
-    while head_end < len(messages) and messages[head_end].get("role") in ["assistant", "tool"]:
-        head_end += 1
-
-    #OpenAI API契约没有对role=='assistant'前必须为role=='user'的约束，所以这里我设计允许切除role=='assistant'前的用户信息，只保证
-    #role=='assistant'中的所有tool_calls都有相应的role=='tool'呼应
-    while tail_start > 0 and messages[tail_start - 1].get("role") in ["assistant", "tool"]:
-        tail_start -= 1
-
-    if head_end >= tail_start:
-        return messages
-
-    return messages[:head_end] + [{"role": "user", "content": f"{PERSISTED_PREFIX}snipped {tail_start - head_end} messages, but they have not been persisted</persisted-output>"}] + messages[tail_start:]
-
-
-# ---- L3：微压缩（先落盘再替换）----
+# ---- L2：微压缩（先落盘再替换）----
 
 def _recent_tail_start(messages: list) -> int:
     """从尾部向前累计 token，找到保留区的起始下标（对齐 user/system 边界）"""
@@ -358,7 +335,7 @@ def _recent_tail_start(messages: list) -> int:
 
 
 def micro_compact(messages: list) -> list:
-    """第三层：保留近期原始消息，更早的工具结果落盘后替换为占位符（无损）"""
+    """第二层（L2）：保留近期原始消息，更早的工具结果落盘后替换为占位符（无损）"""
     tail_start = _recent_tail_start(messages)
     for i in range(1, tail_start):
         msg = messages[i]
@@ -374,7 +351,7 @@ def micro_compact(messages: list) -> list:
     return messages
 
 
-# ---- L4：摘要 ----
+# ---- L3：摘要 ----
 
 def write_transcript(messages: list) -> str | None:
     """当前会话持久化到.transcript中（图片 base64 不落盘，替换为文本标记）"""
@@ -499,8 +476,35 @@ def _tail_start_at_user_boundary(messages: list) -> int:
     return max(1, start)
 
 
+def _cap_tail_by_tokens(messages: list, floor: int, budget: int) -> int:
+    """把保留尾部再按 token 预算收口，返回新的保留起点（恒 >= floor）。
+
+    floor 是 user 边界给出的语义下限：尾部 token 在预算内时原样返回 floor，
+    常规路径行为不变。仅当尾部自身就可能撑爆窗口（如单轮内大量 assistant 文本，
+    微压缩只处理工具结果、碰不到它）时才向后收口，避免摘要/应急压缩后仍超限不收敛。
+
+    收口是无损的：原始消息已由 write_transcript 落盘。
+    切点必须回避孤立 tool 消息（其 assistant.tool_calls 已被裁掉会违反 API 契约）。
+    """
+    if floor >= len(messages):
+        return floor
+
+    acc, start = 0, len(messages)
+    for i in range(len(messages) - 1, floor - 1, -1):
+        acc += estimate_messages([messages[i]])
+        if acc > budget:
+            break
+        start = i
+    if start == len(messages):
+        # 连最后一条都装不下：至少保留最后一条，而不是留空
+        start = len(messages) - 1
+    while start < len(messages) and messages[start].get("role") == "tool":
+        start += 1
+    return max(start, floor)
+
+
 def compact_history(messages: list) -> list:
-    """最后一层压缩：分段摘要 + 保留 system + 最近一轮完整工具周期"""
+    """LLM 摘要层（L3）：分段摘要 + 保留 system + 最近一轮完整工具周期（尾部按 token 预算收口）"""
     system_msg = messages[0] if messages and messages[0].get("role") == "system" else None
     try:
         transcript_path = write_transcript(messages)
@@ -508,6 +512,7 @@ def compact_history(messages: list) -> list:
     except CompactException:
         raise
     tail_start = _tail_start_at_user_boundary(messages)
+    tail_start = _cap_tail_by_tokens(messages, tail_start, KEEP_RECENT_TOKENS)
     result = [{
         "role": "user",
         "content": (
@@ -533,6 +538,7 @@ def reactive_compact(messages: list) -> list:
         raise
 
     tail_start = _tail_start_at_user_boundary(messages)
+    tail_start = _cap_tail_by_tokens(messages, tail_start, KEEP_RECENT_TOKENS)
 
     result = [{
         "role": "user",
@@ -550,16 +556,13 @@ def reactive_compact(messages: list) -> list:
 class CompactionPipeline:
     @staticmethod
     def compact(messages: list) -> list:
-        """每轮评估：L1 恒执行（幂等），L2/L3/L4 按预算触发"""
+        """每轮评估：L1 恒执行（幂等），L2/L3 按 token 预算触发"""
         if not messages:
             return messages
 
         messages = compact_view_images(messages)
 
         messages = tool_result_budget(messages)
-
-        if len(messages) > SNIP_MAX_MESSAGES:
-            messages = snip_compact(messages)
 
         if estimate_messages(messages) > MICRO_TRIGGER:
             logger.info(f"上下文超过 {MICRO_TRIGGER} tokens，触发微压缩")
