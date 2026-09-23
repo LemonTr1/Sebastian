@@ -323,15 +323,19 @@ def tool_result_budget(messages: list) -> list:
 # ---- L2：微压缩（先落盘再替换）----
 
 def _recent_tail_start(messages: list) -> int:
-    """从尾部向前累计 token，找到保留区的起始下标（对齐 user/system 边界）"""
+    """从尾部向前累计 token，返回保留区（原始内容不被替换）的起始下标。
+
+    只按 KEEP_RECENT_TOKENS 预算判定，不对齐 user/system 边界。
+    本层只把工具结果换成占位符（不删消息、不动 tool_calls 配对），从一轮中间切进去
+    的代价仅是模型需重读一次；而要求必须停在 user/system 边界上，会让单轮长任务
+    （唯一的 user 在轮首）把整轮都当成保留区，本层就此静默空转。
+    """
     keep_tokens = 0
-    tail_start = len(messages)
-    for i in range(len(messages) - 1, -1, -1):
+    for i in range(len(messages) - 1, 0, -1):
         keep_tokens += estimate_messages([messages[i]])
-        if keep_tokens >= KEEP_RECENT_TOKENS and messages[i].get("role") in ["user", "system"]:
-            tail_start = i
-            break
-    return max(1, tail_start)
+        if keep_tokens >= KEEP_RECENT_TOKENS:
+            return i
+    return max(1, len(messages))
 
 
 def micro_compact(messages: list) -> list:

@@ -243,6 +243,30 @@ class TestCompactionPipeline(unittest.TestCase):
         self.assertEqual(out3[8]["content"], "recent result keep me")
         self.assertEqual(out3[0]["content"], "sys")
 
+    def test_l2_micro_single_long_turn(self):
+        """单轮长任务（唯一的 user 在轮首）不得把整轮当成保留区而空转"""
+        from src.utils.compaction_pipeline import _recent_tail_start
+
+        msgs = [{"role": "system", "content": "sys"}, {"role": "user", "content": "MEGA_TASK"}]
+        for i in range(40):
+            msgs.append({"role": "assistant", "content": None, "tool_calls": [
+                {"id": f"c{i}", "type": "function", "function": {"name": "read", "arguments": "{}"}}]})
+            msgs.append({"role": "tool", "tool_call_id": f"c{i}", "content": "x" * 2000})
+
+        with patch("src.utils.compaction_pipeline.KEEP_RECENT_TOKENS", 3000):
+            start = _recent_tail_start([dict(m) for m in msgs])
+            out = micro_compact([dict(m) for m in msgs])
+
+        # 旧实现停在 user 边界上，返回 1（整段都进保留区）→ 一条都压不掉
+        self.assertGreater(start, 1)
+        self.assertLess(start, len(msgs))
+        persisted = [m for m in out if str(m.get("content", "")).startswith(PERSISTED_PREFIX)]
+        self.assertGreater(len(persisted), 0)
+        # 最近的工具结果仍原样保留，被压掉的可在磁盘读回
+        self.assertEqual(out[-1]["content"], "x" * 2000)
+        disk_path = persisted[0]["content"].split("Full output: ")[1].split("\n")[0]
+        self.assertEqual(Path(disk_path).read_text(encoding="utf-8"), "x" * 2000)
+
     # ---------- 6. 短会话零动作 ----------
     def test_short_conversation_noop(self):
         short = [
