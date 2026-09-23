@@ -27,9 +27,10 @@ from pathlib import Path
 import time
 from datetime import datetime
 import json
-from src.utils.compaction_pipeline import compact_history
+from src.utils.compaction_pipeline import compact_history, message_without_images
 from src.utils.agent_mode import AGENT_MODE
 from src.utils.memory_system import MEMORY_SYSTEM
+from src.utils.interaction import TERMINAL_IO_LOCK
 logger = get_log()
 
 # 注意：brain_agent / CRON_SCHEDULE / start_cron_scheduler / hooks_registry
@@ -56,17 +57,20 @@ def read_user_message(prompt: str) -> str:
     `input()` stops at the first newline, so a paste would otherwise be sliced into
     separate Agent turns. Prompt must not contain a leading newline — readline
     mis-counts width and wraps/slices the edit buffer.
+
+    持全局终端锁：避免 cron/后台线程的终端降级提示与主 REPL 同时抢 stdin。
     """
-    lines = [input(prompt)]
-    while _stdin_pending():
-        try:
-            lines.append(input())
-        except EOFError:
-            break
-    while lines and lines[-1].endswith("\\"):
-        lines[-1] = lines[-1][:-1]
-        lines.append(input("... "))
-    return "\n".join(lines)
+    with TERMINAL_IO_LOCK:
+        lines = [input(prompt)]
+        while _stdin_pending():
+            try:
+                lines.append(input())
+            except EOFError:
+                break
+        while lines and lines[-1].endswith("\\"):
+            lines[-1] = lines[-1][:-1]
+            lines.append(input("... "))
+        return "\n".join(lines)
 
 
 app = typer.Typer(no_args_is_help=False, help="AutomaticTaskAssistant")
@@ -131,12 +135,12 @@ def save_session(context: list, session_id: str):
     session_file = AGENT_SESSION_DIR / f"{session_id}.jsonl"
 
     try:
-        #清空覆写
+        #清空覆写（图片 base64 不落盘，替换为文本标记）
         with session_file.open("w", encoding="utf-8") as f:
             for message in context:
                 if message["role"] == "system":
                     continue
-                f.write(json.dumps(message, ensure_ascii=False) + "\n")
+                f.write(json.dumps(message_without_images(message), ensure_ascii=False) + "\n")
 
         typer.echo(typer.style(f"会话已保存，使用：sebastian -s {session_id} 即可恢复会话", fg=typer.colors.WHITE, bold=True))
     except PermissionError:

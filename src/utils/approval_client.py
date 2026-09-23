@@ -13,6 +13,11 @@ import threading
 from pathlib import Path
 from typing import Optional
 
+from src.logs.app_log import get_log
+from src.utils.interaction import gui_available, terminal_confirm, terminal_ok
+
+logger = get_log()
+
 
 class ApprovalClient:
     """零线程安全的审批客户端。
@@ -63,6 +68,12 @@ class ApprovalClient:
         with self._lock:
             tool_args = tool_args or {}
 
+            # 无图形环境 → 直接终端降级
+            available, reason = gui_available()
+            if not available:
+                logger.info(f"[approval] 无图形环境，降级为终端确认：{reason}")
+                return terminal_confirm(tool_name, tool_args, timeout)
+
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix="_req.json", delete=False, encoding="utf-8"
             ) as f:
@@ -93,12 +104,27 @@ class ApprovalClient:
                     stderr=subprocess.DEVNULL,
                     **kwargs,
                 )
-                proc.wait()
+                # wait 兜底：弹窗卡死时也不能让 Agent 永久阻塞
+                wait_seconds = (timeout + 30) if (timeout and timeout > 0) else None
+                try:
+                    proc.wait(timeout=wait_seconds)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                    logger.warning("[approval] 审批窗口超时未返回")
+                    if terminal_ok():
+                        return terminal_confirm(tool_name, tool_args, timeout)
+                    return False
 
                 if result_file.exists():
                     with open(result_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     return data.get("approved", False)
+
+                # 弹窗异常退出、未产生结果 → 运行兜底
+                logger.warning("[approval] 审批窗口未返回结果，尝试终端降级")
+                if terminal_ok():
+                    return terminal_confirm(tool_name, tool_args, timeout)
                 return False
             finally:
                 for f in (req_file, result_file):

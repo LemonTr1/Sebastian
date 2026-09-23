@@ -5,7 +5,7 @@ import typer
 from src.logs.app_log import get_log
 from src.tools.tools_registry import get_tools_registry
 from src.utils.eval_flag import is_eval_mode
-from src.utils.question_client import QuestionClient, is_dialog_available
+from src.utils.question_client import QuestionClient
 
 MAX_OPTIONS = 20
 MAX_OPTION_CHARS = 200
@@ -107,7 +107,7 @@ def question(question: str, options: list | None = None, timeout: int = DEFAULT_
 
     wait_seconds = _normalize_timeout(timeout)
 
-    # 降级判断顺序：先 eval 再图形环境，否则无头跑 eval 会先报环境错
+    # eval 模式无真人可回答，提前短路（窗口与终端降级都不走）
     if is_eval_mode():
         logger.info("[question] eval 模式，跳过弹窗")
         return _result(
@@ -122,23 +122,8 @@ def question(question: str, options: list | None = None, timeout: int = DEFAULT_
             }
         )
 
-    available, reason = is_dialog_available()
-    if not available:
-        logger.warning(f"[question] 无图形环境，跳过弹窗: {reason}")
-        return _result(
-            {
-                "success": False,
-                "status": "unavailable",
-                "answer": None,
-                "selected_option": None,
-                "is_free_text": False,
-                "error_message": f"当前环境无法弹出交互窗口：{reason}",
-                "hint": _HINTS["unavailable"],
-            }
-        )
-
     typer.echo(typer.style(
-        f"\n> [question] 弹窗等待用户回答（最长 {wait_seconds}s）...",
+        f"\n> [question] 等待用户回答（最长 {wait_seconds}s）...",
         fg=typer.colors.CYAN, bold=True,
     ))
 

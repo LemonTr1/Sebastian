@@ -171,7 +171,7 @@ All tools are registered in a central `ToolsRegistry`; each tool carries four at
 | `schedule_cron` | ✓ | Register a 5-field Unix cron job |
 | `list_crons` | | List registered cron jobs |
 | `cancel_cron` | | Cancel a cron job by ID |
-| `question` | | Pop-up question to the user (single/multi options + free input, 300s timeout; timeout/cancel returns unanswered) |
+| `question` | | Ask the user a question (options + free input, 300s timeout; falls back to a terminal prompt when no GUI is available; timeout/cancel returns unanswered) |
 
 ### MCP Tool Integration
 
@@ -224,6 +224,8 @@ HITL uses the subprocess dialog approach (`approval_client.py` + `approval_dialo
 - The parameter card displays the full tool arguments with syntax highlighting (strings/numbers/booleans colorized)
 - Keyboard shortcuts (Y/Enter to allow, N/Esc to deny) and countdown timeout with auto-deny
 - Three built-in themes: dark / light / blue
+- **Automatic terminal fallback when no GUI is available**: if `DISPLAY`/`WAYLAND_DISPLAY` is unset, tkinter is missing, or the dialog subprocess fails to return a result, approval degrades to a terminal prompt `Allow? [y/N]` (empty input / timeout / non-interactive terminal all default to deny); all tool arguments are ANSI-sanitized before printing to prevent terminal injection
+- Override the transport with `SEBASTIAN_INTERACTION=auto|gui|terminal` (default `auto`: use the dialog when possible, otherwise the terminal)
 
 ### Sandbox
 
@@ -249,7 +251,7 @@ An event-driven plugin mechanism injects custom logic at four points of the agen
 
 **Evaluated every AgentLoop turn**, the four-layer progressive compaction pipeline triggers per-layer by token budget (all thresholds are relative to the model context window, dynamically resolved from the model name in `.env`, defaulting to 128K for unknown models):
 
-1. **Persist large results**: a single tool result exceeding the cap (max(12K, 5% of window) tokens) is immediately written to disk (sha256 content-addressed dedup); the context keeps only the path plus head/tail previews — oversized content never enters the context
+1. **Persist large results**: a single tool result exceeding the cap (5% of window tokens) is immediately written to disk (sha256 content-addressed dedup); the context keeps only the path plus head/tail previews — oversized content never enters the context
 2. **Snip messages**: keep the first 3 + last 47 messages when exceeding 50, cut at user-message boundaries
 3. **Micro-compact**: when total tokens exceed 50% of the window, older tool results are persisted to disk first, then replaced with placeholders (lossless, re-readable anytime)
 4. **LLM summarization**: when total tokens exceed 75% of the window, the conversation is summarized via chunked API calls (each request stays bounded and cannot overflow); the original is archived as a transcript, the system prompt and the latest complete tool cycle are preserved

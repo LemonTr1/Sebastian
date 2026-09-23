@@ -9,14 +9,10 @@ from src.tools.tools_registry import get_tools_registry
 
 class TestQuestionTool(unittest.TestCase):
     def setUp(self):
-        # 默认让环境检查通过，避免测试机无 DISPLAY 时全部走降级分支
-        for target, value in (
-            ("is_dialog_available", (True, "")),
-            ("is_eval_mode", False),
-        ):
-            patcher = patch.object(q, target, return_value=value)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        # eval 模式默认关闭；图形环境检测已下沉到 QuestionClient，不在工具层
+        patcher = patch.object(q, "is_eval_mode", return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_registered_and_not_hitl(self):
         registry = get_tools_registry()
@@ -74,13 +70,15 @@ class TestQuestionTool(unittest.TestCase):
         self.assertIn("hint", payload)
         self.assertIn("5", payload["error_message"])
 
-    def test_unavailable_when_no_display(self):
-        with patch.object(q, "is_dialog_available", return_value=(False, "no display")), \
-                patch.object(q._QUESTION_CLIENT, "ask") as ask:
+    def test_unavailable_status_mapped(self):
+        # 客户端（无 GUI 且非终端）返回 unavailable 时，工具应附带 hint
+        with patch.object(q._QUESTION_CLIENT, "ask", return_value={
+            "status": "unavailable", "answer": None, "selected_option": None, "is_free_text": False,
+        }):
             payload = json.loads(q.question("?"))
+        self.assertFalse(payload["success"])
         self.assertEqual(payload["status"], "unavailable")
         self.assertIn("hint", payload)
-        ask.assert_not_called()
 
     def test_eval_mode_skips_dialog(self):
         with patch.object(q, "is_eval_mode", return_value=True), \

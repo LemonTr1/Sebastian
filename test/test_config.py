@@ -84,13 +84,15 @@ class TestContextWindow(unittest.TestCase):
 
     def test_known_model_resolves(self):
         cfg = _reload({"DEEPSEEK_MODEL": "deepseek-v4-flash"})
-        self.assertEqual(cfg.CONTEXT_WINDOW, 128_000_000)
+        self.assertEqual(cfg.CONTEXT_WINDOW, 1_000_000)
+        cfg = _reload({"DEEPSEEK_MODEL": "deepseek-flash"})
+        self.assertEqual(cfg.CONTEXT_WINDOW, 1_000_000)
         cfg = _reload({"DEEPSEEK_MODEL": "gpt-4o"})
-        self.assertEqual(cfg.CONTEXT_WINDOW, 128_000_000)
+        self.assertEqual(cfg.CONTEXT_WINDOW, 128_000)
 
     def test_unknown_model_falls_back_without_crash(self):
         cfg = _reload({"DEEPSEEK_MODEL": "totally-unknown-model"})
-        self.assertEqual(cfg.CONTEXT_WINDOW, 128_000_000)
+        self.assertEqual(cfg.CONTEXT_WINDOW, 128_000)
 
 
 class TestGetClient(unittest.TestCase):

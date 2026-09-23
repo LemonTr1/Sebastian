@@ -240,6 +240,8 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 - 参数卡片完整展示工具参数，附带语法高亮（字符串/数字/布尔分色）
 - 支持键盘快捷键（Y/Enter 允许，N/Esc 拒绝）、倒计时超时自动拒绝
 - 内置 dark / light / blue 三种主题
+- **无图形环境自动降级为终端确认**：未设置 `DISPLAY`/`WAYLAND_DISPLAY`、未安装 tkinter，或弹窗子进程异常未返回结果时，改为在终端提示 `是否允许？[y/N]`（空输入/超时/非交互终端一律默认拒绝）；所有工具参数打印前会清洗 ANSI 转义，防止终端注入
+- 可用环境变量 `SEBASTIAN_INTERACTION=auto|gui|terminal` 强制交互方式（默认 `auto`：能弹窗则弹窗，否则终端）
 
 ### Agent 提问窗口
 
@@ -250,7 +252,7 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 - 默认 300 秒倒计时（`timeout` 参数可调，范围 5-3600），归零自动关闭并返回未作答
 - 快捷键：Enter 提交、Esc 取消；窗口置顶居中
 - 结果为结构化状态：`answered` / `timeout` / `cancelled` / `busy` / `unavailable` / `error`。非 `answered` 时返回值附带 `hint`，引导 Agent 改用合理默认值继续或在正文中提问，而非反复弹窗打扰用户
-- 降级：Eval 模式与无图形环境（未设置 `DISPLAY`/`WAYLAND_DISPLAY`、未装 tkinter）下不弹窗，直接返回 `unavailable`
+- 降级：无图形环境（未设置 `DISPLAY`/`WAYLAND_DISPLAY`、未装 tkinter）或弹窗异常时，自动降级为**终端问答**（有选项则编号选择，也可直接输入文本）；仅有在"既无图形、又不是交互终端"时才返回 `unavailable`；Eval 模式仍直接跳过
 - Plan 模式下可用（提问属于只读行为）
 
 ### 沙箱系统
@@ -277,7 +279,7 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 
 **每轮 AgentLoop 自动评估**、按 token 预算逐层触发的四层递进式压缩管线（所有阈值相对模型上下文窗口计算，窗口由 `.env` 中的模型名动态解析，陌生模型按 128K 兜底）：
 
-1. **大结果落盘**：单条工具结果超上限（max(12K, 5% 窗口) token）时立即持久化至磁盘（sha256 内容寻址去重），上下文仅保留路径与头尾预览——大内容从源头不进上下文
+1. **大结果落盘**：单条工具结果超上限（5% 窗口 token）时立即持久化至磁盘（sha256 内容寻址去重），上下文仅保留路径与头尾预览——大内容从源头不进上下文
 2. **消息裁剪**：消息超过 50 条时保留前 3 + 后 47 条，切割点对齐 user 消息边界
 3. **微压缩**：总 token 超过 50% 窗口时，旧工具结果**先落盘再替换**为占位符（无损，可随时重读）
 4. **LLM 摘要**：总 token 超过 75% 窗口时调用 API **分段摘要**（单次输入恒有界，不会溢出），原始对话存档为 transcript，system 提示词与最近一轮完整工具周期保留

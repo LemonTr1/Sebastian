@@ -24,7 +24,7 @@ from src.utils.exceptions import CompactException
 logger = get_log()
 
 # ---- 预算阈值（相对 CONTEXT_WINDOW）----
-TOOL_RESULT_CAP = max(12_000_000, int(CONTEXT_WINDOW * 0.05))   # L1：单条结果落盘线（token）
+TOOL_RESULT_CAP = int(CONTEXT_WINDOW * 0.05)              # L1：单条结果落盘线（token）
 SNIP_MAX_MESSAGES = 50                                    # L2：消息数上限
 MICRO_TRIGGER = int(CONTEXT_WINDOW * 0.50)                # L3：总 token 触发线
 SUMMARY_TRIGGER = int(CONTEXT_WINDOW * 0.75)              # L4：总 token 触发线
@@ -70,8 +70,55 @@ def estimate_tokens(text: str) -> int:
     return max(1, int(cjk + other / 4))
 
 
+# 每张图片的固定估算成本。真实视觉开销约数百~2K token，
+# 若按 base64 字符数估算会高估 100~1000 倍（一张 2MB 图会被算成 ~50 万 token），
+# 导致有图时误触发 L3/L4/应急压缩并造成 CPU 卡顿。
+IMAGE_TOKEN_COST = 1500
+
+
+def _estimate_parts(parts: list) -> int:
+    """估算多模态 content-parts 的 token：图片按固定成本，文本按启发式。"""
+    total = 0
+    for part in parts:
+        if isinstance(part, dict) and part.get("type") == "image_url":
+            total += IMAGE_TOKEN_COST
+        elif isinstance(part, dict) and part.get("type") == "text":
+            total += estimate_tokens(part.get("text") or "")
+        else:
+            total += estimate_tokens(json.dumps(part, ensure_ascii=False, default=str))
+    return total
+
+
 def estimate_messages(messages: list) -> int:
-    return sum(estimate_tokens(json.dumps(m, ensure_ascii=False, default=str)) for m in messages)
+    total = 0
+    for msg in messages:
+        content = msg.get("content")
+        if isinstance(content, list):
+            # 多模态消息：按 part 估算，绝不对含 base64 的整条消息 json.dumps
+            total += _estimate_parts(content)
+            envelope = {k: v for k, v in msg.items() if k != "content"}
+            if envelope:
+                total += estimate_tokens(json.dumps(envelope, ensure_ascii=False, default=str))
+        else:
+            total += estimate_tokens(json.dumps(msg, ensure_ascii=False, default=str))
+    return total
+
+
+def message_without_images(msg: dict) -> dict:
+    """返回消息副本：把 image_url part 换成文本标记。
+
+    用于摘要输入与归档写盘（transcript / session），保证 base64 图片永不写入磁盘。
+    """
+    content = msg.get("content")
+    if not isinstance(content, list):
+        return msg
+    new_content = []
+    for part in content:
+        if isinstance(part, dict) and part.get("type") == "image_url":
+            new_content.append({"type": "text", "text": "<image omitted>"})
+        else:
+            new_content.append(part)
+    return {**msg, "content": new_content}
 
 
 # ---- 落盘工具 ----
@@ -233,16 +280,20 @@ def build_image_placeholder(msg: dict) -> dict:
     }
 
 
-def compact_view_images(messages: list) -> list:
-    """扫描全部 view_image 结果，只保留最近一轮图片，更早的旧图替换为占位符。"""
+def compact_view_images(messages: list, keep_latest: bool = True) -> list:
+    """扫描全部 view_image 结果。
+
+    keep_latest=True ：只保留最近一轮图片，更早的旧图替换为占位符（常规每轮）。
+    keep_latest=False：压缩所有图片（应急压缩时用，否则大图仍在尾部导致重试无法收敛）。
+    """
     img_idx = [
         i for i, m in enumerate(messages) if _is_view_image_msg(m)
     ]
     if not img_idx:
         return messages
 
-    round_start = _latest_image_round_start(messages, img_idx[-1])
-    # 保留本轮（round_start…末尾）的图片，压缩该起点之前的旧图
+    round_start = _latest_image_round_start(messages, img_idx[-1]) if keep_latest else len(messages)
+    # 只压缩该起点之前的旧图
     for i in img_idx:
         if i >= round_start:
             continue
@@ -299,7 +350,7 @@ def _recent_tail_start(messages: list) -> int:
     keep_tokens = 0
     tail_start = len(messages)
     for i in range(len(messages) - 1, -1, -1):
-        keep_tokens += estimate_tokens(json.dumps(messages[i], ensure_ascii=False, default=str))
+        keep_tokens += estimate_messages([messages[i]])
         if keep_tokens >= KEEP_RECENT_TOKENS and messages[i].get("role") in ["user", "system"]:
             tail_start = i
             break
@@ -326,7 +377,7 @@ def micro_compact(messages: list) -> list:
 # ---- L4：摘要 ----
 
 def write_transcript(messages: list) -> str | None:
-    """当前会话持久化到.transcript中"""
+    """当前会话持久化到.transcript中（图片 base64 不落盘，替换为文本标记）"""
     if not TRANSCRIPTS_DIR.is_dir():
         TRANSCRIPTS_DIR.mkdir(exist_ok=True, parents=True)
     transcript_path = TRANSCRIPTS_DIR / f"transcript_{get_session_id_container().get_session_id()}.txt"
@@ -335,7 +386,7 @@ def write_transcript(messages: list) -> str | None:
             for msg in messages:
                 if msg.get("role", "") == "system":
                     continue
-                f.write(json.dumps(msg, ensure_ascii=False) + "\n")
+                f.write(json.dumps(message_without_images(msg), ensure_ascii=False) + "\n")
 
         logger.info(f"transcript saved: {transcript_path}")
     except PermissionError as e:
@@ -395,8 +446,19 @@ def _split_chunks(lines: list) -> list:
 
 
 def summerize_history(messages: list) -> str:
-    """调用API分段摘要会话：逐块摘要、块间递归合并，单次输入恒有界"""
-    lines = [json.dumps(m, ensure_ascii=False, default=str) for m in messages]
+    """调用API分段摘要会话：逐块摘要、块间递归合并，单次输入恒有界。
+
+    - 排除 system 消息（system 由调用方单独保留，不参与摘要，避免污染与浪费预算）
+    - 图片 part 替换为文本标记，避免序列化大段 base64
+    """
+    lines = [
+        json.dumps(message_without_images(m), ensure_ascii=False, default=str)
+        for m in messages
+        if m.get("role") != "system"
+    ]
+    if not lines:
+        return "(empty summary)"
+
     parts = ["\n".join(c) for c in _split_chunks(lines)]
     parts = [_api_summarize(p) for p in parts]
 
@@ -433,7 +495,8 @@ def _tail_start_at_user_boundary(messages: list) -> int:
     start = last_user
     while start > 0 and _is_plain_user(messages[start - 1]):
         start -= 1
-    return start
+    # 尾部起点不得为 0：否则 compact_history 会产出 [摘要, *全部历史] 造成重复
+    return max(1, start)
 
 
 def compact_history(messages: list) -> list:
@@ -462,7 +525,7 @@ def reactive_compact(messages: list) -> list:
     """应急反应式压缩：先落盘超限结果，再分段摘要，保留最小尾部，仅在AgentLoop中API抛出上下文溢出异常时才会触发"""
     system_msg = messages[0] if messages and messages[0].get("role") == "system" else None
     try:
-        compact_view_images(messages)
+        compact_view_images(messages, keep_latest=False)
         tool_result_budget(messages)
         transcript_path = write_transcript(messages)
         summary = summerize_history(messages)

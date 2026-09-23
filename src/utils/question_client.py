@@ -9,9 +9,7 @@
 - 取锁带超时，抢不到返回 busy 而非无限阻塞
 - 提供 is_dialog_available() 供调用方在无图形环境时优雅降级
 """
-import importlib.util
 import json
-import os
 import platform
 import subprocess
 import sys
@@ -20,18 +18,16 @@ import threading
 from pathlib import Path
 from typing import Optional
 
+from src.utils.interaction import gui_available, terminal_question, terminal_ok
+
 
 def is_dialog_available() -> tuple[bool, str]:
-    """预检能否弹出交互窗口。
+    """兼容别名：委托给 interaction.gui_available()。
 
     只做环境变量与模块存在性判断，不在主进程里 tk.Tk() 试探——
     那会在 Agent 进程内创建 Tcl 解释器并引入线程亲和与资源泄漏问题。
     """
-    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
-        return False, "未检测到图形显示环境（DISPLAY/WAYLAND_DISPLAY 未设置）"
-    if importlib.util.find_spec("tkinter") is None:
-        return False, "未安装 tkinter（Debian/Ubuntu 需 sudo apt install python3-tk）"
-    return True, ""
+    return gui_available()
 
 
 def _empty(status: str, error: str) -> dict:
@@ -97,6 +93,11 @@ class QuestionClient:
             return _empty("busy", "已有另一个提问窗口正在等待回答")
 
         try:
+            # 无图形环境 → 直接终端降级
+            available, reason = gui_available()
+            if not available:
+                return terminal_question(question, options, timeout)
+
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix="_q.json", delete=False, encoding="utf-8"
             ) as f:
@@ -141,6 +142,9 @@ class QuestionClient:
                     return _empty("timeout", "提问窗口未在预期时间内返回结果")
 
                 if not result_file.exists():
+                    # 弹窗异常退出、未产生结果 → 运行兜底
+                    if terminal_ok():
+                        return terminal_question(question, options, timeout)
                     return _empty("error", "提问窗口异常退出，未返回结果")
 
                 try:
