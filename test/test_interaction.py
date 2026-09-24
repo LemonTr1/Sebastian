@@ -172,5 +172,49 @@ class TestTerminalQuestion(unittest.TestCase):
         self.assertEqual(res["status"], "timeout")
 
 
+class TestTerminalColor(unittest.TestCase):
+    """无图形环境下的终端降级提示应着黄色，且仅在交互终端生效"""
+
+    def _confirm_output(self, lines, tty=True, env=None):
+        stdout = FakeStdout(tty=tty)
+        with patch("sys.stdin", FakeStdin(lines, tty=tty)), \
+                patch("sys.stdout", stdout), \
+                patch.dict(os.environ, env if env is not None else {}, clear=True):
+            terminal_confirm("bash", {"cmd": "rm -rf /tmp/x"}, None)
+        return stdout.getvalue()
+
+    def test_confirm_prompt_is_yellow_on_tty(self):
+        out = self._confirm_output(["y\n"])
+        self.assertIn("\x1b[33m", out)
+        self.assertIn("是否允许？", out)
+
+    def test_confirm_no_color_when_no_color_env(self):
+        self.assertNotIn("\x1b[33m", self._confirm_output(["y\n"], env={"NO_COLOR": "1"}))
+
+    def test_confirm_no_color_when_term_dumb(self):
+        self.assertNotIn("\x1b[33m", self._confirm_output(["y\n"], env={"TERM": "dumb"}))
+
+    def test_confirm_no_color_on_non_tty(self):
+        self.assertNotIn("\x1b[33m", self._confirm_output([], tty=False))
+
+    def test_question_prompt_is_yellow_on_tty(self):
+        stdout = FakeStdout(tty=True)
+        with patch("sys.stdin", FakeStdin(["2\n"], tty=True)), \
+                patch("sys.stdout", stdout), \
+                patch.dict(os.environ, {}, clear=True):
+            res = terminal_question("选一个", ["A", "B"], None)
+        self.assertEqual(res["selected_option"], "B")
+        self.assertIn("\x1b[33m", stdout.getvalue())
+
+    def test_question_no_color_on_non_tty(self):
+        stdout = FakeStdout(tty=False)
+        with patch("sys.stdin", FakeStdin([], tty=False)), \
+                patch("sys.stdout", stdout), \
+                patch.dict(os.environ, {}, clear=True):
+            res = terminal_question("?", ["A"], None)
+        self.assertEqual(res["status"], "unavailable")
+        self.assertNotIn("\x1b[33m", stdout.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

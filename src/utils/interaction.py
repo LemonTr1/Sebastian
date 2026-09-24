@@ -7,6 +7,9 @@
 - terminal_question(): 终端版提问（返回与 QuestionClient 同构的 dict）
 - TERMINAL_IO_LOCK:    全局终端 I/O 锁，与 cli REPL 共用，避免多线程抢 stdin
 
+无图形环境时，终端降级的提示块整体着黄色，与 Agent 输出、后台任务打印区分开。
+着色仅在交互终端生效，并遵循 NO_COLOR 与 TERM=dumb 约定。
+
 环境变量：
     SEBASTIAN_INTERACTION = auto | gui | terminal
     - auto（默认）: 自动检测图形环境，不可用则终端降级
@@ -83,6 +86,22 @@ def _emit(text: str = "") -> None:
     print(text, flush=True)
 
 
+def _use_color() -> bool:
+    """终端降级提示是否着色：需为交互终端，且未被 NO_COLOR / TERM=dumb 禁用。"""
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("TERM", "").lower() == "dumb":
+        return False
+    return terminal_ok()
+
+
+def _yellow(text: str = "") -> str:
+    """把文本染成黄色，用于无图形环境时突出人机交互提示。"""
+    if not text or not _use_color():
+        return text
+    return f"\x1b[33m{text}\x1b[0m"
+
+
 def _select_supported() -> bool:
     return os.name == "posix" and hasattr(select, "select")
 
@@ -144,23 +163,23 @@ def terminal_confirm(tool_name: str, tool_args: dict | None = None, timeout: int
     tool_args = tool_args or {}
     with TERMINAL_IO_LOCK:
         _emit()
-        _emit("=" * 56)
-        _emit(f"[审批] Agent 请求执行工具：{sanitize(tool_name)}")
-        _emit("-" * 56)
-        _emit(_truncate(_format_args(tool_args)))
-        _emit("-" * 56)
+        _emit(_yellow("=" * 56))
+        _emit(_yellow(f"[审批] Agent 请求执行工具：{sanitize(tool_name)}"))
+        _emit(_yellow("-" * 56))
+        _emit(_yellow(_truncate(_format_args(tool_args))))
+        _emit(_yellow("-" * 56))
         if timeout is not None and timeout > 0:
-            _emit(f"（{timeout} 秒内无响应将默认拒绝）")
+            _emit(_yellow(f"（{timeout} 秒内无响应将默认拒绝）"))
 
-        line, timed_out = _read_line_timeout("是否允许？[y/N]: ", timeout)
+        line, timed_out = _read_line_timeout(_yellow("是否允许？[y/N]: "), timeout)
         if timed_out:
-            _emit("[审批] 超时，已拒绝")
+            _emit(_yellow("[审批] 超时，已拒绝"))
             return False
         if line is None:
-            _emit("[审批] 未获得输入，已拒绝")
+            _emit(_yellow("[审批] 未获得输入，已拒绝"))
             return False
         approved = line.strip().lower() in ("y", "yes")
-        _emit("[审批] 已允许" if approved else "[审批] 已拒绝")
+        _emit(_yellow("[审批] 已允许" if approved else "[审批] 已拒绝"))
         return approved
 
 
@@ -192,29 +211,29 @@ def terminal_question(question: str, options: list | None = None, timeout: int |
 
     with TERMINAL_IO_LOCK:
         _emit()
-        _emit("=" * 56)
-        _emit("[提问] Agent 需要你的回答：")
-        _emit("-" * 56)
-        _emit(_truncate(sanitize(question)))
+        _emit(_yellow("=" * 56))
+        _emit(_yellow("[提问] Agent 需要你的回答："))
+        _emit(_yellow("-" * 56))
+        _emit(_yellow(_truncate(sanitize(question))))
         if options:
-            _emit("")
+            _emit()
             for index, option in enumerate(options, 1):
-                _emit(f"  {index}) {_truncate(sanitize(option), 300)}")
+                _emit(_yellow(f"  {index}) {_truncate(sanitize(option), 300)}"))
         if timeout is not None:
-            _emit(f"（{timeout} 秒内无响应将自动取消）")
+            _emit(_yellow(f"（{timeout} 秒内无响应将自动取消）"))
 
         while True:
             remaining = None if deadline is None else max(0.0, deadline - time.monotonic())
             if remaining is not None and remaining <= 0:
-                _emit("[提问] 超时")
+                _emit(_yellow("[提问] 超时"))
                 return _question_result("timeout", "用户在等待时间内未作答")
 
-            line, timed_out = _read_line_timeout("回答（编号或文本）: ", remaining)
+            line, timed_out = _read_line_timeout(_yellow("回答（编号或文本）: "), remaining)
             if timed_out:
-                _emit("[提问] 超时")
+                _emit(_yellow("[提问] 超时"))
                 return _question_result("timeout", "用户在等待时间内未作答")
             if line is None:
-                _emit("[提问] 已取消")
+                _emit(_yellow("[提问] 已取消"))
                 return _question_result("cancelled", "用户中断了回答")
 
             text = line.strip()
@@ -222,7 +241,7 @@ def terminal_question(question: str, options: list | None = None, timeout: int |
                 idx = int(text)
                 if 1 <= idx <= len(options):
                     chosen = options[idx - 1]
-                    _emit(f"[提问] 已选择：{sanitize(chosen)}")
+                    _emit(_yellow(f"[提问] 已选择：{sanitize(chosen)}"))
                     return {
                         "status": "answered",
                         "answer": chosen,
@@ -230,7 +249,7 @@ def terminal_question(question: str, options: list | None = None, timeout: int |
                         "is_free_text": False,
                         "error": None,
                     }
-                _emit("无效编号，请重新输入")
+                _emit(_yellow("无效编号，请重新输入"))
                 continue
             if text:
                 return {
@@ -240,4 +259,4 @@ def terminal_question(question: str, options: list | None = None, timeout: int |
                     "is_free_text": True,
                     "error": None,
                 }
-            _emit("请先选择选项或输入回答")
+            _emit(_yellow("请先选择选项或输入回答"))
