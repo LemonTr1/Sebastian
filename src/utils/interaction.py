@@ -7,7 +7,8 @@
 - terminal_question(): 终端版提问（返回与 QuestionClient 同构的 dict）
 - TERMINAL_IO_LOCK:    全局终端 I/O 锁，与 cli REPL 共用，避免多线程抢 stdin
 
-无图形环境时，终端降级的提示块整体着黄色，与 Agent 输出、后台任务打印区分开。
+无图形环境时，终端降级的提示块整体着黄色加粗（typer.style），与 Agent 输出、后台
+任务打印区分开；审批的决策输入走 typer.confirm（默认拒绝）。
 着色仅在交互终端生效，并遵循 NO_COLOR 与 TERM=dumb 约定。
 
 环境变量：
@@ -24,6 +25,8 @@ import select
 import sys
 import threading
 import time
+
+import typer
 
 INTERACTION_ENV = "SEBASTIAN_INTERACTION"
 VALID_MODES = ("auto", "gui", "terminal")
@@ -96,10 +99,10 @@ def _use_color() -> bool:
 
 
 def _yellow(text: str = "") -> str:
-    """把文本染成黄色，用于无图形环境时突出人机交互提示。"""
+    """把文本染成黄色加粗，用于无图形环境时突出人机交互提示。"""
     if not text or not _use_color():
         return text
-    return f"\x1b[33m{text}\x1b[0m"
+    return typer.style(text, fg=typer.colors.YELLOW, bold=True)
 
 
 def _select_supported() -> bool:
@@ -170,15 +173,22 @@ def terminal_confirm(tool_name: str, tool_args: dict | None = None, timeout: int
         _emit(_yellow("-" * 56))
         if timeout is not None and timeout > 0:
             _emit(_yellow(f"（{timeout} 秒内无响应将默认拒绝）"))
+            # typer.confirm 自身不支持超时，先探一次 stdin 可读性再进入阻塞提问
+            if _select_supported():
+                try:
+                    ready, _, _ = select.select([sys.stdin], [], [], timeout)
+                except (OSError, ValueError):
+                    ready = [sys.stdin]
+                if not ready:
+                    _emit(_yellow("[审批] 超时，已拒绝"))
+                    return False
 
-        line, timed_out = _read_line_timeout(_yellow("是否允许？[y/N]: "), timeout)
-        if timed_out:
-            _emit(_yellow("[审批] 超时，已拒绝"))
-            return False
-        if line is None:
+        try:
+            approved = typer.confirm(_yellow("是否允许？"), default=False)
+        except (typer.Abort, EOFError, KeyboardInterrupt):
+            # typer.confirm 遇 EOF/Ctrl-C 会抛 Abort，本函数契约是不抛异常
             _emit(_yellow("[审批] 未获得输入，已拒绝"))
             return False
-        approved = line.strip().lower() in ("y", "yes")
         _emit(_yellow("[审批] 已允许" if approved else "[审批] 已拒绝"))
         return approved
 
