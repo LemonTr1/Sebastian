@@ -14,27 +14,43 @@ Sebastian is an LLM-powered multi-agent terminal assistant: a central Brain Agen
 
 ## Table of Contents
 
-- [Design Philosophy](#design-philosophy)
-- [Architecture Overview](#architecture-overview)
-- [Core Features](#core-features)
-  - [Multi-Agent Collaboration](#multi-agent-collaboration)
-  - [Tool System](#tool-system)
-  - [Memory System](#memory-system)
-  - [Security System](#security-system)
-  - [Human-in-the-Loop Approval](#human-in-the-loop-approval)
-  - [Sandbox](#sandbox)
-  - [Hook System](#hook-system)
-  - [Context Compaction](#context-compaction)
-  - [Background Tasks](#background-tasks)
-  - [Scheduled Tasks](#scheduled-tasks)
-  - [Session Management](#session-management)
-  - [Plan / Build Modes](#plan--build-modes)
-  - [Skill System](#skill-system)
-- [Quick Start](#quick-start)
-- [CLI Commands](#cli-commands)
-- [Project Structure](#project-structure)
-- [Tech Stack](#tech-stack)
-- [License](#license)
+- [Sebastian — Multi-Agent Intelligent Task Assistant](#sebastian--multi-agent-intelligent-task-assistant)
+  - [Table of Contents](#table-of-contents)
+  - [Design Philosophy](#design-philosophy)
+    - [1. Declarative Design — Capability Is a File](#1-declarative-design--capability-is-a-file)
+    - [2. Separation of Command and Execution — The Brain Agent Does Not Execute Tasks](#2-separation-of-command-and-execution--the-brain-agent-does-not-execute-tasks)
+    - [3. Never Trust the LLM — Model Output Must Pass Security Checks First](#3-never-trust-the-llm--model-output-must-pass-security-checks-first)
+    - [4. Isolation over Trust — Security Through Boundaries](#4-isolation-over-trust--security-through-boundaries)
+    - [5. Graceful Degradation — Faults Are Tolerated, Recovery Is Required](#5-graceful-degradation--faults-are-tolerated-recovery-is-required)
+    - [6. Human-Machine Collaboration — Machines Request, Humans Decide](#6-human-machine-collaboration--machines-request-humans-decide)
+  - [Architecture Overview](#architecture-overview)
+  - [Core Features](#core-features)
+    - [Multi-Agent Collaboration](#multi-agent-collaboration)
+    - [Tool System](#tool-system)
+    - [MCP Tool Integration](#mcp-tool-integration)
+    - [Memory System](#memory-system)
+    - [Security System](#security-system)
+    - [Human-in-the-Loop Approval](#human-in-the-loop-approval)
+    - [Sandbox](#sandbox)
+    - [Hook System](#hook-system)
+    - [Context Compaction](#context-compaction)
+    - [Background Tasks](#background-tasks)
+    - [Scheduled Tasks](#scheduled-tasks)
+    - [Session Management](#session-management)
+    - [Plan / Build / Auto Modes](#plan--build--auto-modes)
+    - [Skill System](#skill-system)
+  - [Quick Start](#quick-start)
+    - [Requirements](#requirements)
+    - [Installation](#installation)
+    - [Configure the API Key](#configure-the-api-key)
+    - [Run](#run)
+  - [CLI Commands](#cli-commands)
+    - [Startup](#startup)
+    - [In-Chat Commands](#in-chat-commands)
+  - [Project Structure](#project-structure)
+  - [Tech Stack](#tech-stack)
+  - [License](#license)
+  - [Version](#version)
 
 ---
 
@@ -151,12 +167,12 @@ The Brain Agent routes subtasks to specialized sub-agents via the `agent` tool; 
 
 ### Tool System
 
-All tools are registered in a central `ToolsRegistry`; each tool carries four attributes: name, implementation, JSON Schema, and HITL flag. Tools are allocated per agent — the Brain Agent has access to 17 built-in tools, plus any tools exposed by enabled MCP servers (registered dynamically), while sub-agents receive their toolsets through dynamic registration at runtime (sub-agents are never allowed to dispatch other sub-agents).
+All tools are registered in a central `ToolsRegistry`; each tool carries four attributes: name, implementation, JSON Schema, and HITL flag. Tools are allocated per agent — the Brain Agent has access to 16 built-in tools, plus any tools exposed by enabled MCP servers (registered dynamically), while sub-agents receive their toolsets through dynamic registration at runtime (sub-agents are never allowed to dispatch other sub-agents).
 
 | Tool | HITL | Description |
 |------|:----:|-------------|
 | `bash` | ✓ | Execute shell commands in the bubblewrap sandbox (async-capable) |
-| `read` | | Read files (full or offset+limit slices) |
+| `read` | | Read files (text: full or offset+limit slices; images png/jpg/jpeg/webp/gif/bmp ≤15MB loaded multimodally for vision models) |
 | `write` | ✓ | Overwrite files (PDF/DOCX blocked) |
 | `edit` | ✓ | Exact find-and-replace (supports replaceAll) |
 | `ls` | | List directory contents |
@@ -164,7 +180,6 @@ All tools are registered in a central `ToolsRegistry`; each tool carries four at
 | `grep` | | Regex content search |
 | `web_search` | | DuckDuckGo search (timeout-protected) |
 | `web_fetch` | | Web page extraction (pre-request SSRF check) |
-| `view_image` | | Read a local image (png/jpg/jpeg/webp/gif/bmp, ≤15MB) for vision models |
 | `todo` | | Task planning with progress visualization |
 | `load_skill` | | Load a skill document |
 | `agent` | ✓ | Dispatch a sub-agent (async-capable) |
@@ -413,10 +428,10 @@ Sebastian/
 │   │
 │   ├── tools/
 │   │   ├── tools_registry.py       # Central tool registry (per-agent allocation, HITL flags)
-│   │   └── toolkits/               # 17 built-in tools + MCP bridge
+│   │   └── toolkits/               # 16 built-in tools + MCP bridge
 │   │       ├── bash.py             # Sandboxed command execution (async-capable)
 │   │       ├── read.py / write.py / edit.py / ls.py / glob.py / grep.py
-│   │       ├── web_search.py / web_fetch.py / view_image.py
+│   │       ├── web_search.py / web_fetch.py
 │   │       ├── question.py         # Pop-up question to the user
 │   │       ├── mcp.py              # Register MCP server tools into ToolsRegistry at startup
 │   │       ├── todo_manager.py     # Task planning / progress reminders

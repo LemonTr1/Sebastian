@@ -167,12 +167,12 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 
 ### 工具系统
 
-所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可用 17 项内置工具，并在接入 MCP server 后动态追加其暴露的工具；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
+所有工具注册于中央 `ToolsRegistry`，每项工具包含四个属性：名称、实现函数、JSON Schema、HITL 标记。工具按 Agent 分配——Brain Agent 可用 16 项内置工具，并在接入 MCP server 后动态追加其暴露的工具；子 Agent 的工具集在运行时动态注册（子 Agent 不允许嵌套调度其他子 Agent）。
 
 | 工具 | HITL | 说明 |
 |------|:----:|------|
 | `bash` | ✓ | 在 bubblewrap 沙箱中执行 Shell 命令（支持后台异步） |
-| `read` | | 读取文件（全文或偏移量+行数分片） |
+| `read` | | 读取文件（文本支持全文或偏移量+行数分片；图片 png/jpg/jpeg/webp/gif/bmp ≤15MB 以多模态加载供视觉模型查看） |
 | `write` | ✓ | 覆盖写入文件（阻止 PDF/DOCX） |
 | `edit` | ✓ | 精确字符串查找替换（支持 replaceAll） |
 | `ls` | | 列出目录内容 |
@@ -180,7 +180,6 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 | `grep` | | 正则内容搜索 |
 | `web_search` | | DuckDuckGo 网页搜索（超时保护；DDGS 失败自动降级百度搜索） |
 | `web_fetch` | | 网页正文提取（请求前 SSRF 检查；DDGS 失败自动降级 requests+BeautifulSoup） |
-| `view_image` | | 读取本地图片（png/jpg/jpeg/webp/gif/bmp，≤15MB）供视觉模型查看 |
 | `todo` | | 任务规划与进度可视化 |
 | `load_skill` | | 加载技能文档 |
 | `agent` | ✓ | 调度子 Agent（支持后台异步） |
@@ -441,10 +440,10 @@ Sebastian/
 │   │
 │   ├── tools/
 │   │   ├── tools_registry.py       # 工具注册中心（单例，按Agent分配，HITL标记）
-│   │   └── toolkits/               # 17项内置工具 + MCP桥接
+│   │   └── toolkits/               # 16项内置工具 + MCP桥接
 │   │       ├── bash.py             # 沙箱命令执行（支持后台）
 │   │       ├── read.py / write.py / edit.py / ls.py / glob.py / grep.py
-│   │       ├── web_search.py / web_fetch.py / view_image.py
+│   │       ├── web_search.py / web_fetch.py
 │   │       ├── question.py         # 弹窗提问（选项 + 自由输入）
 │   │       ├── mcp.py              # 启动时把MCP server工具动态注册进ToolsRegistry
 │   │       ├── todo_manager.py     # 任务规划/进度提醒

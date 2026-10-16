@@ -27,7 +27,7 @@ def is_vision_model(model: str | None = None) -> bool:
     """判断指定模型是否支持视觉输入。默认以 .env 配置的 DEEPSEEK_MODEL 为准。
 
     OpenAI 兼容 API 中，纯文本模型收到含 image_url 的 content part 会直接 400 报错，
-    因此调用 view_image 等图片工具前必须据此做优雅降级。
+    因此 read 读取图片等图片操作前必须据此做优雅降级。
     """
     m = (model or MODEL or "").lower()
     return any(k in m for k in VISION_MODEL_KEYWORDS)

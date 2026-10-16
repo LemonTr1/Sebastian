@@ -27,8 +27,8 @@ CRON_SCHEDULE.agent_lock.acquire()
 
 ALLOWED = ["read", "glob", "grep", "ls", "todo", "web_search", "web_fetch", "load_skill", "list_crons", "question"]
 FORBIDDEN = ["bash", "write", "edit", "agent", "schedule_cron", "cancel_cron"]
-# view_image 属于 Build 全量工具，但不在 Plan 白名单内
-FULL = ALLOWED + FORBIDDEN + ["view_image"]
+# 全部内置工具 = Plan 白名单 + Plan 禁用工具
+FULL = ALLOWED + FORBIDDEN
 
 USAGE = SimpleNamespace(total_tokens=10)
 

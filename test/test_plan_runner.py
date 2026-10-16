@@ -24,15 +24,15 @@ CRON_SCHEDULE.agent_lock.acquire()
 
 ALLOWED = {"read", "glob", "grep", "ls", "todo", "web_search", "web_fetch", "load_skill", "list_crons", "question"}
 FORBIDDEN = {"bash", "write", "edit", "agent", "schedule_cron", "cancel_cron"}
-# view_image 属于 Build 全量工具，但不在 Plan 白名单内
-FULL = ALLOWED | FORBIDDEN | {"view_image"}
+# 全部内置工具 = Plan 白名单 + Plan 禁用工具
+FULL = ALLOWED | FORBIDDEN
 
 AGENT_MODE.set(AgentMode.BUILD)
 runner = AgentRunner.create_runner("Brain_Agent", "base instructions", get_tools_registry())
 
 # MCP 桥接工具（<server>__<tool>）取决于用户 settings，不计入内建全集断言
 full_keys = {k for k in runner.tool_map.keys() if "__" not in k}
-check("build full tools (17)", full_keys == FULL, str(full_keys))
+check("build full tools (16)", full_keys == FULL, str(full_keys))
 check("build active == full", set(runner._active_tool_map().keys()) == set(runner.tool_map.keys()))
 
 # ---- 进入 Plan 模式 ----

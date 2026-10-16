@@ -232,12 +232,12 @@ def build_persisted_placeholder(content: str, file_path: str, digest: str, hits:
     return "\n".join(parts)
 
 
-# ---- 图片工具（view_image）专用压缩 ----
-# view_image 的完整结果（base64 多模态 content）绝不进入上下文，避免多张大图长期累积撑爆窗口。
+# ---- read 读取图片的专用压缩 ----
+# read 读图的完整结果（base64 多模态 content）绝不进入上下文，避免多张大图长期累积撑爆窗口。
 # 策略：只保留"最近一轮"的图片供视觉模型查看，更早的旧图在每轮 Agent Loop 扫描时替换为占位符。
 
 def _is_view_image_msg(msg: dict) -> bool:
-    """按 content 特征识别 view_image 结果：tool 消息且 content 为含 image_url 的多模态 list"""
+    """按 content 特征识别图片读取结果：tool 消息且 content 为含 image_url 的多模态 list"""
     if msg.get("role") != "tool":
         return False
     content = msg.get("content")
@@ -264,9 +264,9 @@ def _latest_image_round_start(messages: list, last_img_idx: int) -> int:
 
 
 def build_image_placeholder(msg: dict) -> dict:
-    """把一条 view_image 的 tool 消息（多模态 content）替换为文本占位符"""
+    """把一条读图的 tool 消息（多模态 content）替换为文本占位符"""
     parts = msg.get("content") if isinstance(msg.get("content"), list) else []
-    desc = "[view_image]"
+    desc = "[read image]"
     for p in parts:
         if isinstance(p, dict) and p.get("type") == "text" and p.get("text"):
             desc = p.get("text")
@@ -275,14 +275,14 @@ def build_image_placeholder(msg: dict) -> dict:
         "role": "tool",
         "tool_call_id": msg.get("tool_call_id"),
         "content": (
-            f"<view_image-placeholder>{desc}（图片内容已被压缩省略，当前轮不可见。"
-            "如需再次查看，请重新调用 view_image 工具。）</view_image-placeholder>"
+            f"<image-placeholder>{desc}（图片内容已被压缩省略，当前轮不可见。"
+            "如需再次查看，请重新调用 read 工具读取该图片。）</image-placeholder>"
         ),
     }
 
 
 def compact_view_images(messages: list, keep_latest: bool = True) -> list:
-    """扫描全部 view_image 结果。
+    """扫描全部图片读取结果。
 
     keep_latest=True ：只保留最近一轮图片，更早的旧图替换为占位符（常规每轮）。
     keep_latest=False：压缩所有图片（应急压缩时用，否则大图仍在尾部导致重试无法收敛）。

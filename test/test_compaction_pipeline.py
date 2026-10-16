@@ -319,22 +319,22 @@ class TestCompactionPipeline(unittest.TestCase):
         msgs = [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": "看这张图"},
-            {"role": "assistant", "content": None, "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "view_image", "arguments": "{}"}}]},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "read", "arguments": "{}"}}]},
             _image_tool_msg(50),  # 最近一轮图片
         ]
         with patch("src.utils.compaction_pipeline.get_client", return_value=FakeSummaryClient()):
             res = reactive_compact(msgs)
         # 所有图片都应被替换为文本占位符（不再有 list content）
         self.assertFalse(any(isinstance(m.get("content"), list) for m in res))
-        self.assertTrue(any("view_image-placeholder" in (m.get("content") or "") for m in res))
+        self.assertTrue(any("image-placeholder" in (m.get("content") or "") for m in res))
 
     def test_compact_view_images_keeps_latest_by_default(self):
         msgs = [
             {"role": "system", "content": "sys"},
-            {"role": "assistant", "content": None, "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "view_image", "arguments": "{}"}}]},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "read", "arguments": "{}"}}]},
             _image_tool_msg(5),
             {"role": "user", "content": "再看一张"},
-            {"role": "assistant", "content": None, "tool_calls": [{"id": "c2", "type": "function", "function": {"name": "view_image", "arguments": "{}"}}]},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "c2", "type": "function", "function": {"name": "read", "arguments": "{}"}}]},
             _image_tool_msg(5),
         ]
         out = compact_view_images([dict(m) for m in msgs])
