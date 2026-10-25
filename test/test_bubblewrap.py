@@ -48,6 +48,27 @@ class TestLoadConfig(unittest.TestCase):
                             d / "default.json", {"sandbox": {"timeout": 999}})
         self.assertEqual(sb.config, {"timeout": 7})
 
+    def test_user_scalar_keeps_default_security_lists(self):
+        # 用户只覆盖标量时，默认的安全清单不能丢
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            sb = self._make(d / "user.json", {"sandbox": {"timeout": 5}},
+                            d / "default.json", {"sandbox": {
+                                "timeout": 999,
+                                "deny_read": ["/root/.ssh"],
+                                "read_only": ["/etc"],
+                            }})
+        self.assertEqual(sb.config["timeout"], 5)
+        self.assertEqual(sb.config["deny_read"], ["/root/.ssh"])
+        self.assertEqual(sb.config["read_only"], ["/etc"])
+
+    def test_security_lists_are_union_deduplicated(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            sb = self._make(d / "user.json", {"sandbox": {"deny_read": ["/b", "/a"]}},
+                            d / "default.json", {"sandbox": {"deny_read": ["/a", "/c"]}})
+        self.assertEqual(sb.config["deny_read"], ["/a", "/c", "/b"])
+
     def test_fallback_to_default_when_user_missing(self):
         with tempfile.TemporaryDirectory() as d:
             d = Path(d)
@@ -148,6 +169,17 @@ class TestRunLogic(unittest.TestCase):
                 sb.run("echo hi", timeout=60)
         cmd = run.call_args.args[0]
         self.assertEqual(cmd, ["/bin/bash", "-c", "echo hi"])
+
+    def test_disabled_logs_warning_only_once(self):
+        sb = _make_sb({"enabled": False})
+        result = mock.Mock(returncode=0, stdout="", stderr="")
+        BubblewrapSandbox._disabled_warned = False
+        with mock.patch("subprocess.run", return_value=result):
+            with mock.patch.object(bubblewrap, "logger") as log:
+                sb.run("ls", timeout=3)
+                sb.run("ls", timeout=3)
+        warned = [c for c in log.warning.call_args_list if "已禁用" in str(c)]
+        self.assertEqual(len(warned), 1)
 
     def test_timeout_read_from_config(self):
         sb = _make_sb({"timeout": 9, "enabled": True})

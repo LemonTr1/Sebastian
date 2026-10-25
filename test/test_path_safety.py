@@ -1,6 +1,10 @@
-import tempfile
+import shutil
+import sys
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _support import temp_workdir
 
 from src.security.path_safety import resolve_safe_path
 from src.utils.exceptions import SecurityException
@@ -8,11 +12,10 @@ from src.utils.exceptions import SecurityException
 
 class TestPathSafety(unittest.TestCase):
     def setUp(self):
-        self._tmpdir = tempfile.TemporaryDirectory(prefix=".sebastian-test-", dir=str(Path.home()))
-        self.workdir = Path(self._tmpdir.name)
+        self.workdir = temp_workdir()
 
     def tearDown(self):
-        self._tmpdir.cleanup()
+        shutil.rmtree(self.workdir, ignore_errors=True)
 
     def test_file_inside_home_allowed(self):
         target = self.workdir / "ok.txt"
@@ -65,6 +68,27 @@ class TestPathSafety(unittest.TestCase):
         link.symlink_to(self.workdir / "does-not-exist")
         with self.assertRaises(SecurityException):
             resolve_safe_path(str(link))
+
+    # ---- 写入场景（must_exist=False）的失效软链绕过回归 ----
+    def test_write_through_dangling_symlink_rejected(self):
+        link = self.workdir / "dangling"
+        link.symlink_to(self.workdir / "does-not-exist")
+        with self.assertRaises(SecurityException):
+            resolve_safe_path(str(link), must_exist=False)
+
+    def test_write_through_dangling_symlink_outside_home_rejected(self):
+        link = self.workdir / "escape-dangling"
+        link.symlink_to("/etc/cron.d/evil")
+        with self.assertRaises(SecurityException):
+            resolve_safe_path(str(link), must_exist=False)
+
+    def test_write_through_symlink_to_existing_file_inside_home_allowed(self):
+        target = self.workdir / "real.txt"
+        target.write_text("hello", encoding="utf-8")
+        link = self.workdir / "alias"
+        link.symlink_to(target)
+        resolved = resolve_safe_path(str(link), must_exist=False)
+        self.assertEqual(Path(resolved).resolve(), target.resolve())
 
 
 if __name__ == "__main__":

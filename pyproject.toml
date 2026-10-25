@@ -42,6 +42,19 @@ py-modules = ["cli"]
 where = ["."]
 include = ["src*"]
 
+# 运行时资源：缺少这些文件时，安装后的沙箱默认配置与子 Agent 提示词会失效
+[tool.setuptools.package-data]
+src = ["settings.json"]
+# subagents 目录没有 __init__.py，不是独立包，因此挂在父包 src.agents 下声明
+"src.agents" = ["subagents/*.md"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["F"]
+
 [build-system]
 requires = ["setuptools>=59.6.0"]
 build-backend = "setuptools.build_meta"

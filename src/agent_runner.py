@@ -273,7 +273,7 @@ class AgentRunner:
                     {"error": "由于前面的工具调用失败，此调用已被跳过（保证时序性）"},
                     ensure_ascii=False,
                 )
-                self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": err})
+                new_messages.append({"role": "tool", "tool_call_id": tc["id"], "content": err})
                 continue
 
             name = tc.get("function", {}).get("name", "")
@@ -296,7 +296,7 @@ class AgentRunner:
                 hook_result = get_hooks_registry().trigger_hooks("PreToolUse", self.name, tc)
                 if hook_result is not None:
                     aborted = True
-                    self.context.append({"role": "tool", "tool_call_id": tc["id"], "content": hook_result})
+                    new_messages.append({"role": "tool", "tool_call_id": tc["id"], "content": hook_result})
                     continue
 
             try:
@@ -388,7 +388,6 @@ class AgentRunner:
             except CompactException as e:
                 logger.error(f"\n [ERROR]{e} \n ")
                 typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
-                pass
             #压缩后兜底恢复system提示词
             if self.context and self.context[0].get("role") != "system":
                 self._ensure_system_prompt()
@@ -398,6 +397,7 @@ class AgentRunner:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
 
+            # 必须先初始化：重试全部失败时下面依赖 response is None 抛出可读错误，否则会 UnboundLocalError
             response = None
             retries = 0
             while True:
@@ -488,7 +488,6 @@ class AgentRunner:
             except CompactException as e:
                 logger.error(f"\n [ERROR]{e} \n ")
                 typer.echo(typer.style(f"\n [ERROR]{e} \n ", fg=typer.colors.RED, bold=True))
-                pass
             #压缩后兜底恢复system提示词
             if self.context and self.context[0].get("role") != "system":
                 self._ensure_system_prompt()
@@ -542,7 +541,7 @@ class AgentRunner:
             if stream is None:
                 logger.error(f"{self.name}出错无法恢复，请稍后重试")
                 typer.echo(typer.style(f"\n {self.name}出错无法恢复，请稍后重试 \n", fg=typer.colors.RED, bold=True))
-                return
+                return f"[ERROR] {self.name} 调用模型失败，已达到最大重试次数，请稍后重试。"
 
             collected_content = ""
             collected_tool_calls: dict[int, dict] = {}

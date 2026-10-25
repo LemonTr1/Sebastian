@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import typer
@@ -79,6 +80,12 @@ def _follow_path(path: str, must_exist: bool) -> Path:
                     f"路径不存在（或符号链接指向不存在目标）：`{raw}`"
                 )
             return raw.resolve(strict=True)
+
+        # 失效符号链接：目标不存在时无法校验真实落点，直接拒绝，避免写到链外
+        if raw.is_symlink() and not raw.exists():
+            raise SecurityException(
+                f"拒绝访问失效符号链接：`{raw}` → `{os.readlink(raw)}`"
+            )
 
         parent = raw.parent
         if not parent.exists():

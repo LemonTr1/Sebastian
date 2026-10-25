@@ -90,7 +90,7 @@ def register_mcp_tools() -> dict[str, McpStdioClient]:
                     try:
                         client.stop()
                     except Exception:
-                        pass
+                        logger.debug(f"[mcp] 清理 server '{name}' 客户端失败", exc_info=True)
                 logger.error(f"[mcp] 接入 server '{name}' 失败，已跳过：{e}")
                 continue
 
@@ -101,6 +101,7 @@ def register_mcp_tools() -> dict[str, McpStdioClient]:
                         full,
                         _make_call(client, full, tool["name"]),
                         _make_tool_schema(full, tool),
+                        hitl=True,
                         for_agent=FOR_AGENT,
                     )
                 except Exception as e:

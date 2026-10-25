@@ -172,7 +172,7 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 | 工具 | HITL | 说明 |
 |------|:----:|------|
 | `bash` | ✓ | 在 bubblewrap 沙箱中执行 Shell 命令（支持后台异步） |
-| `read` | | 读取文件（文本支持全文或偏移量+行数分片；图片 png/jpg/jpeg/webp/gif/bmp ≤15MB 以多模态加载供视觉模型查看） |
+| `read` | | 读取文件（文本单次上限 10MB，超出需用偏移量+行数分片；图片 png/jpg/jpeg/webp/gif/bmp ≤15MB 以多模态加载供视觉模型查看；无扩展名或未知扩展名时按文件头识别图片） |
 | `write` | ✓ | 覆盖写入文件（阻止 PDF/DOCX） |
 | `edit` | ✓ | 精确字符串查找替换（支持 replaceAll） |
 | `ls` | | 列出目录内容 |
@@ -185,7 +185,7 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 | `agent` | ✓ | 调度子 Agent（支持后台异步） |
 | `schedule_cron` | ✓ | 注册 Unix 五段定时任务 |
 | `list_crons` | | 列出已注册定时任务 |
-| `cancel_cron` | | 按 ID 取消定时任务 |
+| `cancel_cron` | ✓ | 按 ID 取消定时任务 |
 | `question` | | 弹窗向用户提问（单选选项 + 自由输入，默认 300s 超时；超时/取消返回未作答） |
 
 ### MCP 工具接入
@@ -211,6 +211,7 @@ Sebastian 通过 stdio 方式接入第三方 MCP server，把 server 暴露的�
 ```
 
 - **命名**：工具名以 `<server>__<tool>` 形式注册（如 `my-server__read_file`），避免与内置工具或多 server 重名冲突。
+- **审批**：MCP 工具一律按 HITL 工具注册，调用前必须经人工确认（`/auto` 模式除外），与内置破坏性工具保持一致。
 - **日志分流**：启动时只有 server 握手成功才同时打印终端与写入日志；server 自身的 stderr 一律导向 `get_log` 日志文件（前缀 `[mcp:<server>]`），不回显终端。
 - **优雅降级**：MCP 全局关闭、某个 server 启动/枚举失败，或 fastmcp 未安装时，只记日志并跳过，不影响 CLI 启动。
 - **配置位置**：用户 `~/.sebastian/settings.json` 优先，缺失/损坏时回退到项目内置 `src/settings.json`。
@@ -261,7 +262,11 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 - 命名空间：PID、IPC、UTS、cgroup 隔离；`--cap-drop ALL` 丢弃全部能力
 - 宿主文件系统只读挂载，`~` 可写；**34 个敏感路径**（`.ssh`、`.aws`、浏览器配置、凭据存储、Shell 历史等）以 tmpfs 覆盖隐藏
 - **29 个配置路径**（`.bashrc`、`.gitconfig`、语言工具链等）只读挂载
+- 环境变量白名单：仅透传 `PATH` / `LANG` / `TERM` / `TZ` 等基础变量，`DEEPSEEK_API_KEY` 等密钥不会进入沙箱；需要额外变量时在 `settings.json` 的 `sandbox.env_allow` 显式列出
+- 网络默认隔离（`unshare_net=true`）；**如手动设为 `false`，沙箱内命令将可访问网络**，仅在确有必要时关闭
 - 执行超时 180 秒；沙箱生命周期与父进程绑定，父进程退出时沙箱随之终止
+- 用户 `settings.json` 与项目默认配置**合并**：只写部分字段不会丢失默认的 `deny_read` / `read_only` 安全清单
+- 若 `sandbox.enabled=false`，命令将直接在宿主机执行（日志会打印一次性告警），此时仅靠命令守卫与 HITL 兜底
 
 ### Hook 系统
 
@@ -307,7 +312,7 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 Sebastian 提供 **Plan（只读规划）**、**Build（执行）** 与 **Auto（免审批执行）** 三种模式，登录默认 Build：
 
 - `/plan` 进入 Plan：Brain 仅可用 `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`，执行类工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`）从工具 schema 中移除并被拒绝执行；system 提示词动态注入"以调研与规划为主"的行为引导，并要求模型在计划完成后主动询问用户：立即退出执行还是修改计划
-- `/build` 恢复 Build：全部工具可用，HITL 工具（`bash` / `write` / `edit` / `agent` / `schedule_cron`）执行前弹窗等待人工审批
+- `/build` 恢复 Build：全部工具可用，HITL 工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / 全部 MCP 工具）执行前弹窗等待人工审批
 - `/auto` 进入 Auto：全部工具可用，且**所有工具调用跳过人工审批**（终端打印 `[AUTO] 自动批准` 并写日志），请谨慎使用；`/build` 恢复审批
 - 模式运行期有效不持久化；定时任务触发时若处于 Plan 则**强制以 Build 运行**，执行完恢复原模式（Auto 模式工具齐全且免审批，不切换）
 - 终端提示符显示当前模式（`[user|PLAN]：` / `[user|AUTO]：`）
@@ -348,7 +353,7 @@ sudo apt install bubblewrap python3-tk
 运行安全相关单测：
 
 ```bash
-python -m unittest discover -s test -v
+python test/run_all.py
 ```
 
 ### 配置 API Key

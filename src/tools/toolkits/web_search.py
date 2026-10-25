@@ -36,7 +36,7 @@ def web_search(query: str, max_results: int = 10, timeout: int = 20) -> str:
                 ensure_ascii=False
             )
     else:
-        logger.warning(f"DDGS搜索失败，降级为百度搜索")
+        logger.warning("DDGS搜索失败，降级为百度搜索")
         try:
             with ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(_baidu_search, query, max_results)

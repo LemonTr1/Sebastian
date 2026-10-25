@@ -1,6 +1,6 @@
 from src.hooks.hooks_registry import get_hooks_registry
 import typer
-from src.config import MODEL, CONTEXT_WINDOW
+from src.config import CONTEXT_WINDOW
 from src.utils.compaction_pipeline import estimate_messages
 
 

@@ -9,7 +9,10 @@ class TestCronHitl(unittest.TestCase):
         registry = get_tools_registry()
         self.assertTrue(registry.is_hitl_tool("schedule_cron"))
         self.assertFalse(registry.is_hitl_tool("list_crons"))
-        self.assertFalse(registry.is_hitl_tool("cancel_cron"))
+
+    def test_cancel_cron_requires_hitl(self):
+        # 删除定时任务与创建同样有副作用，须人工确认
+        self.assertTrue(get_tools_registry().is_hitl_tool("cancel_cron"))
 
 
 if __name__ == "__main__":

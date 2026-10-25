@@ -1,7 +1,11 @@
 import os
-import tempfile
+import shutil
+import sys
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _support import temp_workdir
 
 from src.eval.checkers import run_checkers
 from src.eval.harness import load_cases
@@ -10,11 +14,10 @@ from src.utils.eval_flag import is_eval_mode
 
 class TestEvalCheckers(unittest.TestCase):
     def setUp(self):
-        self._tmpdir = tempfile.TemporaryDirectory(prefix=".sebastian-eval-test-", dir=str(Path.home()))
-        self.workdir = Path(self._tmpdir.name)
+        self.workdir = temp_workdir(prefix=".sebastian-eval-test-")
 
     def tearDown(self):
-        self._tmpdir.cleanup()
+        shutil.rmtree(self.workdir, ignore_errors=True)
 
     def test_file_equals_strips(self):
         (self.workdir / "hello.txt").write_text("Hello Sebastian\n", encoding="utf-8")

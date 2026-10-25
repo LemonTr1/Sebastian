@@ -41,17 +41,17 @@ class TestApprovalClient(unittest.TestCase):
 
     def test_gui_available_approved(self):
         with patch("src.utils.approval_client.gui_available", return_value=(True, "")), \
-                patch("src.utils.approval_client.subprocess.Popen", FakePopenApproved):
+                patch("src.utils.dialog_common.subprocess.Popen", FakePopenApproved):
             self.assertTrue(self.client.ask("bash", {"command": "ls"}))
 
     def test_gui_available_denied(self):
         with patch("src.utils.approval_client.gui_available", return_value=(True, "")), \
-                patch("src.utils.approval_client.subprocess.Popen", FakePopen):
+                patch("src.utils.dialog_common.subprocess.Popen", FakePopen):
             self.assertFalse(self.client.ask("bash", {"command": "ls"}))
 
     def test_gui_no_result_falls_back_to_terminal(self):
         with patch("src.utils.approval_client.gui_available", return_value=(True, "")), \
-                patch("src.utils.approval_client.subprocess.Popen", FakePopen), \
+                patch("src.utils.dialog_common.subprocess.Popen", FakePopen), \
                 patch("src.utils.approval_client.terminal_ok", return_value=True), \
                 patch("src.utils.approval_client.terminal_confirm", return_value=True) as confirm:
             self.assertTrue(self.client.ask("bash", {"command": "ls"}))
@@ -59,9 +59,26 @@ class TestApprovalClient(unittest.TestCase):
 
     def test_gui_no_result_no_tty_denies(self):
         with patch("src.utils.approval_client.gui_available", return_value=(True, "")), \
-                patch("src.utils.approval_client.subprocess.Popen", FakePopen), \
+                patch("src.utils.dialog_common.subprocess.Popen", FakePopen), \
                 patch("src.utils.approval_client.terminal_ok", return_value=False):
             self.assertFalse(self.client.ask("bash", {"command": "ls"}))
+
+    def test_result_file_without_temp_leftover(self):
+        # 公共层负责清理，成功路径不得在 /tmp 留请求/结果文件
+        req_files = set()
+        original_init = FakePopenApproved.__init__
+
+        def capture(self, cmd, **kwargs):
+            original_init(self, cmd, **kwargs)
+            req_files.add(Path(cmd[2]))
+
+        with patch("src.utils.approval_client.gui_available", return_value=(True, "")), \
+                patch("src.utils.dialog_common.subprocess.Popen", FakePopenApproved), \
+                patch.object(FakePopenApproved, "__init__", capture):
+            self.assertTrue(self.client.ask("bash", {"command": "ls"}))
+        for req in req_files:
+            self.assertFalse(req.exists(), f"请求文件未清理：{req}")
+            self.assertFalse(req.with_suffix(".result.json").exists(), "结果文件未清理")
 
 
 if __name__ == "__main__":

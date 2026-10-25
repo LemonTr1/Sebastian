@@ -9,16 +9,15 @@
 - 取锁带超时，抢不到返回 busy 而非无限阻塞
 - 提供 is_dialog_available() 供调用方在无图形环境时优雅降级
 """
-import json
-import platform
-import subprocess
-import sys
-import tempfile
 import threading
 from pathlib import Path
 from typing import Optional
 
+from src.logs.app_log import get_log
+from src.utils.dialog_common import run_dialog_script
 from src.utils.interaction import gui_available, terminal_question, terminal_ok
+
+logger = get_log()
 
 
 def is_dialog_available() -> tuple[bool, str]:
@@ -98,69 +97,31 @@ class QuestionClient:
             if not available:
                 return terminal_question(question, options, timeout)
 
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix="_q.json", delete=False, encoding="utf-8"
-            ) as f:
-                req_file = Path(f.name)
-                result_file = req_file.with_suffix(".result.json")
-                json.dump(
-                    {
-                        "result_file": str(result_file),
-                        "question": question,
-                        "options": options,
-                        "timeout": timeout,
-                        "theme": self.theme,
-                    },
-                    f,
-                    ensure_ascii=False,
-                )
+            data, error = run_dialog_script(
+                self.dialog_script,
+                {
+                    "question": question,
+                    "options": options,
+                    "timeout": timeout,
+                    "theme": self.theme,
+                },
+                timeout,
+            )
 
-            try:
-                cmd = [sys.executable, self.dialog_script, str(req_file)]
+            if error == "timeout":
+                return _empty("timeout", "提问窗口未在预期时间内返回结果")
+            if error == "spawn":
+                return _empty("error", "无法启动提问窗口进程")
+            if error == "parse":
+                return _empty("error", "提问结果解析失败")
+            if error == "no_result":
+                # 弹窗异常退出、未产生结果 → 运行兜底
+                if terminal_ok():
+                    return terminal_question(question, options, timeout)
+                return _empty("error", "提问窗口异常退出，未返回结果")
 
-                kwargs = {}
-                if platform.system() == "Windows":
-                    kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-
-                try:
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        **kwargs,
-                    )
-                except OSError as e:
-                    return _empty("error", f"无法启动提问窗口进程：{e}")
-
-                # `wait` 是兜底：弹窗自身倒计时失效时也不能让 Agent 永久阻塞
-                wait_seconds = (timeout + 30) if (timeout and timeout > 0) else None
-                try:
-                    proc.wait(timeout=wait_seconds)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait()
-                    return _empty("timeout", "提问窗口未在预期时间内返回结果")
-
-                if not result_file.exists():
-                    # 弹窗异常退出、未产生结果 → 运行兜底
-                    if terminal_ok():
-                        return terminal_question(question, options, timeout)
-                    return _empty("error", "提问窗口异常退出，未返回结果")
-
-                try:
-                    with open(result_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                except (json.JSONDecodeError, OSError) as e:
-                    return _empty("error", f"提问结果解析失败：{e}")
-
-                if not isinstance(data, dict) or "status" not in data:
-                    return _empty("error", "提问结果格式非法")
-                return data
-            finally:
-                for path in (req_file, result_file, Path(f"{result_file}.tmp")):
-                    try:
-                        path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
+            if not isinstance(data, dict) or "status" not in data:
+                return _empty("error", "提问结果格式非法")
+            return data
         finally:
             self._lock.release()

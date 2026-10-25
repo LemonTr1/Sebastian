@@ -1,7 +1,5 @@
 import os
-os.environ['http_proxy'] = ''
-os.environ['https_proxy'] = ''
-os.environ['all_proxy'] = ''
+from threading import Lock
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -38,9 +36,18 @@ from src.utils.model_windows import resolve_context_window
 # 基于 .env 模型名动态解析上下文窗口，进程内只解析一次
 CONTEXT_WINDOW = resolve_context_window(MODEL)
 
+_CLIENT: OpenAI | None = None
+_CLIENT_LOCK = Lock()
+
+
 def get_client() -> OpenAI:
-    _client = OpenAI(
-        api_key=API_KEY,
-        base_url=BASE_URL,
-    )
-    return _client
+    """进程内复用同一个客户端，避免每次调用都新建连接池。"""
+    global _CLIENT
+    if _CLIENT is None:
+        with _CLIENT_LOCK:
+            if _CLIENT is None:
+                _CLIENT = OpenAI(
+                    api_key=API_KEY,
+                    base_url=BASE_URL,
+                )
+    return _CLIENT

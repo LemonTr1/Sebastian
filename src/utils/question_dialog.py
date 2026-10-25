@@ -9,31 +9,17 @@
 用户可点选 Agent 给出的选项，也可自由输入文本，结果为文本答案而非布尔值。
 """
 import json
-import os
 import sys
 import tkinter as tk
 from tkinter import ttk
 
+try:
+    from .dialog_common import apply_base_style, center_window, get_theme, write_result_atomic
+except ImportError:  # 以脚本方式被 subprocess 直接执行时没有包上下文
+    from dialog_common import apply_base_style, center_window, get_theme, write_result_atomic
+
 # 自由输入（"其他"）在 selection 中的哨兵值
 OTHER = "__other__"
-
-THEMES = {
-    "light": {
-        "bg": "#f5f5f5", "fg": "#1a1a1a",
-        "accent": "#4CAF50", "danger": "#f44336",
-        "card": "#ffffff", "border": "#dddddd",
-    },
-    "dark": {
-        "bg": "#1e1e1e", "fg": "#d4d4d4",
-        "accent": "#4ec9b0", "danger": "#f44747",
-        "card": "#252526", "border": "#3e3e42",
-    },
-    "blue": {
-        "bg": "#0a1929", "fg": "#e0e0e0",
-        "accent": "#3182ce", "danger": "#e53e3e",
-        "card": "#132f4c", "border": "#1e4976",
-    },
-}
 
 
 def main():
@@ -46,7 +32,7 @@ def main():
     options = list(req.get("options") or [])
     timeout = req.get("timeout")
     theme_name = req.get("theme", "dark")
-    t = THEMES.get(theme_name, THEMES["dark"])
+    t = get_theme(theme_name)
 
     has_options = len(options) > 0
     left_padding = 20
@@ -72,21 +58,16 @@ def main():
         if _done["saved"]:
             return
         _done["saved"] = True
-        tmp_file = result_file + ".tmp"
         try:
-            with open(tmp_file, "w", encoding="utf-8") as f:
-                json.dump(result, f, ensure_ascii=False)
-            os.replace(tmp_file, result_file)
+            write_result_atomic(result_file, result)
         except OSError:
-            pass
+            # 本进程 stderr 被父进程丢弃；读取结果缺失时 question_client 会打印兜底告警
+            print(f"[question_dialog] 写入结果文件失败：{result_file}", file=sys.stderr)
         root.destroy()
 
     # ========== 样式 ==========
     style = ttk.Style()
-    style.configure("TFrame", background=t["bg"])
-    style.configure("TLabel", background=t["bg"], foreground=t["fg"], font=("Noto Sans CJK SC", 11))
-    style.configure("Header.TLabel", font=("Noto Sans CJK SC", 14, "bold"), foreground=t["fg"], background=t["bg"])
-    style.configure("Dim.TLabel", font=("Noto Sans CJK SC", 9), foreground="#888888", background=t["bg"])
+    apply_base_style(style, t)
 
     # ========== Header ==========
     header = ttk.Frame(dialog, padding=(left_padding, 12, left_padding, 5))
@@ -270,9 +251,8 @@ def main():
     # ========== 尺寸与居中（pack 完成后测量，选项数可变时比手算公式可靠） ==========
     dialog.update_idletasks()
     width = max(min_width, dialog.winfo_reqwidth())
-    screen_w, screen_h = dialog.winfo_screenwidth(), dialog.winfo_screenheight()
-    height = min(max(dialog.winfo_reqheight(), 200), int(screen_h * 0.8))
-    dialog.geometry(f"{width}x{height}+{(screen_w - width) // 2}+{(screen_h - height) // 2}")
+    height = min(max(dialog.winfo_reqheight(), 200), int(dialog.winfo_screenheight() * 0.8))
+    center_window(dialog, width, height)
 
     if not has_options:
         entry.focus_set()

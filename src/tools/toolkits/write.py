@@ -1,10 +1,11 @@
 import json
+import os
 from src.tools.tools_registry import get_tools_registry
 from src.security.path_safety import resolve_safe_path
 from src.utils.exceptions import SecurityException
 
 def write(file_path: str, content: str) -> str:
-    if file_path.endswith(".pdf") or file_path.endswith(".docx"):
+    if file_path.lower().endswith((".pdf", ".docx")):
         return json.dumps(
             {
                 "success": False,
@@ -15,7 +16,9 @@ def write(file_path: str, content: str) -> str:
     try:
         file_path = resolve_safe_path(file_path, must_exist=False)
 
-        with open(file_path, "w", encoding="utf-8") as f:
+        # O_NOFOLLOW：校验与落盘之间即使被替换成符号链接也不会跟随，闭合 TOCTOU
+        fd = os.open(file_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
         return json.dumps(
             {

@@ -48,3 +48,8 @@ ENV/
 
 # Agent eval outputs
 src/eval/results/
+
+# 测试临时目录
+.test-tmp/
+.sebastian-test-*
+.sebastian-eval-test-*

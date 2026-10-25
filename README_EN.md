@@ -172,7 +172,7 @@ All tools are registered in a central `ToolsRegistry`; each tool carries four at
 | Tool | HITL | Description |
 |------|:----:|-------------|
 | `bash` | ✓ | Execute shell commands in the bubblewrap sandbox (async-capable) |
-| `read` | | Read files (text: full or offset+limit slices; images png/jpg/jpeg/webp/gif/bmp ≤15MB loaded multimodally for vision models) |
+| `read` | | Read files (text: 10MB cap per read, larger files require offset+limit slices; images png/jpg/jpeg/webp/gif/bmp ≤15MB loaded multimodally for vision models; images with a missing/unknown extension are detected by file header magic bytes) |
 | `write` | ✓ | Overwrite files (PDF/DOCX blocked) |
 | `edit` | ✓ | Exact find-and-replace (supports replaceAll) |
 | `ls` | | List directory contents |
@@ -185,7 +185,7 @@ All tools are registered in a central `ToolsRegistry`; each tool carries four at
 | `agent` | ✓ | Dispatch a sub-agent (async-capable) |
 | `schedule_cron` | ✓ | Register a 5-field Unix cron job |
 | `list_crons` | | List registered cron jobs |
-| `cancel_cron` | | Cancel a cron job by ID |
+| `cancel_cron` | ✓ | Cancel a cron job by ID |
 | `question` | | Ask the user a question (options + free input, 300s timeout; falls back to a terminal prompt when no GUI is available; timeout/cancel returns unanswered) |
 
 ### MCP Tool Integration
@@ -211,6 +211,7 @@ Sebastian connects to third-party MCP servers over stdio and dynamically registe
 ```
 
 - **Naming**: tools are registered as `<server>__<tool>` (e.g. `my-server__read_file`) to avoid collisions with built-in tools or multiple servers.
+- **Approval**: every MCP tool is registered as a HITL tool and requires manual confirmation before execution (except in `/auto` mode), matching built-in destructive tools.
 - **Log routing**: only a successful handshake prints to both the terminal and the log; a server's own stderr always goes to the `get_log` log file (prefix `[mcp:<server>]`), never echoed to the terminal.
 - **Graceful degradation**: if MCP is disabled globally, a server fails to start/list, or fastmcp is not installed, the issue is only logged and skipped — CLI startup is unaffected.
 - **Config location**: user `~/.sebastian/settings.json` takes precedence, falling back to the bundled `src/settings.json` when missing or corrupt.
@@ -249,7 +250,11 @@ Code execution is isolated with **bubblewrap** using Linux namespaces:
 - Namespaces: PID, IPC, UTS, cgroup isolation; `--cap-drop ALL` drops every capability
 - Host filesystem mounted read-only, `~` writable; **34 sensitive paths** (`.ssh`, `.aws`, browser profiles, credential stores, shell histories, etc.) are tmpfs-hidden
 - **29 config paths** (`.bashrc`, `.gitconfig`, language toolchains, etc.) mounted read-only
+- Environment whitelist: only basic variables (`PATH` / `LANG` / `TERM` / `TZ`, etc.) are passed through, so secrets such as `DEEPSEEK_API_KEY` never enter the sandbox; list extra variables explicitly under `sandbox.env_allow` in `settings.json`
+- Network is isolated by default (`unshare_net=true`); **setting it to `false` lets sandboxed commands reach the network**, so only disable it when strictly necessary
 - 180-second execution timeout; the sandbox lifecycle is bound to the parent process and terminates with it
+- User `settings.json` is **merged** with project defaults, so a partial config never drops the default `deny_read` / `read_only` security lists
+- With `sandbox.enabled=false`, commands run directly on the host (a one-time warning is logged); only the command guard and HITL remain as safeguards
 
 ### Hook System
 
@@ -295,7 +300,7 @@ The `bash` and `agent` tools support `run_in_background=true` for async executio
 Sebastian provides three working modes — **Plan (read-only planning)**, **Build (execution)** and **Auto (approval-free execution)**, defaulting to Build on login:
 
 - `/plan` enters Plan: the Brain can only use `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`; execution tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`) are removed from the tool schemas and rejected at runtime; the system prompt is dynamically injected with research-and-planning-focused guidance, requiring the model to ask the user whether to execute immediately or revise the plan once it is ready
-- `/build` restores Build: all tools are available, and HITL tools (`bash` / `write` / `edit` / `agent` / `schedule_cron`) require manual approval via a pop-up before execution
+- `/build` restores Build: all tools are available, and HITL tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / all MCP tools) require manual approval via a pop-up before execution
 - `/auto` enters Auto: all tools are available and **every tool call skips manual approval** (the terminal prints `[AUTO] auto-approved` and the log records it) — use with caution; `/build` restores approval
 - The mode is runtime-only (not persisted); scheduled (cron) tasks are **forced to run in Build mode** when triggered from Plan, and the previous mode is restored afterwards (Auto already has full tools with no approval, so no switch happens)
 - The terminal prompt shows the current mode (`[user|PLAN]:` / `[user|AUTO]:`)
@@ -336,7 +341,7 @@ sudo apt install bubblewrap python3-tk
 Run the security unit tests:
 
 ```bash
-python -m unittest discover -s test -v
+python test/run_all.py
 ```
 
 ### Configure the API Key

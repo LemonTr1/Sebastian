@@ -11,6 +11,11 @@ import sys
 import tkinter as tk
 from tkinter import ttk
 
+try:
+    from .dialog_common import apply_base_style, center_window, get_theme, write_result_atomic
+except ImportError:  # 以脚本方式被 subprocess 直接执行时没有包上下文
+    from dialog_common import apply_base_style, center_window, get_theme, write_result_atomic
+
 _VALUE_PATTERN = re.compile(r'("(?:[^"\\]|\\.)*")|(\b(?:true|false|null)\b)|(\b\d+\.?\d*\b)')
 
 
@@ -42,24 +47,7 @@ def main():
     timeout = req.get("timeout")
     theme_name = req.get("theme", "dark")
 
-    themes = {
-        "light": {
-            "bg": "#f5f5f5", "fg": "#1a1a1a",
-            "accent": "#4CAF50", "danger": "#f44336",
-            "card": "#ffffff", "border": "#dddddd",
-        },
-        "dark": {
-            "bg": "#1e1e1e", "fg": "#d4d4d4",
-            "accent": "#4ec9b0", "danger": "#f44747",
-            "card": "#252526", "border": "#3e3e42",
-        },
-        "blue": {
-            "bg": "#0a1929", "fg": "#e0e0e0",
-            "accent": "#3182ce", "danger": "#e53e3e",
-            "card": "#132f4c", "border": "#1e4976",
-        },
-    }
-    t = themes.get(theme_name, themes["dark"])
+    t = get_theme(theme_name)
 
     root = tk.Tk()
     root.withdraw()
@@ -106,26 +94,22 @@ def main():
     total_height = max(total_height, 240)
     total_height = min(total_height, 750)
 
-    dialog.geometry(f"{min_width}x{total_height}")
-
-    dialog.update_idletasks()
-    sw, sh = dialog.winfo_screenwidth(), dialog.winfo_screenheight()
-    dialog.geometry(f"{min_width}x{total_height}+{(sw - min_width) // 2}+{(sh - total_height) // 2}")
+    center_window(dialog, min_width, total_height)
 
     # ========== 样式 ==========
     style = ttk.Style()
-    style.configure("TFrame", background=t["bg"])
-    style.configure("TLabel", background=t["bg"], foreground=t["fg"], font=("Noto Sans CJK SC", 11))
-    style.configure("Header.TLabel", font=("Noto Sans CJK SC", 14, "bold"), foreground=t["fg"], background=t["bg"])
+    apply_base_style(style, t)
     style.configure("Args.TLabel", font=("monospace", 10), foreground=t["fg"], background=t["card"])
-    style.configure("Dim.TLabel", font=("Noto Sans CJK SC", 9), foreground="#888888", background=t["bg"])
 
     # ========== 结果 ==========
     result = {"approved": False, "timed_out": False}
 
     def save_and_exit():
-        with open(result_file, "w", encoding="utf-8") as f:
-            json.dump(result, f)
+        try:
+            write_result_atomic(result_file, result)
+        except OSError:
+            # 写失败时客户端读不到结果，会按"未返回结果"降级为终端确认并告警
+            print(f"[approval_dialog] 写入结果文件失败：{result_file}", file=sys.stderr)
         root.destroy()
 
     def on_yes():

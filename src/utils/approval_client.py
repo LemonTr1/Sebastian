@@ -3,17 +3,12 @@
 每次审批启动独立 Python 子进程运行 approval_dialog.py，
 通过 JSON 文件 IPC 通信，天然满足 tkinter 的主线程要求。
 """
-import json
-import os
-import platform
-import subprocess
-import sys
-import tempfile
 import threading
 from pathlib import Path
 from typing import Optional
 
 from src.logs.app_log import get_log
+from src.utils.dialog_common import run_dialog_script
 from src.utils.interaction import gui_available, terminal_confirm, terminal_ok
 
 logger = get_log()
@@ -74,61 +69,29 @@ class ApprovalClient:
                 logger.info(f"[approval] 无图形环境，降级为终端确认：{reason}")
                 return terminal_confirm(tool_name, tool_args, timeout)
 
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix="_req.json", delete=False, encoding="utf-8"
-            ) as f:
-                req_file = Path(f.name)
-                result_file = req_file.with_suffix(".result.json")
-                json.dump(
-                    {
-                        "result_file": str(result_file),
-                        "tool_name": tool_name,
-                        "tool_args": tool_args,
-                        "timeout": timeout,
-                        "theme": self.theme,
-                    },
-                    f,
-                    ensure_ascii=False,
-                )
+            data, error = run_dialog_script(
+                self.dialog_script,
+                {
+                    "tool_name": tool_name,
+                    "tool_args": tool_args,
+                    "timeout": timeout,
+                    "theme": self.theme,
+                },
+                timeout,
+            )
 
-            try:
-                cmd = [sys.executable, self.dialog_script, str(req_file)]
+            # 任何未能正常取回结果的路径都必须显式降级，不能静默返回 False
+            if error == "timeout":
+                logger.warning("[approval] 审批窗口超时未返回")
+            elif error:
+                logger.warning(f"[approval] 审批窗口异常（{error}），尝试终端降级")
 
-                kwargs = {}
-                if platform.system() == "Windows":
-                    kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-
-                proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    **kwargs,
-                )
-                # wait 兜底：弹窗卡死时也不能让 Agent 永久阻塞
-                wait_seconds = (timeout + 30) if (timeout and timeout > 0) else None
-                try:
-                    proc.wait(timeout=wait_seconds)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait()
-                    logger.warning("[approval] 审批窗口超时未返回")
-                    if terminal_ok():
-                        return terminal_confirm(tool_name, tool_args, timeout)
-                    return False
-
-                if result_file.exists():
-                    with open(result_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    return data.get("approved", False)
-
-                # 弹窗异常退出、未产生结果 → 运行兜底
-                logger.warning("[approval] 审批窗口未返回结果，尝试终端降级")
+            if error:
                 if terminal_ok():
                     return terminal_confirm(tool_name, tool_args, timeout)
                 return False
-            finally:
-                for f in (req_file, result_file):
-                    try:
-                        f.unlink(missing_ok=True)
-                    except Exception:
-                        pass
+
+            if not isinstance(data, dict):
+                logger.warning("[approval] 审批结果格式非法")
+                return False
+            return bool(data.get("approved", False))

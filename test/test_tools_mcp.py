@@ -104,6 +104,12 @@ class TestRegisterWithServers(McpBridgeBase):
         self._register({"fs": _fs_config()}, {"fs": client})
         self.assertIn("fs__read_file", self.registry.agent_tools[FOR_AGENT])
 
+    def test_mcp_tools_require_hitl_approval(self):
+        tools = [{"name": "read_file", "description": "d", "input_schema": {"properties": {}}}]
+        client = _client_for(tools)
+        self._register({"fs": _fs_config()}, {"fs": client})
+        self.assertIn("fs__read_file", self.registry.hitl_tools)
+
 
 class TestCallForward(McpBridgeBase):
     def setUp(self):

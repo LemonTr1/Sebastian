@@ -69,7 +69,7 @@ class TodoManager:
         self.state.rounds_since_update = 0
         return json.dumps({
             "success": True,
-            "summary": f"任务计划已为最新"
+            "summary": "任务计划已为最新"
         })
 
     def reset(self):
@@ -94,7 +94,7 @@ class TodoManager:
             return None
 
         typer.echo()
-        typer.echo(typer.style(f"<任务计划>：", fg=typer.colors.YELLOW, bold=True))
+        typer.echo(typer.style("<任务计划>：", fg=typer.colors.YELLOW, bold=True))
         for item in self.state.items:
             marker = {
                 "pending": "[ ]",

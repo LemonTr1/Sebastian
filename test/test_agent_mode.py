@@ -68,6 +68,45 @@ check("build mode asks approval", result is None and ask_mock.called)
 AGENT_MODE.set(AgentMode.BUILD)
 check("global singleton reset", not AGENT_MODE.is_plan() and not AGENT_MODE.is_auto())
 
+# ---- tool 消息顺序：被拦截/跳过也必须按 tool_calls 声明顺序回填 ----
+import json
+import threading
+from src.agent_runner import AgentRunner
+
+runner = object.__new__(AgentRunner)
+runner.name = "Brain_Agent"
+runner.model = "deepseek-v4-flash"
+runner.context = []
+runner.tool_map = {"noop": {"func": lambda **kw: "ok", "schema": {}}}
+runner.pre_tool_use_lock = threading.Lock()
+runner.background_lock = threading.Lock()
+runner.background_tasks = {}
+runner.background_results = {}
+
+tool_calls = [
+    {"id": "call_1", "type": "function", "function": {"name": "noop", "arguments": "{}"}},
+    {"id": "call_2", "type": "function", "function": {"name": "noop", "arguments": "{}"}},
+    {"id": "call_3", "type": "function", "function": {"name": "noop", "arguments": "{}"}},
+]
+
+seen = {"n": 0}
+def _fake_trigger(event, agent_name, tc):
+    seen["n"] += 1
+    if seen["n"] == 2:
+        return json.dumps({"error": "blocked"}, ensure_ascii=False)
+    return None
+
+fake_registry = mock.Mock()
+fake_registry.trigger_hooks.side_effect = _fake_trigger
+with mock.patch("src.agent_runner.get_hooks_registry", return_value=fake_registry):
+    runner._process_tool_calls(tool_calls)
+
+ids = [msg.get("tool_call_id") for msg in runner.context if msg.get("role") == "tool"]
+check("tool messages keep declared order", ids == ["call_1", "call_2", "call_3"], str(ids))
+check("first tool result is execution result", runner.context[0]["content"] == "ok")
+check("second tool result is hook block", "blocked" in runner.context[1]["content"])
+check("third tool result is skip", "已被跳过" in runner.context[2]["content"])
+
 CRON_SCHEDULE.agent_lock.release()
 
 print(f"\n===== {len(PASS)} passed, {len(FAIL)} failed =====")

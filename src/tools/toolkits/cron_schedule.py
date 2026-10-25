@@ -318,7 +318,7 @@ CANCEL_CRON_SCHEMA = {
 
 get_tools_registry().register_tool("schedule_cron", CRON_SCHEDULE.run_schedule_cron, SCHEDULE_CRON_SCHEMA, hitl=True, for_agent="Brain_Agent")
 get_tools_registry().register_tool("list_crons", CRON_SCHEDULE.run_list_crons, LIST_CRONS_SCHEMA, for_agent="Brain_Agent")
-get_tools_registry().register_tool("cancel_cron", CRON_SCHEDULE.run_cancel_cron, CANCEL_CRON_SCHEMA, for_agent="Brain_Agent")
+get_tools_registry().register_tool("cancel_cron", CRON_SCHEDULE.run_cancel_cron, CANCEL_CRON_SCHEMA, hitl=True, for_agent="Brain_Agent")
 
 
 def start_cron_scheduler():
@@ -328,5 +328,5 @@ def start_cron_scheduler():
     CRON_SCHEDULE._started = True
     CRON_SCHEDULE.load_durable_jobs()
     threading.Thread(target=CRON_SCHEDULE.cron_scheduler_loop, daemon=True).start()
-    typer.echo(typer.style(f"\n> [cron] scheduler thread started", fg=typer.colors.GREEN))
+    typer.echo(typer.style("\n> [cron] scheduler thread started", fg=typer.colors.GREEN))
     logger.info("Scheduler thread started")

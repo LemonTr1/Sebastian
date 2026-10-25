@@ -1,22 +1,25 @@
-# 该文件测试 read 工具：读已有文件、不存在文件、offset/limit 边界、目录路径被拒、图片多模态读取。
+# 该文件测试 read 工具：读已有文件、不存在文件、offset/limit 边界、目录路径被拒、图片多模态读取、无后缀图片识别、大小上限。
 import base64
 import json
-import tempfile
+import shutil
+import sys
 import unittest
 from pathlib import Path
 
-from src.tools.toolkits.read import read, MAX_IMAGE_BYTES
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _support import temp_workdir
+
+from src.tools.toolkits.read import read, MAX_IMAGE_BYTES, MAX_TEXT_BYTES
 
 
 class TestRead(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory(prefix=".sebastian-test-", dir=str(Path(__file__).resolve().parents[1]))
-        self.dir = Path(self._tmp.name)
+        self.dir = temp_workdir()
         self.f = self.dir / "data.txt"
         self.f.write_text("line1\nline2\nline3\nline4\n", encoding="utf-8")
 
     def tearDown(self):
-        self._tmp.cleanup()
+        shutil.rmtree(self.dir, ignore_errors=True)
 
     def test_read_existing_file(self):
         r = json.loads(read(str(self.f)))
@@ -62,16 +65,45 @@ class TestRead(unittest.TestCase):
         r = json.loads(read(str(self.dir / "a.pdf")))
         self.assertFalse(r["success"])
 
+    def test_uppercase_pdf_suffix_also_rejected(self):
+        r = json.loads(read(str(self.dir / "REPORT.PDF")))
+        self.assertFalse(r["success"])
+
+    def test_offset_beyond_eof_returns_failure(self):
+        r = json.loads(read(str(self.f), offset=99, limit=2))
+        self.assertFalse(r["success"])
+        self.assertIn("超出文件行数", r["summary"])
+
+    def test_oversized_text_rejected(self):
+        big = self.dir / "big.txt"
+        with open(big, "wb") as f:
+            f.seek(MAX_TEXT_BYTES)
+            f.write(b"x")
+        r = json.loads(read(str(big)))
+        self.assertFalse(r["success"])
+        self.assertIn("超过单次读取上限", r["summary"])
+
+    def test_oversized_text_slice_still_works(self):
+        big = self.dir / "big.txt"
+        with open(big, "wb") as f:
+            f.write(b"first\n" + b"x" * (MAX_TEXT_BYTES + 10))
+        r = json.loads(read(str(big), offset=1, limit=1))
+        self.assertTrue(r["success"])
+        self.assertIn("first", r["content"])
+
+    def test_uppercase_docx_suffix_also_rejected(self):
+        r = json.loads(read(str(self.dir / "REPORT.DOCX")))
+        self.assertFalse(r["success"])
+
 
 class TestReadImage(unittest.TestCase):
     def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory(prefix=".sebastian-test-", dir=str(Path(__file__).resolve().parents[1]))
-        self.dir = Path(self._tmp.name)
+        self.dir = temp_workdir()
         self.png = self.dir / "a.png"
         self.png.write_bytes(b"\x89PNG fake data")
 
     def tearDown(self):
-        self._tmp.cleanup()
+        shutil.rmtree(self.dir, ignore_errors=True)
 
     def test_read_image_returns_multimodal(self):
         r = read(str(self.png))
@@ -100,6 +132,37 @@ class TestReadImage(unittest.TestCase):
         r = json.loads(read(str(p)))
         self.assertTrue(r["success"])
         self.assertIn("plain text", r["content"])
+
+    def test_read_extensionless_image_by_magic(self):
+        # 无后缀图片（如截图临时文件）按文件头识别
+        p = self.dir / "shot"
+        p.write_bytes(b"\x89PNG\r\n\x1a\n" + b"payload")
+        r = read(str(p))
+        self.assertTrue(r.get("__multimodal__"))
+        self.assertEqual(r["parts"][1]["type"], "image_url")
+        self.assertTrue(r["parts"][1]["image_url"]["url"].startswith("data:image/png;base64,"))
+
+    def test_read_extensionless_jpeg_by_magic(self):
+        p = self.dir / "blob"
+        p.write_bytes(b"\xff\xd8\xff\xe0" + b"payload")
+        r = read(str(p))
+        self.assertTrue(r.get("__multimodal__"))
+        self.assertTrue(r["parts"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,"))
+
+    def test_read_extensionless_text_still_text(self):
+        p = self.dir / "notes"
+        p.write_text("no extension but plain text", encoding="utf-8")
+        r = json.loads(read(str(p)))
+        self.assertTrue(r["success"])
+        self.assertIn("no extension but plain text", r["content"])
+
+    def test_read_text_starting_with_bm_not_treated_as_bmp(self):
+        # "BM" 魔数只有两字节，纯文本不应被误判为 BMP
+        p = self.dir / "b.txt"
+        p.write_text("BMW is a car brand", encoding="utf-8")
+        r = json.loads(read(str(p)))
+        self.assertTrue(r["success"])
+        self.assertIn("BMW", r["content"])
 
 
 if __name__ == "__main__":

@@ -8,6 +8,9 @@ from src.tools.tools_registry import get_tools_registry
 # 支持的可视图片格式：文件大小上限（字节），防止超大图撑爆上下文
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 
+# 文本文件一次性读取上限：超限时要求调用方用 offset/limit 分片
+MAX_TEXT_BYTES = 10 * 1024 * 1024
+
 # 扩展名 -> MIME；优先使用显式映射，避免依赖系统 mimetypes 配置缺失
 EXTENSION_MIME = {
     ".png": "image/png",
@@ -17,6 +20,33 @@ EXTENSION_MIME = {
     ".gif": "image/gif",
     ".bmp": "image/bmp",
 }
+
+# 文件头魔数 -> MIME；扩展名缺失/未知（如截图临时文件、无后缀的 blob）时按内容识别
+MAGIC_MIME = (
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+)
+
+
+def _sniff_image_mime(file_path: str) -> str | None:
+    """按文件头判断是否为图片，返回 MIME 或 None。"""
+    try:
+        with open(file_path, "rb") as f:
+            head = f.read(16)
+    except Exception:
+        return None
+
+    for magic, mime in MAGIC_MIME:
+        if head.startswith(magic):
+            return mime
+    if head.startswith(b"RIFF") and head[8:12] == b"WEBP":
+        return "image/webp"
+    # BMP 的 "BM" 只有两字节，容易被文本误命中，额外校验保留字段必须为 0
+    if head.startswith(b"BM") and head[6:8] == b"\x00\x00":
+        return "image/bmp"
+    return None
 
 
 def read(file_path: str, offset: int = -1, limit: int = -1) -> str | dict:
@@ -32,7 +62,14 @@ def read(file_path: str, offset: int = -1, limit: int = -1) -> str | dict:
             "error": "offset和limit必须同时设置或同时不设置",
         }, ensure_ascii=False)
 
-    if file_path.endswith(".pdf") or file_path.endswith(".docx"):
+    if offset != -1 and (offset < 1 or limit < 1):
+        return json.dumps({
+            "success": False,
+            "summary": "offset和limit必须大于0",
+            "content": None,
+        }, ensure_ascii=False)
+
+    if file_path.lower().endswith((".pdf", ".docx")):
         return json.dumps(
             {
                 "success": False,
@@ -55,30 +92,51 @@ def read(file_path: str, offset: int = -1, limit: int = -1) -> str | dict:
         )
 
     ext = os.path.splitext(file_path)[1].lower()
-    if ext in EXTENSION_MIME:
-        return _read_image(file_path, ext)
+    mime = EXTENSION_MIME.get(ext) or _sniff_image_mime(file_path)
+    if mime:
+        return _read_image(file_path, mime)
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        #进行裁剪
-        if offset != -1 and limit != -1:
-            lines = content.splitlines()
-            if offset < 1 or limit < 1:
+        if offset == -1:
+            size = os.path.getsize(file_path)
+            if size > MAX_TEXT_BYTES:
                 return json.dumps(
                     {
                         "success": False,
-                        "summary": "offset和limit必须大于0",
-                        "content": None
+                        "summary": (
+                            f"文件过大（{size / 1024 / 1024:.1f}MB），超过单次读取上限 "
+                            f"{MAX_TEXT_BYTES / 1024 / 1024:.0f}MB，请使用 offset/limit 分片读取"
+                        ),
+                        "content": None,
                     },
-                    ensure_ascii=False
+                    ensure_ascii=False,
                 )
-            start_index = offset - 1
-            end_index = min(start_index + limit, len(lines)-1)
-            content = ""
-            for index in range(start_index, end_index+1):
-                content += f"{index+1}:  {lines[index]} \n"
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        else:
+            # 分片读取：逐行流式扫描，不把整文件载入内存
+            chunks = []
+            with open(file_path, "r", encoding="utf-8") as f:
+                for index, line in enumerate(f, 1):
+                    if index < offset:
+                        continue
+                    if index > offset + limit - 1:
+                        break
+                    # 不能在 f-string 表达式里用反斜杠（Python 3.10 兼容）
+                    text_line = line.rstrip("\r\n")
+                    chunks.append(f"{index}:  {text_line} \n")
+            content = "".join(chunks)
+            if not content:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    total = sum(1 for _ in f)
+                return json.dumps(
+                    {
+                        "success": False,
+                        "summary": f"offset 超出文件行数（共 {total} 行）",
+                        "content": None,
+                    },
+                    ensure_ascii=False,
+                )
 
         return json.dumps(
             {
@@ -99,7 +157,7 @@ def read(file_path: str, offset: int = -1, limit: int = -1) -> str | dict:
         )
 
 
-def _read_image(file_path: str, ext: str) -> dict:
+def _read_image(file_path: str, mime: str) -> dict:
     """把本地图片编码为多模态 content-parts（text + image_url data URI）。"""
     try:
         size = os.path.getsize(file_path)
@@ -114,7 +172,6 @@ def _read_image(file_path: str, ext: str) -> dict:
     except Exception as e:
         return _image_error(f"读取文件失败：{e}")
 
-    mime = EXTENSION_MIME[ext]
     data_uri = "data:{mime};base64,{b64}".format(
         mime=mime, b64=base64.b64encode(raw).decode("ascii")
     )
@@ -141,7 +198,7 @@ READ_SCHEMA = {
     "type": "function",
     "function": {
         "name": "read",
-        "description": "读取文件内容。文本文件：不传offset和limit参数表示读取完整文件内容，如果要传则必须同时设置offset和limit。图片文件（png/jpg/jpeg/webp/gif/bmp，≤15MB）：以图片形式加载给视觉模型，用于识别、描述、解读图片内容，一轮任务需要看多张图时必须在同一批工具调用里并行读完所有待读图片，严禁一张一张分轮读",
+        "description": "读取文件内容。文本文件：不传offset和limit参数表示读取完整文件内容（单次上限10MB，超出请分片），如果要传则必须同时设置offset和limit。图片文件（png/jpg/jpeg/webp/gif/bmp，≤15MB，无扩展名或扩展名未知时按文件头识别）：以图片形式加载给视觉模型，用于识别、描述、解读图片内容，一轮任务需要看多张图时必须在同一批工具调用里并行读完所有待读图片，严禁一张一张分轮读",
         "parameters": {
             "type": "object",
             "properties": {
