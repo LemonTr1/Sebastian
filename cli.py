@@ -30,6 +30,7 @@ import json
 from src.utils.compaction_pipeline import compact_history, message_without_images
 from src.utils.agent_mode import AGENT_MODE
 from src.utils.memory_system import MEMORY_SYSTEM
+from src.utils import ui_redraw
 from src.utils.interaction import TERMINAL_IO_LOCK
 logger = get_log()
 
@@ -61,15 +62,15 @@ def read_user_message(prompt: str) -> str:
     持全局终端锁：避免 cron/后台线程的终端降级提示与主 REPL 同时抢 stdin。
     """
     with TERMINAL_IO_LOCK:
-        lines = [input(prompt)]
+        lines = [ui_redraw.gated_input(prompt)]
         while _stdin_pending():
             try:
-                lines.append(input())
+                lines.append(ui_redraw.gated_input())
             except EOFError:
                 break
         while lines and lines[-1].endswith("\\"):
             lines[-1] = lines[-1][:-1]
-            lines.append(input("... "))
+            lines.append(ui_redraw.gated_input("... "))
         return "\n".join(lines)
 
 
@@ -179,9 +180,10 @@ def cron_queue_processor_loop():
             try:
                 brain_agent.run_stream(
                     None,
-                    on_token=lambda token: typer.echo(token, nl=False),
+                    on_token=lambda token: ui_redraw.emit_token("cron", token),
                 )
             finally:
+                ui_redraw.flush_tokens()
                 AGENT_MODE.set(prev_mode)
 
             #触发Stop钩子统计Token数
@@ -204,6 +206,7 @@ def cron_queue_processor_loop():
 
 
 def _run_chat(session_id: str):
+    ui_redraw.install()
     from src.config import API_KEY
     if not API_KEY:
         typer.echo(typer.style(
@@ -351,8 +354,9 @@ def _run_chat(session_id: str):
                 #进入AgentLoop
                 brain_agent.run_stream(
                     question,
-                    on_token=lambda token: typer.echo(token, nl=False),
+                    on_token=lambda token: ui_redraw.emit_token("brain", token),
                 )
+            ui_redraw.flush_tokens()
 
             result = hooks_registry.get_hooks_registry().trigger_hooks("Stop")
             if result is not None:

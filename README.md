@@ -26,11 +26,12 @@ Sebastian 是一个基于 LLM 的多 Agent 协作终端助手：主控 Agent 负
   - [架构概览](#架构概览)
   - [核心特性](#核心特性)
     - [多 Agent 协作](#多-agent-协作)
+    - [流式 Markdown 渲染](#流式-markdown-渲染)
     - [工具系统](#工具系统)
     - [记忆系统](#记忆系统)
     - [安全体系](#安全体系)
     - [人机协同审批](#人机协同审批)
-    - [Agent 提问窗口](#agent-提问窗口)
+    - [Agent 提问](#agent-提问)
     - [沙箱系统](#沙箱系统)
     - [Hook 系统](#hook-系统)
     - [上下文压缩](#上下文压缩)
@@ -99,7 +100,7 @@ LLM 输出 → [命令安全] 启发式拦截 rm -rf /、rm -rf ~、fork bomb、
 | 隔离层次 | 手段 | 隔离对象 |
 |----------|------|---------|
 | 进程级 | 代码在 bubblewrap 命名空间沙箱中执行 | 宿主文件系统（只读挂载）、34 个敏感目录（tmpfs 隐藏）、系统能力（`cap-drop ALL`） |
-| 进程级 | 审批确认窗口运行于独立 Python 子进程 | Tcl/Tk 线程安全问题——每个窗口拥有独立事件循环，任意线程调用均安全 |
+| 交互级 | 终端审批/提问共用 `TERMINAL_IO_LOCK` | 多个 Agent 同时抢 stdin |
 | 上下文级 | 子 Agent 独立上下文，任务完成即销毁 | 子 Agent 之间的对话污染与嵌套调度 |
 
 ### 5. 优雅降级 —— 允许故障，但必须具备自恢复能力
@@ -116,7 +117,7 @@ LLM 输出 → [命令安全] 启发式拦截 rm -rf /、rm -rf ~、fork bomb、
 
 **原则**：自动化不等同于无人化。不可逆操作的最终决定权应始终保留给用户。
 
-**实现**：危险操作（bash / write / edit / agent 调度 / schedule_cron）执行前，系统弹出独立置顶确认窗口，完整展示工具参数（语法高亮），支持键盘快捷键与超时自动拒绝。同时，记忆系统使 Sebastian 能够在跨会话间记录用户偏好与约束——记忆内容均来源于用户在对话中的明确表述。
+**实现**：危险操作（bash / write / edit / agent 调度 / schedule_cron）执行前，系统在终端展示工具名、来源 Agent 和参数，等待 `y/N` 确认；后台日志通过提示符重绘，不打断确认行。同时，记忆系统使 Sebastian 能够在跨会话间记录用户偏好与约束——记忆内容均来源于用户在对话中的明确表述。
 
 ---
 
@@ -143,12 +144,14 @@ LLM 输出 → [命令安全] 启发式拦截 rm -rf /、rm -rf ~、fork bomb、
     └──────────┘ └──────────┘ └───────┘ └───────────┘
 
     所有工具调用经过 Hook 管道：
-    PreToolUse → [日志记录] → [HITL 确认窗口]
+    PreToolUse → [日志记录] → [终端 HITL 确认]
     执行过程经过安全管道：
     命令防护 → 路径防护 → URL 防护 → bubblewrap 沙箱
 ```
 
 **Brain Agent（主控 Agent）** 是唯一与用户交互的顶层 Agent，其系统提示词包含：路径安全底线、Bash 使用规范、常见任务调度策略表、任务规划指令、可用技能与子 Agent 清单、后台执行规则，以及动态注入的记忆索引。
+
+> 相关设计文档：[Aider 的串行事务模型对 Sebastian 并发多 Agent 的启发](docs/aider-lessons.md)
 
 ---
 
@@ -164,6 +167,10 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 | **CodeReviewer**   | read, ls, glob, grep | 审查代码质量、风格与潜在问题 |
 | **TestRunner**     | read, ls, bash, grep, glob | 执行测试并汇报结果（禁止修改测试代码） |
 | **WebSearchAgent** | web_search, web_fetch | 网络搜索与网页内容提取 |
+
+### 流式 Markdown 渲染
+
+Brain 与 cron 的流式 token 经过 `ui_redraw` 按行渲染：标题、粗体/斜体、行内代码、列表、引用、代码块围栏；未闭合的尾行在流结束时 flush。渲染与提示符重绘共用输出锁，后台日志不会打断正在显示的回答。
 
 ### 工具系统
 
@@ -186,7 +193,7 @@ Brain Agent 通过 `agent` 工具将子任务路由至专业化子 Agent；子 A
 | `schedule_cron` | ✓ | 注册 Unix 五段定时任务 |
 | `list_crons` | | 列出已注册定时任务 |
 | `cancel_cron` | ✓ | 按 ID 取消定时任务 |
-| `question` | | 弹窗向用户提问（单选选项 + 自由输入，默认 300s 超时；超时/取消返回未作答） |
+| `question` | | 终端向用户提问（编号选项 + 自由输入，默认 300s 超时；超时/取消返回未作答） |
 
 ### MCP 工具接入
 
@@ -230,30 +237,28 @@ Sebastian 通过 stdio 方式接入第三方 MCP server，把 server 暴露的�
 | 命令层 | `command_guard.py` | 启发式拦截危险命令；不是完整 shell 策略，最终依赖沙箱与 HITL |
 | 路径层 | `path_safety.py` | 跟随符号链接后校验：必须落在 `$HOME` 内 + 敏感目录/文件/扩展名黑名单 |
 | 网络层 | `url_safety.py` | 请求前 SSRF 检查：解析 DNS，拦截私网/回环/链路本地/组播/ULA/CGNAT，解析失败则拒绝 |
-| 确认层 | HITL 确认窗口 | 破坏性操作须经用户确认方可执行 |
+| 确认层 | 终端 HITL 确认 | 破坏性操作须经用户确认方可执行 |
 
 ### 人机协同审批
 
-HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`）：
+HITL 使用终端确认（`src/utils/interaction.py`）：
 
-- 每次审批启动独立 Python 进程运行 tkinter 窗口，线程安全，任意 Agent 线程调用均无风险
-- 参数卡片完整展示工具参数，附带语法高亮（字符串/数字/布尔分色）
-- 支持键盘快捷键（Y/Enter 允许，N/Esc 拒绝）、倒计时超时自动拒绝
-- 内置 dark / light / blue 三种主题
-- **无图形环境自动降级为终端确认**：未设置 `DISPLAY`/`WAYLAND_DISPLAY`、未安装 tkinter，或弹窗子进程异常未返回结果时，改为在终端提示 `是否允许？[y/N]`（空输入/超时/非交互终端一律默认拒绝）；所有工具参数打印前会清洗 ANSI 转义，防止终端注入
-- 可用环境变量 `SEBASTIAN_INTERACTION=auto|gui|terminal` 强制交互方式（默认 `auto`：能弹窗则弹窗，否则终端）
+- 危险工具（bash / write / edit / agent 调度 / schedule_cron）执行前，在终端展示工具名、来源 Agent 和参数。
+- 默认 `[y/N]`；空输入、EOF、非交互终端一律拒绝；调用方传入 timeout 时超时拒绝。
+- 所有工具参数打印前会清洗 ANSI 转义，防止终端注入。
+- 输入串行化由 `TERMINAL_IO_LOCK` 保证：同一时刻只有一个提示符等待输入。
+- 后台任务、子 Agent、cron 的输出通过 `ui_redraw` 重绘：审批/提问整块与输入行作为一个整体，日志只插在整块上方。
+- 不依赖 Tkinter / `DISPLAY` / `python3-tk`，SSH、WSL、无桌面环境可用。
 
-### Agent 提问窗口
+### Agent 提问
 
-`question` 工具让 Brain Agent 主动向用户提问并同步等待作答，采用与 HITL 相同的子进程窗口方案（`question_client.py` + `question_dialog.py`）：
+`question` 工具让 Brain Agent 主动向用户提问并同步等待作答：
 
-- **提问 ≠ 审批**：HITL 弹窗回答"是否允许执行"（返回布尔值），提问弹窗回答"具体选什么/是什么"（返回文本），因此 `question` **不是 HITL 工具**，不会触发审批弹窗
-- 支持"单选选项 + 自由输入"二合一：Agent 可给出 2-6 个互斥选项，用户也可直接点击输入框改填自定义回答；不留空校验（空回答会被拒绝提交，窗口不关）
-- 默认 300 秒倒计时（`timeout` 参数可调，范围 5-3600），归零自动关闭并返回未作答
-- 快捷键：Enter 提交、Esc 取消；窗口置顶居中
-- 结果为结构化状态：`answered` / `timeout` / `cancelled` / `busy` / `unavailable` / `error`。非 `answered` 时返回值附带 `hint`，引导 Agent 改用合理默认值继续或在正文中提问，而非反复弹窗打扰用户
-- 降级：无图形环境（未设置 `DISPLAY`/`WAYLAND_DISPLAY`、未装 tkinter）或弹窗异常时，自动降级为**终端问答**（有选项则编号选择，也可直接输入文本）；仅有在"既无图形、又不是交互终端"时才返回 `unavailable`；Eval 模式仍直接跳过
-- Plan 模式下可用（提问属于只读行为）
+- **提问 ≠ 审批**：审批回答“是否允许执行”（布尔值），提问回答“具体选什么/是什么”（文本），因此 `question` **不是 HITL 工具**。
+- 终端展示问题与 2-6 个互斥选项；用户可输入编号，也可直接输入自由文本。
+- 空回答会重新提示；默认 300 秒超时（`timeout` 可调，5-3600）。
+- 结果为结构化状态：`answered` / `timeout` / `cancelled` / `unavailable` / `error`。非 `answered` 时附带 `hint`，引导 Agent 用默认值继续或在正文中提问。
+- 非交互终端返回 `unavailable`；Plan 模式下可用。
 
 ### 沙箱系统
 
@@ -275,7 +280,7 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 | 事件 | 触发阶段 | 已注册钩子 |
 |------|----------|-----------|
 | **UserPromptSubmit** | 用户输入后 | 输入安全检测 |
-| **PreToolUse** | 工具执行前 | 调用日志 + HITL 确认窗口 |
+| **PreToolUse** | 工具执行前 | 调用日志 + 终端 HITL 确认 |
 | **PostCompletion** | LLM 响应完成后 | Token 消耗累计 |
 | **Stop** | 一轮对话结束后 | 本轮 Token 消耗汇总 + 上下文占用统计（着色） |
 
@@ -312,7 +317,7 @@ HITL 采用子进程窗口方案（`approval_client.py` + `approval_dialog.py`�
 Sebastian 提供 **Plan（只读规划）**、**Build（执行）** 与 **Auto（免审批执行）** 三种模式，登录默认 Build：
 
 - `/plan` 进入 Plan：Brain 仅可用 `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`，执行类工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`）从工具 schema 中移除并被拒绝执行；system 提示词动态注入"以调研与规划为主"的行为引导，并要求模型在计划完成后主动询问用户：立即退出执行还是修改计划
-- `/build` 恢复 Build：全部工具可用，HITL 工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / 全部 MCP 工具）执行前弹窗等待人工审批
+- `/build` 恢复 Build：全部工具可用，HITL 工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / 全部 MCP 工具）执行前在终端等待人工审批
 - `/auto` 进入 Auto：全部工具可用，且**所有工具调用跳过人工审批**（终端打印 `[AUTO] 自动批准` 并写日志），请谨慎使用；`/build` 恢复审批
 - 模式运行期有效不持久化；定时任务触发时若处于 Plan 则**强制以 Build 运行**，执行完恢复原模式（Auto 模式工具齐全且免审批，不切换）
 - 终端提示符显示当前模式（`[user|PLAN]：` / `[user|AUTO]：`）
@@ -330,7 +335,6 @@ Sebastian 提供 **Plan（只读规划）**、**Build（执行）** 与 **Auto�
 - **操作系统**：Linux（bubblewrap 沙箱依赖 Linux 命名空间）
 - **Python**：>= 3.10
 - **bubblewrap**：`sudo apt install bubblewrap`
-- **python3-tk**：`sudo apt install python3-tk`（HITL 确认窗口 / Agent 提问窗口依赖）
 - **网络**：可访问 DeepSeek API（或任何兼容 OpenAI API 格式的后端）
 
 ### 安装
@@ -347,7 +351,7 @@ pip install -e .
 pip install -r requirements.txt
 
 # 3. 安装系统依赖 (Ubuntu/Debian)
-sudo apt install bubblewrap python3-tk
+sudo apt install bubblewrap
 ```
 
 运行安全相关单测：
@@ -449,7 +453,7 @@ Sebastian/
 │   │       ├── bash.py             # 沙箱命令执行（支持后台）
 │   │       ├── read.py / write.py / edit.py / ls.py / glob.py / grep.py
 │   │       ├── web_search.py / web_fetch.py
-│   │       ├── question.py         # 弹窗提问（选项 + 自由输入）
+│   │       ├── question.py         # 终端提问（选项 + 自由输入）
 │   │       ├── mcp.py              # 启动时把MCP server工具动态注册进ToolsRegistry
 │   │       ├── todo_manager.py     # 任务规划/进度提醒
 │   │       ├── skill_registry.py   # 技能文档加载
@@ -473,7 +477,7 @@ Sebastian/
 │   ├── hooks/                      # Event-driven钩子系统
 │   │   ├── hooks_registry.py       # 钩子注册中心（4事件）
 │   │   ├── user_prompt_submit/     # 输入安全检测
-│   │   ├── pre_tool_use/           # 日志记录 + HITL确认窗口
+│   │   ├── pre_tool_use/           # 日志记录 + 终端 HITL 确认
 │   │   ├── post_completion/        # Token统计
 │   │   └── stop/                   # Token汇总 + 上下文占用统计
 │   │
@@ -485,10 +489,8 @@ Sebastian/
 │   │   ├── memory_system.py        # .memory/ 索引 + 条目，开关与提示词
 │   │   ├── compaction_pipeline.py  # 3层上下文压缩管线（预算驱动/无损降级/分段摘要）
 │   │   ├── model_windows.py        # 模型名→上下文窗口解析（.env 动态映射）
-│   │   ├── approval_client.py      # HITL确认窗口客户端（子进程IPC，线程安全）
-│   │   ├── approval_dialog.py      # HITL确认窗口进程（tkinter，语法高亮）
-│   │   ├── question_client.py      # 提问窗口客户端（子进程IPC，wait/锁超时）
-│   │   ├── question_dialog.py      # 提问窗口进程（tkinter，选项+自由输入）
+│   │   ├── interaction.py          # 终端审批/提问（input + 提示符重绘）
+│   │   ├── ui_redraw.py            # 后台输出重绘：擦行/打印/恢复提示符
 │   │   ├── exceptions.py           # 自定义异常
 │   │   ├── tokens_caculator.py     # 累计Token计数
 │   │   ├── session_id_container.py # 会话ID容器
@@ -524,7 +526,7 @@ Sebastian/
 | **CLI 框架** | Typer |
 | **LLM SDK** | OpenAI（兼容 DeepSeek / OpenAI / Ollama / vLLM） |
 | **沙箱隔离** | bubblewrap（Linux 命名空间） |
-| **确认窗口** | tkinter（子进程隔离，需 python3-tk；HITL 审批 + Agent 提问） |
+| **终端审批** | `input()` + 提示符重绘（`ui_redraw`，无图形依赖） |
 | **网页搜索** | DuckDuckGo（ddgs）+ 百度搜索（baidusearch，降级） |
 | **网页正文提取** | ddgs + requests + beautifulsoup4 + lxml（降级） |
 | **MCP 客户端** | fastmcp（stdlib + MCP SDK，stdio 传输） |

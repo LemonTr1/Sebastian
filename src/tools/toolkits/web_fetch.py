@@ -2,10 +2,15 @@ import json
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from ddgs import DDGS
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from src.security.url_safety import is_public_url
 from src.tools.tools_registry import get_tools_registry
 from src.logs.app_log import get_log
+
+# 这里的 verify=False 是为了兼容部分站点/代理的证书问题；不要让它把
+# InsecureRequestWarning 直接写到 stderr，冲散终端提示符。
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = get_log()
 

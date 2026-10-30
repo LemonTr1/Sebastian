@@ -26,11 +26,13 @@ Sebastian is an LLM-powered multi-agent terminal assistant: a central Brain Agen
   - [Architecture Overview](#architecture-overview)
   - [Core Features](#core-features)
     - [Multi-Agent Collaboration](#multi-agent-collaboration)
+    - [Streaming Markdown Rendering](#streaming-markdown-rendering)
     - [Tool System](#tool-system)
     - [MCP Tool Integration](#mcp-tool-integration)
     - [Memory System](#memory-system)
     - [Security System](#security-system)
     - [Human-in-the-Loop Approval](#human-in-the-loop-approval)
+    - [Agent Questions](#agent-questions)
     - [Sandbox](#sandbox)
     - [Hook System](#hook-system)
     - [Context Compaction](#context-compaction)
@@ -99,7 +101,7 @@ Bypassing any single layer never compromises the whole defense — the value of 
 | Isolation Level | Mechanism | What It Isolates |
 |-----------------|-----------|------------------|
 | Process-level | Code executes in a bubblewrap namespace sandbox | Host filesystem (read-only mount), 34 sensitive directories (tmpfs-hidden), system capabilities (`cap-drop ALL`) |
-| Process-level | Approval dialogs run as independent Python subprocesses | Tcl/Tk thread-safety — each dialog owns its event loop; safe from any thread |
+| Interaction-level | Terminal approval/question share `TERMINAL_IO_LOCK` | Multiple agents racing for stdin |
 | Context-level | Sub-agents keep isolated contexts, destroyed after each task | Cross-agent conversation pollution and nested dispatch |
 
 ### 5. Graceful Degradation — Faults Are Tolerated, Recovery Is Required
@@ -116,7 +118,7 @@ Bypassing any single layer never compromises the whole defense — the value of 
 
 **Principle**: Automation does not mean removing humans from the loop. The final decision on irreversible operations always remains with the user.
 
-**Implementation**: Before dangerous operations (bash / write / edit / agent dispatch / schedule_cron) are executed, the system raises a dedicated always-on-top confirmation dialog showing the full tool parameters (syntax-highlighted), with keyboard shortcuts and timeout auto-deny. Meanwhile, the memory system enables Sebastian to record user preferences and constraints across sessions — all memory content originates from the user's explicit statements in conversation.
+**Implementation**: Before dangerous operations (bash / write / edit / agent dispatch / schedule_cron) are executed, the terminal shows the tool name, source agent, and arguments, then waits for `y/N`; background logs use prompt redraw and do not break the confirmation line. Meanwhile, the memory system enables Sebastian to record user preferences and constraints across sessions — all memory content originates from the user's explicit statements in conversation.
 
 ---
 
@@ -143,7 +145,7 @@ Bypassing any single layer never compromises the whole defense — the value of 
     └──────────┘ └──────────┘ └───────┘ └───────────┘
 
     Every tool call passes through the Hook pipeline:
-    PreToolUse → [logging] → [HITL confirmation dialog]
+    PreToolUse → [logging] → [terminal HITL confirmation]
     Execution passes through the security pipeline:
     command guard → path guard → URL guard → bubblewrap sandbox
 ```
@@ -164,6 +166,10 @@ The Brain Agent routes subtasks to specialized sub-agents via the `agent` tool; 
 | **CodeReviewer** | read, ls, glob, grep | Review code quality, style, and potential issues |
 | **TestRunner** | read, ls, bash, grep, glob | Run tests and report results (never edits test code) |
 | **WebSearchAgent** | web_search, web_fetch | Web search and page content extraction |
+
+### Streaming Markdown Rendering
+
+Brain and cron streaming tokens are rendered line-by-line by `ui_redraw`: headings, bold/italic, inline code, lists, quotes, and code fences; an incomplete trailing line is flushed at stream end. Rendering shares the output lock with prompt redraw, so background logs do not interrupt the answer being displayed.
 
 ### Tool System
 
@@ -186,7 +192,7 @@ All tools are registered in a central `ToolsRegistry`; each tool carries four at
 | `schedule_cron` | ✓ | Register a 5-field Unix cron job |
 | `list_crons` | | List registered cron jobs |
 | `cancel_cron` | ✓ | Cancel a cron job by ID |
-| `question` | | Ask the user a question (options + free input, 300s timeout; falls back to a terminal prompt when no GUI is available; timeout/cancel returns unanswered) |
+| `question` | | Ask the user a question in the terminal (option number or free input; 300s timeout; timeout/cancel returns unanswered) |
 
 ### MCP Tool Integration
 
@@ -230,18 +236,28 @@ Four layers of defense in depth plus one human confirmation layer:
 | Command | `command_guard.py` | Heuristic dangerous-command denylist — not a full shell policy; sandbox + HITL are the real boundary |
 | Path | `path_safety.py` | Follow symlinks, then require `$HOME` + sensitive dir/file/extension blacklists |
 | Network | `url_safety.py` | Pre-request SSRF check: resolve DNS, block private/loopback/link-local/multicast/ULA/CGNAT, fail closed |
-| Confirmation | HITL dialog | Destructive operations require explicit human approval |
+| Confirmation | Terminal HITL | Destructive operations require explicit human approval |
 
 ### Human-in-the-Loop Approval
 
-HITL uses the subprocess dialog approach (`approval_client.py` + `approval_dialog.py`):
+HITL uses terminal confirmation (`src/utils/interaction.py`):
 
-- Each approval spawns an independent Python process running a tkinter dialog — thread-safe, no risk from any agent thread
-- The parameter card displays the full tool arguments with syntax highlighting (strings/numbers/booleans colorized)
-- Keyboard shortcuts (Y/Enter to allow, N/Esc to deny) and countdown timeout with auto-deny
-- Three built-in themes: dark / light / blue
-- **Automatic terminal fallback when no GUI is available**: if `DISPLAY`/`WAYLAND_DISPLAY` is unset, tkinter is missing, or the dialog subprocess fails to return a result, approval degrades to a terminal prompt `Allow? [y/N]` (empty input / timeout / non-interactive terminal all default to deny); all tool arguments are ANSI-sanitized before printing to prevent terminal injection
-- Override the transport with `SEBASTIAN_INTERACTION=auto|gui|terminal` (default `auto`: use the dialog when possible, otherwise the terminal)
+- Before a destructive tool (bash / write / edit / agent dispatch / schedule_cron) runs, the terminal shows the tool name, source agent, and arguments.
+- Default `[y/N]`; empty input, EOF, and non-interactive terminals deny; a timeout passed by the caller also denies.
+- Tool arguments are ANSI-sanitized before printing to prevent terminal injection.
+- Input is serialized by `TERMINAL_IO_LOCK`: only one prompt can read stdin at a time.
+- Background tasks, sub-agents, and cron output go through `ui_redraw`: the whole approval/question block and the input line are redrawn as one unit; logs only appear above the block.
+- No Tkinter / `DISPLAY` / `python3-tk` dependency; works over SSH, WSL, and headless environments.
+
+### Agent Questions
+
+The `question` tool asks the user for input and waits synchronously:
+
+- **Question ≠ approval**: approval answers "may I execute this?" (boolean); a question answers "what exactly do you want?" (text). `question` is **not** a HITL tool.
+- The terminal shows the question and 2-6 mutually exclusive options; the user can enter an option number or free text.
+- Empty answers are re-prompted; default timeout is 300 seconds (`timeout` adjustable, 5-3600).
+- Results are structured: `answered` / `timeout` / `cancelled` / `unavailable` / `error`. Non-`answered` results include a `hint` telling the agent to proceed with defaults or ask in the reply body.
+- Non-interactive terminals return `unavailable`; available in Plan mode.
 
 ### Sandbox
 
@@ -263,13 +279,13 @@ An event-driven plugin mechanism injects custom logic at four points of the agen
 | Event | Trigger Point | Registered Hooks |
 |-------|---------------|------------------|
 | **UserPromptSubmit** | After user input | Input security check |
-| **PreToolUse** | Before tool execution | Call logging + HITL confirmation dialog |
+| **PreToolUse** | Before tool execution | Call logging + terminal HITL confirmation |
 | **PostCompletion** | After each LLM response | Token usage accumulation |
 | **Stop** | After each conversation turn | Per-turn token summary |
 
 ### Context Compaction
 
-**Evaluated every AgentLoop turn**, the three-layer progressive compaction pipeline triggers per-layer by token budget (all thresholds are relative to the model context window, dynamically resolved from the model name in `.env`, defaulting to 128K for unknown models):
+**On every AgentLoop turn**, the three-layer progressive compaction pipeline triggers per-layer by token budget (all thresholds are relative to the model context window, dynamically resolved from the model name in `.env`, defaulting to 128K for unknown models):
 
 1. **Persist large results**: a single tool result exceeding the cap (5% of window tokens) is immediately written to disk (sha256 content-addressed dedup); the context keeps only the path plus head/tail previews — oversized content never enters the context
 2. **Micro-compact**: when total tokens exceed 50% of the window, older tool results are persisted to disk first, then replaced with placeholders (lossless, re-readable anytime)
@@ -300,7 +316,7 @@ The `bash` and `agent` tools support `run_in_background=true` for async executio
 Sebastian provides three working modes — **Plan (read-only planning)**, **Build (execution)** and **Auto (approval-free execution)**, defaulting to Build on login:
 
 - `/plan` enters Plan: the Brain can only use `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`; execution tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`) are removed from the tool schemas and rejected at runtime; the system prompt is dynamically injected with research-and-planning-focused guidance, requiring the model to ask the user whether to execute immediately or revise the plan once it is ready
-- `/build` restores Build: all tools are available, and HITL tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / all MCP tools) require manual approval via a pop-up before execution
+- `/build` restores Build: all tools are available, and HITL tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / all MCP tools) require manual approval in the terminal before execution
 - `/auto` enters Auto: all tools are available and **every tool call skips manual approval** (the terminal prints `[AUTO] auto-approved` and the log records it) — use with caution; `/build` restores approval
 - The mode is runtime-only (not persisted); scheduled (cron) tasks are **forced to run in Build mode** when triggered from Plan, and the previous mode is restored afterwards (Auto already has full tools with no approval, so no switch happens)
 - The terminal prompt shows the current mode (`[user|PLAN]:` / `[user|AUTO]:`)
@@ -318,7 +334,6 @@ Skill documents live in `~/.sebastian/skills/<name>/SKILL.md` (YAML frontmatter 
 - **OS**: Linux (the bubblewrap sandbox relies on Linux namespaces)
 - **Python**: >= 3.10
 - **bubblewrap**: `sudo apt install bubblewrap`
-- **python3-tk**: `sudo apt install python3-tk` (required by the HITL confirmation dialog)
 - **Network**: access to the DeepSeek API (or any OpenAI-compatible backend)
 
 ### Installation
@@ -335,7 +350,7 @@ pip install -e .
 pip install -r requirements.txt
 
 # 3. Install system dependencies (Ubuntu/Debian)
-sudo apt install bubblewrap python3-tk
+sudo apt install bubblewrap
 ```
 
 Run the security unit tests:
@@ -461,7 +476,7 @@ Sebastian/
 │   ├── hooks/                      # Event-driven hook system
 │   │   ├── hooks_registry.py       # Hook registry (4 events)
 │   │   ├── user_prompt_submit/     # Input security check
-│   │   ├── pre_tool_use/           # Logging + HITL confirmation dialog
+│   │   ├── pre_tool_use/           # Logging + terminal HITL confirmation
 │   │   ├── post_completion/        # Token counting
 │   │   └── stop/                   # Token summary
 │   │
@@ -472,8 +487,8 @@ Sebastian/
 │   ├── utils/                      # Utilities
 │   │   ├── memory_system.py        # .memory/ index + entries, toggle and prompt
 │   │   ├── compaction_pipeline.py  # 3-layer context compaction pipeline
-│   │   ├── approval_client.py      # HITL dialog client (subprocess IPC, thread-safe)
-│   │   ├── approval_dialog.py      # HITL dialog process (tkinter, syntax highlighting)
+│   │   ├── interaction.py          # Terminal approval/question (input + prompt redraw)
+│   │   ├── ui_redraw.py            # Async output redraw: erase/print/restore prompt
 │   │   ├── exceptions.py           # Custom exceptions
 │   │   ├── tokens_caculator.py     # Cumulative token counter
 │   │   ├── session_id_container.py # Session ID container
@@ -509,7 +524,7 @@ User data directory (`~/.sebastian/`):
 | **CLI Framework** | Typer |
 | **LLM SDK** | OpenAI (compatible with DeepSeek / OpenAI / Ollama / vLLM) |
 | **Sandbox Isolation** | bubblewrap (Linux namespaces) |
-| **Confirmation Dialog** | tkinter (subprocess isolation, requires python3-tk) |
+| **Terminal Approval** | `input()` + prompt redraw (`ui_redraw`, no GUI dependency) |
 | **Web Search** | DuckDuckGo (ddgs) |
 | **Web Extraction** | ddgs + requests + beautifulsoup4 + lxml (degradation) |
 | **MCP Client** | fastmcp (stdlib + MCP SDK, stdio transport) |

@@ -55,12 +55,12 @@ hitl_mod = importlib.import_module("src.hooks.pre_tool_use.02_hitl_hook")
 tool_call = {"function": {"name": "bash", "arguments": '{"command": "ls"}'}}
 
 AGENT_MODE.set(AgentMode.AUTO)
-with mock.patch.object(hitl_mod._approval_client, "ask", return_value=False) as ask_mock:
+with mock.patch.object(hitl_mod, "terminal_confirm", return_value=False) as ask_mock:
     result = hitl_mod.hitl_hook("Brain_Agent", tool_call)
 check("auto mode skips approval", result is None and not ask_mock.called)
 
 AGENT_MODE.set(AgentMode.BUILD)
-with mock.patch.object(hitl_mod._approval_client, "ask", return_value=True) as ask_mock:
+with mock.patch.object(hitl_mod, "terminal_confirm", return_value=True) as ask_mock:
     result = hitl_mod.hitl_hook("Brain_Agent", tool_call)
 check("build mode asks approval", result is None and ask_mock.called)
 

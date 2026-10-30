@@ -1,4 +1,4 @@
-"""question 工具单元测试：参数校验、降级分支、返回值映射（不真实弹窗）"""
+"""question 工具单元测试：参数校验、降级分支、返回值映射（不真实读取终端）"""
 import json
 import unittest
 from unittest.mock import patch
@@ -8,12 +8,6 @@ from src.tools.tools_registry import get_tools_registry
 
 
 class TestQuestionTool(unittest.TestCase):
-    def setUp(self):
-        # eval 模式默认关闭；图形环境检测已下沉到 QuestionClient，不在工具层
-        patcher = patch.object(q, "is_eval_mode", return_value=False)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
     def test_registered_and_not_hitl(self):
         registry = get_tools_registry()
         self.assertIsNotNone(registry.get_tool("question"))
@@ -21,7 +15,7 @@ class TestQuestionTool(unittest.TestCase):
         self.assertIn("question", registry.agent_tools["Brain_Agent"])
 
     def test_empty_question_rejected(self):
-        with patch.object(q._QUESTION_CLIENT, "ask") as ask:
+        with patch.object(q, "terminal_question") as ask:
             payload = json.loads(q.question("   "))
         self.assertFalse(payload["success"])
         self.assertEqual(payload["status"], "error")
@@ -29,28 +23,28 @@ class TestQuestionTool(unittest.TestCase):
 
     def test_too_many_options_rejected(self):
         options = [f"opt{i}" for i in range(q.MAX_OPTIONS + 1)]
-        with patch.object(q._QUESTION_CLIENT, "ask") as ask:
+        with patch.object(q, "terminal_question") as ask:
             payload = json.loads(q.question("选一个", options))
         self.assertFalse(payload["success"])
         self.assertIn("选项过多", payload["error_message"])
         ask.assert_not_called()
 
     def test_options_json_string_accepted(self):
-        with patch.object(q._QUESTION_CLIENT, "ask", return_value={
+        with patch.object(q, "terminal_question", return_value={
             "status": "answered", "answer": "B", "selected_option": "B", "is_free_text": False,
         }) as ask:
             q.question("选一个", '["A", "B"]')
         self.assertEqual(ask.call_args.kwargs["options"], ["A", "B"])
 
     def test_timeout_clamped(self):
-        with patch.object(q._QUESTION_CLIENT, "ask", return_value={
+        with patch.object(q, "terminal_question", return_value={
             "status": "answered", "answer": "ok", "selected_option": None, "is_free_text": True,
         }) as ask:
             q.question("?", timeout=99999)
         self.assertEqual(ask.call_args.kwargs["timeout"], q.MAX_TIMEOUT)
 
     def test_answered_passthrough(self):
-        with patch.object(q._QUESTION_CLIENT, "ask", return_value={
+        with patch.object(q, "terminal_question", return_value={
             "status": "answered", "answer": "PostgreSQL",
             "selected_option": "PostgreSQL", "is_free_text": False,
         }):
@@ -61,7 +55,7 @@ class TestQuestionTool(unittest.TestCase):
         self.assertFalse(payload["is_free_text"])
 
     def test_timeout_returns_hint(self):
-        with patch.object(q._QUESTION_CLIENT, "ask", return_value={
+        with patch.object(q, "terminal_question", return_value={
             "status": "timeout", "answer": None, "selected_option": None, "is_free_text": False,
         }):
             payload = json.loads(q.question("?", timeout=5))
@@ -71,8 +65,8 @@ class TestQuestionTool(unittest.TestCase):
         self.assertIn("5", payload["error_message"])
 
     def test_unavailable_status_mapped(self):
-        # 客户端（无 GUI 且非终端）返回 unavailable 时，工具应附带 hint
-        with patch.object(q._QUESTION_CLIENT, "ask", return_value={
+        # 非交互终端返回 unavailable 时，工具应附带 hint
+        with patch.object(q, "terminal_question", return_value={
             "status": "unavailable", "answer": None, "selected_option": None, "is_free_text": False,
         }):
             payload = json.loads(q.question("?"))
@@ -80,12 +74,6 @@ class TestQuestionTool(unittest.TestCase):
         self.assertEqual(payload["status"], "unavailable")
         self.assertIn("hint", payload)
 
-    def test_eval_mode_skips_dialog(self):
-        with patch.object(q, "is_eval_mode", return_value=True), \
-                patch.object(q._QUESTION_CLIENT, "ask") as ask:
-            payload = json.loads(q.question("?"))
-        self.assertEqual(payload["status"], "unavailable")
-        ask.assert_not_called()
 
 
 if __name__ == "__main__":

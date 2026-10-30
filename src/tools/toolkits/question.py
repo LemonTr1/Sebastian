@@ -1,11 +1,9 @@
 import json
 
-import typer
 
 from src.logs.app_log import get_log
 from src.tools.tools_registry import get_tools_registry
-from src.utils.eval_flag import is_eval_mode
-from src.utils.question_client import QuestionClient
+from src.utils.interaction import terminal_question
 
 MAX_OPTIONS = 20
 MAX_OPTION_CHARS = 200
@@ -16,21 +14,17 @@ MAX_TIMEOUT = 3600
 
 logger = get_log()
 
-_QUESTION_CLIENT = QuestionClient(theme="dark")
-
-# 失败 status → 给 LLM 的下一步指引（把"工具失败"转成可执行动作，避免反复弹窗）
+# 失败 status → 给 LLM 的下一步指引（把"工具失败"转成可执行动作，避免反复追问）
 _HINTS = {
-    "timeout": "不要重复弹窗追问。请基于合理默认值继续，或在回复正文中说明你的假设并请用户确认。",
+    "timeout": "不要重复追问。请基于合理默认值继续，或在回复正文中说明你的假设并请用户确认。",
     "cancelled": "请在回复中简要说明待确认事项，结束本轮等待用户下一条消息。",
-    "busy": "等待其结束或改为在正文中提问。",
     "unavailable": "请直接在回复正文中向用户提问，并以问句结束本轮。",
 }
 
 _MESSAGES = {
     "timeout": "用户在等待时间内未作答",
-    "cancelled": "用户关闭了提问窗口，未作答",
-    "busy": "已有另一个提问窗口正在等待回答",
-    "unavailable": "当前环境无法弹出交互窗口",
+    "cancelled": "用户取消了回答",
+    "unavailable": "当前环境不是交互终端",
 }
 
 
@@ -94,7 +88,7 @@ def _normalize_timeout(timeout) -> int:
 
 
 def question(question: str, options: list | None = None, timeout: int = DEFAULT_TIMEOUT) -> str:
-    """弹窗向用户提问并阻塞等待作答，返回 JSON 字符串。"""
+    """向用户提问并阻塞等待作答，返回 JSON 字符串。"""
     text = "" if question is None else str(question).strip()
     if not text:
         return _error("question 参数不能为空")
@@ -107,35 +101,15 @@ def question(question: str, options: list | None = None, timeout: int = DEFAULT_
 
     wait_seconds = _normalize_timeout(timeout)
 
-    # eval 模式无真人可回答，提前短路（窗口与终端降级都不走）
-    if is_eval_mode():
-        logger.info("[question] eval 模式，跳过弹窗")
-        return _result(
-            {
-                "success": False,
-                "status": "unavailable",
-                "answer": None,
-                "selected_option": None,
-                "is_free_text": False,
-                "error_message": "Eval 模式下无真人可回答问题",
-                "hint": _HINTS["unavailable"],
-            }
-        )
-
-    typer.echo(typer.style(
-        f"\n> [question] 等待用户回答（最长 {wait_seconds}s）...",
-        fg=typer.colors.CYAN, bold=True,
-    ))
-
     try:
-        res = _QUESTION_CLIENT.ask(
+        res = terminal_question(
             question=text,
             options=normalized_options or None,
             timeout=wait_seconds,
         )
     except Exception as e:
-        logger.error(f"[question] 弹窗调用异常: {e}")
-        return _error(f"提问窗口调用失败：{e}")
+        logger.error(f"[question] 终端提问调用异常: {e}")
+        return _error(f"终端提问调用失败：{e}")
 
     status = res.get("status", "error")
     answer = res.get("answer")
@@ -176,7 +150,7 @@ QUESTION_SCHEMA = {
     "function": {
         "name": "question",
         "description": (
-            "向用户弹出一个交互窗口提问，并阻塞等待用户作答（用户可点选你给出的选项，也可自由输入文本）。"
+            "向用户提问并阻塞等待作答（用户可输入选项编号，也可自由输入文本）。"
             "当你缺少无法从上下文推断、且不同取值会显著改变结果的关键信息时使用，例如："
             "目标技术栈/命名方案的选择、删除或覆盖的范围确认、需求歧义澄清、用户偏好（语言/风格/格式）。"
             "能自行合理假设并继续的琐碎问题不要使用本工具。"

@@ -6,7 +6,6 @@
 #
 # 系统级依赖（pip 无法安装，需通过系统包管理器安装）：
 #   - bubblewrap   : sudo apt install bubblewrap          （沙箱隔离）
-#   - python3-tk   : sudo apt install python3-tk          （HITL 审批弹窗）
 #
 # 安装方式：
 #   pip install -r requirements.txt

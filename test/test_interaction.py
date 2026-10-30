@@ -1,13 +1,10 @@
-"""interaction 模块测试：GUI 检测、终端审批/提问降级、ANSI 清洗"""
+"""interaction 模块测试：终端审批/提问、ANSI 清洗"""
 import io
 import os
 import unittest
 from unittest.mock import patch
 
-from src.utils import interaction
 from src.utils.interaction import (
-    gui_available,
-    interaction_mode,
     sanitize,
     terminal_confirm,
     terminal_question,
@@ -36,55 +33,6 @@ class FakeStdout(io.StringIO):
     def isatty(self):
         return self._tty
 
-
-class TestModeAndDetection(unittest.TestCase):
-    def test_interaction_mode_default_and_invalid(self):
-        with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(interaction_mode(), "auto")
-        with patch.dict(os.environ, {"SEBASTIAN_INTERACTION": "bogus"}, clear=True):
-            self.assertEqual(interaction_mode(), "auto")
-        with patch.dict(os.environ, {"SEBASTIAN_INTERACTION": "Terminal"}, clear=True):
-            self.assertEqual(interaction_mode(), "terminal")
-
-    def test_gui_forced_terminal(self):
-        with patch.dict(os.environ, {"SEBASTIAN_INTERACTION": "terminal"}, clear=True):
-            available, _ = gui_available()
-        self.assertFalse(available)
-
-    def test_gui_forced_gui(self):
-        with patch.dict(os.environ, {"SEBASTIAN_INTERACTION": "gui"}, clear=True):
-            available, _ = gui_available()
-        self.assertTrue(available)
-
-    def test_gui_auto_no_display(self):
-        with patch.dict(
-            os.environ,
-            {"SEBASTIAN_INTERACTION": "auto", "DISPLAY": "", "WAYLAND_DISPLAY": ""},
-            clear=True,
-        ):
-            available, reason = gui_available()
-        self.assertFalse(available)
-        self.assertIn("图形显示环境", reason)
-
-    def test_gui_auto_missing_tkinter(self):
-        with patch.dict(
-            os.environ,
-            {"SEBASTIAN_INTERACTION": "auto", "DISPLAY": ":0", "WAYLAND_DISPLAY": ""},
-            clear=True,
-        ), patch("src.utils.interaction.importlib.util.find_spec", return_value=None):
-            available, reason = gui_available()
-        self.assertFalse(available)
-        self.assertIn("tkinter", reason)
-
-    def test_gui_auto_available(self):
-        with patch.dict(
-            os.environ,
-            {"SEBASTIAN_INTERACTION": "auto", "DISPLAY": ":0", "WAYLAND_DISPLAY": ""},
-            clear=True,
-        ), patch("src.utils.interaction.importlib.util.find_spec", return_value=object()):
-            available, reason = gui_available()
-        self.assertTrue(available)
-        self.assertEqual(reason, "")
 
 
 class TestSanitize(unittest.TestCase):
@@ -124,7 +72,7 @@ class TestTerminalConfirm(unittest.TestCase):
         stdin = FakeStdin(["y\n"])
         stdout = FakeStdout()
         with patch("sys.stdin", stdin), patch("sys.stdout", stdout), \
-                patch("src.utils.interaction.select.select", return_value=([], [], [])):
+                patch("src.utils.ui_redraw.select.select", return_value=([], [], [])):
             self.assertFalse(terminal_confirm("bash", {}, timeout=1))
 
 
@@ -151,9 +99,11 @@ class TestTerminalQuestion(unittest.TestCase):
         self.assertEqual(res["answer"], "PostgreSQL")
         self.assertTrue(res["is_free_text"])
 
-    def test_invalid_number_then_valid(self):
-        res = self._run(["9\n", "1\n"], options=["A", "B"])
-        self.assertEqual(res["selected_option"], "A")
+    def test_numeric_free_text_with_options(self):
+        res = self._run(["8080\n"], options=["A", "B"])
+        self.assertEqual(res["status"], "answered")
+        self.assertEqual(res["answer"], "8080")
+        self.assertTrue(res["is_free_text"])
 
     def test_empty_then_valid(self):
         res = self._run(["\n", "2\n"], options=["A", "B"])
@@ -167,9 +117,28 @@ class TestTerminalQuestion(unittest.TestCase):
         stdin = FakeStdin(["x\n"])
         stdout = FakeStdout()
         with patch("sys.stdin", stdin), patch("sys.stdout", stdout), \
-                patch("src.utils.interaction.select.select", return_value=([], [], [])):
+                patch("src.utils.ui_redraw.select.select", return_value=([], [], [])):
             res = terminal_question("?", None, timeout=1)
         self.assertEqual(res["status"], "timeout")
+
+
+class TestAtomicBlocks(unittest.TestCase):
+    def test_confirm_passes_full_block_as_header(self):
+        with patch("src.utils.interaction.terminal_ok", return_value=True), \
+                patch("src.utils.ui_redraw.gated_input", return_value="y") as gate:
+            self.assertTrue(terminal_confirm("bash", {"command": "ls"}, agent_name="CodeWriter"))
+        block = gate.call_args.kwargs["header"]
+        self.assertIn("[审批] CodeWriter", block)
+        self.assertIn("command: ls", block)
+
+    def test_question_passes_full_block_as_header(self):
+        with patch("src.utils.interaction.terminal_ok", return_value=True), \
+                patch("src.utils.ui_redraw.gated_input", return_value="1") as gate:
+            res = terminal_question("选一个", ["A", "B"], None)
+        self.assertEqual(res["selected_option"], "A")
+        block = gate.call_args.kwargs["header"]
+        self.assertIn("选一个", block)
+        self.assertIn("1) A", block)
 
 
 class TestTerminalColor(unittest.TestCase):
