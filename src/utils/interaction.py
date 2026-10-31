@@ -6,6 +6,7 @@
 import json
 import os
 import re
+import shutil
 import sys
 import threading
 import time
@@ -38,13 +39,16 @@ def sanitize(text) -> str:
 
 
 def _truncate(text: str, limit: int = MAX_DISPLAY_CHARS) -> str:
+    # 终端块最多占约 12 行；避免 2000 字在 80 列下把整屏占满
+    cols = max(20, shutil.get_terminal_size((80, 20)).columns)
+    limit = min(limit, cols * 12)
     if len(text) <= limit:
         return text
     return text[:limit] + f"...(已截断，共 {len(text)} 字符)"
 
 
 def _emit(text: str = "") -> None:
-    ui_redraw.emit(text, nl=True)
+    ui_redraw.emit(text, nl=True, allow_ansi=True)
 
 
 def _use_color() -> bool:
@@ -59,6 +63,14 @@ def _yellow(text: str = "") -> str:
     if not text or not _use_color():
         return text
     return typer.style(text, fg=typer.colors.YELLOW, bold=True)
+
+
+def _cap_block(text: str, max_lines: int = 12) -> str:
+    """限制审批/提问块高度，避免长参数或大量选项占满整屏。"""
+    lines = str(text).splitlines()
+    if len(lines) <= max_lines:
+        return str(text)
+    return "\n".join(lines[:max_lines] + ["...(更多内容已省略)"])
 
 
 def _format_args(tool_args: dict) -> str:
@@ -103,7 +115,7 @@ def terminal_confirm(
             answer = ui_redraw.gated_input(
                 _yellow("是否允许？[y/N] "),
                 timeout=timeout,
-                header="\n".join(lines),
+                header=_cap_block("\n".join(lines)),
             )
         except ui_redraw.InputTimeout:
             _emit(_yellow("[审批] 超时，已拒绝"))
@@ -163,7 +175,7 @@ def terminal_question(question: str, options: list | None = None, timeout: int |
                 line = ui_redraw.gated_input(
                     _yellow("回答（编号或文本）: "),
                     timeout=remaining,
-                    header="\n".join(lines),
+                    header=_cap_block("\n".join(lines)),
                 )
             except ui_redraw.InputTimeout:
                 _emit(_yellow("[提问] 超时"))

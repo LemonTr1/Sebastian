@@ -13,7 +13,6 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.utils.model_windows import resolve_context_window, _CACHE
-from src.config import MODEL, CONTEXT_WINDOW
 from src.utils.compaction_pipeline import (
     estimate_tokens, estimate_messages,
     tool_result_budget, micro_compact, compact_history,
@@ -120,7 +119,7 @@ class TestCompactionPipeline(unittest.TestCase):
 
     def test_transcript_and_archive_strip_image_base64(self):
         from src.utils.compaction_pipeline import (
-            message_without_images, write_transcript, _recent_tail_start,
+            message_without_images, write_transcript,
         )
         msg = _image_tool_msg(50)
         stripped = json.dumps(message_without_images(msg), ensure_ascii=False)
@@ -388,11 +387,9 @@ class TestCompactionPipeline(unittest.TestCase):
 
         r2 = AgentRunner.create_runner("TestAgent", "instructions", get_tools_registry())
         big_out = "B" * 25000
-        r2.background_tasks["bg1"] = {"tool_call_id": "x", "command": "bash: {}", "status": "completed"}
-        r2.background_results["bg1"] = big_out
-        notes = r2.collect_background_results()
-        self.assertIn("<persisted-output>", notes[0])
-        self.assertNotIn(big_out, notes[0])
+        note = r2._format_background_notification("bg1", "bash: {}", big_out)
+        self.assertIn("<persisted-output>", note)
+        self.assertNotIn(big_out, note)
 
     # ---------- 12. 上下文占用钩子 ----------
     def test_context_usage_hook(self):

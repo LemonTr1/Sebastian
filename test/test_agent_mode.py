@@ -64,6 +64,15 @@ with mock.patch.object(hitl_mod, "terminal_confirm", return_value=True) as ask_m
     result = hitl_mod.hitl_hook("Brain_Agent", tool_call)
 check("build mode asks approval", result is None and ask_mock.called)
 
+# ---- 子 Agent 内部工具不走 HITL，安全边界在 agent 调度 ----
+from src.tools.tools_registry import get_tools_registry as _get_registry
+_reg = _get_registry()
+if "bash" in _reg.tools_map:
+    _reg.register_tool("bash", _reg.tools_map["bash"][0], _reg.tools_map["bash"][1], hitl=False, for_agent="TestRunner")
+with mock.patch.object(hitl_mod, "terminal_confirm", return_value=False) as ask_mock:
+    result = hitl_mod.hitl_hook("TestRunner", tool_call)
+check("subagent tool bypasses HITL", result is None and not ask_mock.called)
+
 # 全局单例复位
 AGENT_MODE.set(AgentMode.BUILD)
 check("global singleton reset", not AGENT_MODE.is_plan() and not AGENT_MODE.is_auto())
@@ -81,7 +90,6 @@ runner.tool_map = {"noop": {"func": lambda **kw: "ok", "schema": {}}}
 runner.pre_tool_use_lock = threading.Lock()
 runner.background_lock = threading.Lock()
 runner.background_tasks = {}
-runner.background_results = {}
 
 tool_calls = [
     {"id": "call_1", "type": "function", "function": {"name": "noop", "arguments": "{}"}},

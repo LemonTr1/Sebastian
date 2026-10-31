@@ -8,6 +8,9 @@ import json
 
 def hitl_hook(agent_name: str, tool_call: dict):
     """Human in the Loop钩子（三个功能：1.判断工具是否存在 2.tool_call中的参数格式是否正确 3.终端确认用户是否同意执行）"""
+    # 子 Agent 的工具调用不逐个审批；安全边界是主 Agent 的 agent 调度审批
+    if agent_name != "Brain_Agent":
+        return None
     # 惰性导入：tools_registry 会拉起整条工具链（含 toolkits→subagent→agent_runner），
     # 而 agent_runner 又依赖本钩子包——顶层导入会在特定导入顺序下形成循环依赖，
     # 被 src/hooks/__init__ 的兜底 except 吞掉后导致本钩子静默丢失（HITL 失效）。

@@ -16,6 +16,8 @@
 - [x] 审批/提问整块 header 与输入行一起重绘，去掉锁外 `[HITL]` 行
 - [x] 流式尾行在 brain/cron/工具调用前 flush
 - [x] 流式 Markdown 行级渲染（标题/粗体/斜体/行内代码/列表/引用/代码块）
+- [x] 修复 review B1-B5：视觉行数擦除、emit ANSI 清理、非 TTY 超时、echo 代理、块高度上限
+- [x] 子 Agent 内部工具免逐次审批；主 Agent 的 `agent` 调度保留 HITL
 - [x] 删除 Tk 文件、GUI 客户端、GUI 测试
 - [x] 删除 `src/eval/`、`eval_flag.py`、eval 测试与引用
 - [x] README / README_EN / requirements 删除 Tk/eval 说明
@@ -97,7 +99,7 @@
 
 ### 单元测试
 
-- `test/test_ui_redraw.py`：10 项通过（擦行重绘、半截输入、emit/token 缓冲）。
+- `test/test_ui_redraw.py`：15 项通过（擦行重绘、半截输入、emit/token 缓冲）。
 - `test/test_interaction.py`：24 项通过。
 - `test/test_question_tool.py`：8 项通过。
 - `test/test_agent_mode.py`：21 项通过。
@@ -134,3 +136,55 @@
 - `src/hooks/pre_tool_use/02_hitl_hook.py`
 - `src/tools/toolkits/question.py`
 - `src/agent_runner.py`、`src/tools/toolkits/cron_schedule.py`（通过 `typer.echo` 代理接入）
+
+## 9. 子 Agent 轮次上限收尾（2026-10-31）
+
+### 问题
+
+子 Agent 反复调用工具直到 `max_turns`：`run()` 直接清空上下文并抛 `SubAgentRuntimeException`，`run_stream()` 只打印一行提示就返回，Brain 拿不到任何阶段性结果。
+
+### 实现
+
+- `run()` / `run_stream()` 把 `max_turns` 的最后一轮保留为**收尾轮**（`turn >= max_turns`）。
+- 收尾轮注入 `FINAL_TURN_PROMPT`，且不传 `tools` / `tool_choice`，强制模型输出文字总结。
+- 收尾轮模型仍返回 `tool_calls`：`run()` 不执行；`run_stream()` 补回“已跳过”的 tool 消息，保持 assistant/tool 契约。
+- 收尾轮无文字时返回 `TURN_LIMIT_FALLBACK`，不再抛异常。
+- 新增 `AgentRunner.hit_turn_limit`；`agent` 工具返回增加 `note`，提示 Brain 该 summary 只是阶段性总结。
+- 正常完成路径不变，不会被标记为触顶。
+
+### 终端静默（子 Agent）
+
+- `_process_tool_calls()` 的 `[TOOL]`、`start_background_task()` 的 `[background]`、后台 worker 的 `[background done]` 只对 `Brain_Agent` 输出。
+- 子 Agent 的工具调用仍由 PreToolUse 日志钩子写入 `~/.sebastian/logs/`，排障不受影响。
+- 子 Agent 的 `agent` 调度本身（Brain 调用）照常打印，作为唯一的可见入口。
+
+### 验证
+
+- `test/test_turn_limit.py`：23 项通过（非流式/流式收尾、兜底、正常完成）。
+- `test/test_subagent_output.py`：5 项通过（子 Agent 静默、Brain 保留、后台任务日志）。
+- `test_plan_stream.py`、`test_plan_runner.py`、`test_agent_mode.py` 无回归。
+- 全量测试与 ruff 结果见本轮提交前检查。
+
+## 10. 统一唤醒收件箱（2026-10-31）
+
+### 问题
+
+后台任务完成后，结果只在模型恰好发起工具调用的轮次被收集；Brain 空闲时结果滞留。cron 有独立的 `cron_queue` 和队列线程，后台任务则只有 per-runner 字典，两套机制不同构。
+
+### 实现
+
+- 新增 `src/utils/wake_queue.py`：`WakeEvent(owner, kind, content)` + 线程安全 `WakeQueue`（enqueue/drain/pending_kinds/has_pending/drop_owner）。
+- cron 调度器与后台 worker 都只负责投递事件：
+  - cron：`kind="cron"`，内容为 `Finish scheduled job ...`；
+  - 后台：`kind="background"`，worker 完成时格式化 `<task_notification>`（大输出落盘）后投递。
+- `AgentRunner` 在 `run_stream`/`run` 开头以及每个 AgentLoop 迭代开头 `drain(self.inbox_id)` 并注入 user 消息；不再有 `collect_background_results()` / `consume_cron_queue()` 特殊路径。
+- 子 Agent 的 `inbox_id` 每实例唯一；`run()` 结束时标记 `_closed` 并 `drop_owner`，晚到的后台结果不再投递。
+- `cli._process_queues_once()` 只检查 `WAKE_QUEUE.pending_kinds(brain_agent.inbox_id)`；有 cron 事件时切 Build，纯后台事件保持当前模式；唤醒日志按事件类型打印。
+- 删除 `CronSchedule.cron_queue` / `consume_cron_queue()` / `has_cron_queue()`、`AgentRunner.background_results` / `collect_background_results()` / `has_completed_background()`。
+
+### 验证
+
+- `test/test_background_delivery.py`：24 项通过（注入、owner 隔离、并发 drain、worker 生产、关闭后丢弃）。
+- `test/test_queue_processor.py`：18 项通过（cron/后台唤醒、模式、二次检查、锁占用、空收件箱）。
+- `test/test_subagent_output.py`：7 项通过（子 Agent 静默、Brain 日志、事件入箱）。
+- 全量 46 个测试文件与 ruff 见提交前检查。

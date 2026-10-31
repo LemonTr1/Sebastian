@@ -48,6 +48,7 @@ class TestToolsRegistry(unittest.TestCase):
         self.assertEqual({t[0] for t in tools}, {self.reg.get_tool("r")[0], self.reg.get_tool("w")[0]})
         self.assertEqual(hitl, {"w"})
 
+
     def test_agent_without_tools_returns_empty(self):
         tools, hitl = self.reg.get_tools_for_agent("none")
         self.assertEqual(tools, [])

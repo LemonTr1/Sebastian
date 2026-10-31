@@ -7,7 +7,6 @@ import sys
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
@@ -84,8 +83,7 @@ script = [
 ]
 client = FakeStreamClient(script)
 runner.client = client
-with patch.object(CRON_SCHEDULE, "consume_cron_queue", return_value=[]):
-    runner.run_stream("请规划一个清理临时文件的任务", on_token=lambda t: None)
+runner.run_stream("请规划一个清理临时文件的任务", on_token=lambda t: None)
 
 first_tools = [s["function"]["name"] for s in client.calls[0]["tools"]]
 check("plan schema only 10 tools", sorted(first_tools) == sorted(ALLOWED), str(sorted(first_tools)))
@@ -116,8 +114,7 @@ script2 = [
 ]
 client2 = FakeStreamClient(script2)
 runner2.client = client2
-with patch.object(CRON_SCHEDULE, "consume_cron_queue", return_value=[]):
-    runner2.run_stream("列出家目录", on_token=lambda t: None)
+runner2.run_stream("列出家目录", on_token=lambda t: None)
 
 # MCP 桥接工具（<server>__<tool>）取决于用户 settings，不计入内建全集断言
 first_tools2 = [s["function"]["name"] for s in client2.calls[0]["tools"] if "__" not in s["function"]["name"]]
@@ -140,11 +137,10 @@ script3 = [
 client3 = FakeStreamClient(script3)
 runner3.client = client3
 err3 = None
-with patch.object(CRON_SCHEDULE, "consume_cron_queue", return_value=[]):
-    try:
-        runner3.run_stream("你好", on_token=lambda t: None)
-    except Exception as e:
-        err3 = e
+try:
+    runner3.run_stream("你好", on_token=lambda t: None)
+except Exception as e:
+    err3 = e
 check("usage-only chunk no crash", err3 is None, repr(err3))
 check("usage-only chunk content kept",
       any(m.get("role") == "assistant" and m.get("content") == "你好，我是 Sebastian" for m in runner3.context))

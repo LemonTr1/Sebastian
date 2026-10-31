@@ -1,5 +1,6 @@
 """ui_redraw 单元测试：擦行重绘、半截输入、Markdown 行渲染、emit/token 缓冲。"""
 import io
+import os
 import threading
 import unittest
 from unittest.mock import patch
@@ -114,6 +115,45 @@ class TestUiRedraw(unittest.TestCase):
         self.assertEqual(seen["prompt"], "")
         self.assertEqual(seen["header"], "Q?\n1) A")
 
+    def test_visual_line_count_handles_wrapping(self):
+        self.assertEqual(ui_redraw._visual_line_count("x" * 200, cols=80), 3)
+        self.assertEqual(ui_redraw._visual_line_count("中" * 80, cols=80), 2)
+        self.assertEqual(ui_redraw._visual_line_count("", cols=80), 0)
+
+    def test_redraw_erases_visual_header_lines(self):
+        out = io.StringIO()
+        ui_redraw._active_prompt = {
+            "prompt": "> ",
+            "header": "x" * 200,
+            "owner": threading.get_ident(),
+            "hidden": False,
+        }
+        with patch.object(ui_redraw, "readline", FakeReadline("")), \
+                patch.object(ui_redraw.shutil, "get_terminal_size", return_value=os.terminal_size((80, 20))), \
+                patch("sys.stdout", out):
+            ui_redraw._redraw("LOG")
+        self.assertEqual(out.getvalue().count("\x1b[1A"), 3)
+
+    def test_emit_strips_ansi_by_default(self):
+        with patch.object(ui_redraw, "_ORIG_ECHO") as echo:
+            ui_redraw.emit("\x1b[31mred\x1b[0m")
+        echo.assert_called_once_with("red", nl=True)
+
+    def test_echo_proxy_uses_message_kwarg(self):
+        ui_redraw._active_prompt = {
+            "prompt": "P> ",
+            "owner": -1,
+            "hidden": False,
+        }
+        with patch.object(ui_redraw, "emit") as emit:
+            ui_redraw._echo_proxy(message="hello", nl=False)
+        emit.assert_called_once_with("hello", nl=False)
+
+    def test_gated_input_non_tty_timeout_raises(self):
+        with patch.object(ui_redraw, "_is_tty", return_value=False):
+            with self.assertRaises(ui_redraw.InputTimeout):
+                ui_redraw.gated_input("?", timeout=1)
+
     def test_markdown_line_formatting(self):
         self.assertEqual(ui_redraw._format_line("# Title"), "Title")
         self.assertEqual(ui_redraw._format_line("**bold**"), "bold")
@@ -132,7 +172,7 @@ class TestUiRedraw(unittest.TestCase):
         with patch.object(ui_redraw, "emit") as emit:
             ui_redraw.emit_token("agent", "hel")
             ui_redraw.emit_token("agent", "lo\nwor")
-            emit.assert_called_once_with("hello", agent="agent", nl=True)
+            emit.assert_called_once_with("hello", agent="agent", nl=True, allow_ansi=True)
             ui_redraw.emit_token("agent", "ld\n")
         self.assertEqual(emit.call_args_list[-1].args[0], "world")
 

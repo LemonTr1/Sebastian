@@ -12,6 +12,7 @@ import select
 import shutil
 import sys
 import threading
+import unicodedata
 
 try:
     import readline
@@ -163,17 +164,17 @@ class MarkdownStream:
         if stripped.startswith("```"):
             if self.in_code:
                 self.in_code = False
-                emit(_style("\x1b[2m", "└─"), agent=self.agent, nl=True)
+                emit(_style("\x1b[2m", "└─"), agent=self.agent, nl=True, allow_ansi=True)
             else:
                 self.in_code = True
                 lang = stripped[3:].strip()
                 title = f"┌─ code{f' ({lang})' if lang else ''}"
-                emit(_style("\x1b[2m", title), agent=self.agent, nl=True)
+                emit(_style("\x1b[2m", title), agent=self.agent, nl=True, allow_ansi=True)
             return
         if self.in_code:
-            emit(_safe(line), agent=self.agent, nl=True)
+            emit(_safe(line), agent=self.agent, nl=True, allow_ansi=True)
         else:
-            emit(_format_line(line), agent=self.agent, nl=True)
+            emit(_format_line(line), agent=self.agent, nl=True, allow_ansi=True)
 
 
 def _flush_token_buffers() -> None:
@@ -182,6 +183,37 @@ def _flush_token_buffers() -> None:
         _token_streams.clear()
     for stream in streams:
         stream.flush()
+
+
+def _display_width(text: str) -> int:
+    """ANSI 之后的视觉列宽；CJK 宽字符按 2 列计。"""
+    text = _ANSI_CSI_RE.sub("", text)
+    text = _ANSI_OSC_RE.sub("", text)
+    width = 0
+    for ch in text:
+        if ch == "\t":
+            width += 4
+        elif unicodedata.combining(ch):
+            continue
+        elif unicodedata.east_asian_width(ch) in ("W", "F"):
+            width += 2
+        else:
+            width += 1
+    return width
+
+
+def _visual_line_count(text: str, cols: int | None = None) -> int:
+    if not text:
+        return 0
+    cols = max(1, cols or shutil.get_terminal_size((80, 20)).columns)
+    lines = text.split("\n")
+    if text.endswith("\n"):
+        lines = lines[:-1]
+    total = 0
+    for line in lines:
+        width = _display_width(line)
+        total += max(1, -(-width // cols))
+    return total
 
 
 def _redraw(text: str, nl: bool = True) -> None:
@@ -207,8 +239,8 @@ def _redraw(text: str, nl: bool = True) -> None:
     # 先擦掉当前 prompt 行，再向上擦掉整个 header 块，
     # 然后把日志放在块上方，最后重画 header + prompt + 半截输入。
     seq = _ERASE_LINE
-    header_lines = header.splitlines() if header else []
-    for _ in header_lines:
+    # 按视觉行数擦除：长行会被终端折行，不能只数 \n
+    for _ in range(_visual_line_count(header)):
         seq += "\x1b[1A\r\x1b[2K"
     seq += body
     if header:
@@ -222,9 +254,15 @@ def _redraw(text: str, nl: bool = True) -> None:
     sys.stdout.flush()
 
 
-def emit(text: object = "", agent: str | None = None, nl: bool = True) -> None:
-    """线程安全的普通输出；提示符活跃时自动擦行/重画。"""
+def emit(text: object = "", agent: str | None = None, nl: bool = True, allow_ansi: bool = False) -> None:
+    """线程安全的普通输出；提示符活跃时自动擦行/重画。
+
+    allow_ansi=False 时先剥离 ANSI/控制字符，避免模型/工具输出注入终端。
+    MarkdownStream 自己生成样式时传 allow_ansi=True。
+    """
     text = "" if text is None else str(text)
+    if not allow_ansi:
+        text = _safe(text)
     with _write_lock:
         with _state_lock:
             state = _active_prompt
@@ -288,6 +326,8 @@ def gated_input(prompt: str = "", timeout: float | None = None, header: str = ""
     日志只出现在整块上方，不会把块和输入行隔开。
     """
     if not _is_tty():
+        if timeout is not None:
+            raise InputTimeout()
         return _ORIG_INPUT(prompt)
 
     manual_prompt = bool(header) or timeout is not None
@@ -326,8 +366,11 @@ def _echo_proxy(*args, **kwargs):
     with _state_lock:
         state = _active_prompt
     if state and state.get("owner") != threading.get_ident():
-        text = " ".join(str(a) for a in args) if args else ""
-        emit(text, nl=kwargs.get("nl", True))
+        message = kwargs.get("message")
+        if message is None:
+            message = args[0] if args else ""
+        # err/file 在提示符活跃时不直接写，避免冲散 block；统一走 stdout 重绘
+        emit(str(message), nl=kwargs.get("nl", True))
         return
     return _ORIG_ECHO(*args, **kwargs)
 

@@ -32,6 +32,7 @@ from src.utils.agent_mode import AGENT_MODE
 from src.utils.memory_system import MEMORY_SYSTEM
 from src.utils import ui_redraw
 from src.utils.interaction import TERMINAL_IO_LOCK
+from src.utils.wake_queue import WAKE_QUEUE
 logger = get_log()
 
 # 注意：brain_agent / CRON_SCHEDULE / start_cron_scheduler / hooks_registry
@@ -157,52 +158,65 @@ def save_session(context: list, session_id: str):
     #保留最近10个会话文件，删除旧的
     clear_session()
 
-def cron_queue_processor_loop():
-    """agent_lock互斥锁保证与用户主线程并发执行"""
-    from src.agents.brain_agent import brain_agent
+def _process_queues_once(brain_agent) -> bool:
+    """处理一次收件箱中的 cron / 后台事件；真正运行了 Brain 返回 True"""
     from src.hooks import hooks_registry
     from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
+
+    if not WAKE_QUEUE.pending_kinds(brain_agent.inbox_id):
+        return False
+    if not CRON_SCHEDULE.agent_lock.acquire(blocking=False):
+        return False
+    try:
+        #持锁二次检查：预检后事件可能已被用户 turn drain
+        kinds = WAKE_QUEUE.pending_kinds(brain_agent.inbox_id)
+        if not kinds:
+            return False
+
+        has_cron = "cron" in kinds
+        wake_reason = "delivering scheduled starts" if has_cron else "background task done, waking Brain"
+        typer.echo(typer.style(f"\n> [queue processor] {wake_reason}", fg=typer.colors.GREEN))
+        #定时任务在 Plan 模式下强制以 Build 模式运行（否则执行类工具被禁），执行完毕恢复原模式；
+        #纯后台结果只做汇报，不因此获得写权限
+        prev_mode = AGENT_MODE.get()
+        if has_cron and AGENT_MODE.is_plan():
+            AGENT_MODE.set(AGENT_MODE.BUILD)
+        try:
+            brain_agent.run_stream(
+                None,
+                on_token=lambda token: ui_redraw.emit_token("cron" if has_cron else "background", token),
+            )
+        finally:
+            ui_redraw.flush_tokens()
+            AGENT_MODE.set(prev_mode)
+
+        #触发Stop钩子统计Token数
+        result = hooks_registry.get_hooks_registry().trigger_hooks("Stop")
+        if result is not None:
+            logger.error(f"Stop钩子触发错误：{result}")
+            typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
+        typer.echo()
+        return True
+    except Exception as e:
+        typer.echo(
+            typer.style(
+                f"Ops！Brain_Agent出现故障：{str(e)}",
+                fg=typer.colors.RED,
+                bold=True,
+            )
+        )
+        logger.error(f"Brain_Agent出现故障: {str(e)}")
+        return False
+    finally:
+        CRON_SCHEDULE.agent_lock.release()
+
+
+def wake_queue_processor_loop():
+    """agent_lock互斥锁保证与用户主线程并发执行"""
+    from src.agents.brain_agent import brain_agent
     while True:
         time.sleep(0.2)
-        if not CRON_SCHEDULE.has_cron_queue():
-            continue
-        if not CRON_SCHEDULE.agent_lock.acquire(blocking=False):
-            continue
-        try:
-            if not CRON_SCHEDULE.has_cron_queue():
-                continue
-            typer.echo(typer.style(f"\n> [queue processor]Independent thread of delivering scheduled starts",fg=typer.colors.GREEN))
-            #定时任务在 Plan 模式下强制以 Build 模式运行（否则执行类工具被禁），执行完毕恢复原模式；
-            #Auto 模式工具齐全且免审批，无需切换
-            prev_mode = AGENT_MODE.get()
-            if AGENT_MODE.is_plan():
-                AGENT_MODE.set(AGENT_MODE.BUILD)
-            try:
-                brain_agent.run_stream(
-                    None,
-                    on_token=lambda token: ui_redraw.emit_token("cron", token),
-                )
-            finally:
-                ui_redraw.flush_tokens()
-                AGENT_MODE.set(prev_mode)
-
-            #触发Stop钩子统计Token数
-            result = hooks_registry.get_hooks_registry().trigger_hooks("Stop")
-            if result is not None:
-                logger.error(f"Stop钩子触发错误：{result}")
-                typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
-            typer.echo()
-        except Exception as e:
-            typer.echo(
-                typer.style(
-                    f"Ops！Brain_Agent出现故障：{str(e)}",
-                    fg=typer.colors.RED,
-                    bold=True,
-                )
-            )
-            logger.error(f"Brain_Agent出现故障: {str(e)}")
-        finally:
-            CRON_SCHEDULE.agent_lock.release()
+        _process_queues_once(brain_agent)
 
 
 def _run_chat(session_id: str):
@@ -258,7 +272,7 @@ def _run_chat(session_id: str):
 
     #启动Scheduled Cron守护线程，在用户空闲时检查并运行定时任务
     start_cron_scheduler()
-    threading.Thread(target=cron_queue_processor_loop, daemon=True).start()
+    threading.Thread(target=wake_queue_processor_loop, daemon=True).start()
     typer.echo(typer.style(f"\n> [queue processor] Successfully start",fg=typer.colors.GREEN, bold=True))
     logger.info("Queue Processor Loop Successfully start")
 

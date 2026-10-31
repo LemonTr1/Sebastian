@@ -142,13 +142,14 @@ class SubAgentRegistry:
                 tool = tool.lower()
                 #绝不允许子Agent可以嵌套调用子Agent
                 if tool == "agent": continue
-                need_hitl = True if tool in ["bash", "edit", "write"] else False
+                # 子 Agent 内部工具不逐个审批；安全边界是主 Agent 的 agent 调度审批
                 if tool in get_tools_registry().tools_map:
                     get_tools_registry().register_tool(
                         tool,
                         get_tools_registry().tools_map[tool][0],
                         get_tools_registry().tools_map[tool][1],
-                        hitl=need_hitl ,for_agent=agent_name
+                        hitl=False,
+                        for_agent=agent_name,
                     )
 
             #然后创建子Agent（惰性导入：本模块经 src/tools/__init__ 自动加载，
@@ -162,10 +163,10 @@ class SubAgentRegistry:
 
             #最后运行子Agent
             result = sub_agent.run(task)
-            return json.dumps({
-                "success": True,
-                "summary": result
-            }, ensure_ascii=False)
+            payload = {"success": True, "summary": result}
+            if sub_agent.hit_turn_limit:
+                payload["note"] = "该子 Agent 已达最大轮次，summary 为强制收尾的阶段性总结，任务可能未全部完成"
+            return json.dumps(payload, ensure_ascii=False)
         except SubAgentRuntimeException as e:
             logger.error(f"{agent_name}运行时出错：{str(e)}")
             return json.dumps({
@@ -186,7 +187,7 @@ AGENT_SCHEMA = {
     "type": "function",
     "function": {
         "name": "agent",
-        "description": "运行指定的子Agent以完成用户任务。",
+        "description": "运行指定的子Agent以完成用户任务。批准本调用即授权该子Agent在其工具集内执行；子Agent内部工具不会再次逐个审批。",
         "parameters": {
             "type": "object",
             "properties": {

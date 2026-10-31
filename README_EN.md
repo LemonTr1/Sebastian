@@ -246,6 +246,7 @@ HITL uses terminal confirmation (`src/utils/interaction.py`):
 - Default `[y/N]`; empty input, EOF, and non-interactive terminals deny; a timeout passed by the caller also denies.
 - Tool arguments are ANSI-sanitized before printing to prevent terminal injection.
 - Input is serialized by `TERMINAL_IO_LOCK`: only one prompt can read stdin at a time.
+- **Sub-agent tools are not approved individually**: the main agent's `agent` dispatch still requires approval; approving it authorizes that sub-agent to use its toolset. Check `agent_name` and `task` carefully.
 - Background tasks, sub-agents, and cron output go through `ui_redraw`: the whole approval/question block and the input line are redrawn as one unit; logs only appear above the block.
 - No Tkinter / `DISPLAY` / `python3-tk` dependency; works over SSH, WSL, and headless environments.
 
@@ -299,11 +300,11 @@ Context overflow additionally triggers **reactive compaction** (the retry reques
 
 ### Background Tasks
 
-The `bash` and `agent` tools support `run_in_background=true` for async execution: tasks run in daemon threads and proactively notify the Brain Agent via `<task_notification>` upon completion. The Brain's system prompt encodes the scheduling rules: parallelizable tasks are not executed serially, and async tasks do not block the main flow.
+The `bash` and `agent` tools support `run_in_background=true` for async execution: tasks run in daemon threads and post a `<task_notification>` to the shared wake inbox (`src/utils/wake_queue.py`) upon completion; cron and background events are consumed by the same queue thread, which wakes the Brain when it is idle. The Brain's system prompt encodes the scheduling rules: parallelizable tasks are not executed serially, and async tasks do not block the main flow.
 
 ### Scheduled Tasks
 
-`schedule_cron` / `list_crons` / `cancel_cron` provide 5-field Unix cron scheduling. Fired jobs are injected into the Brain Agent when the user is idle. Registering a job requires HITL approval; jobs may optionally persist across sessions in `~/.sebastian/.scheduled_tasks.json`.
+`schedule_cron` / `list_crons` / `cancel_cron` provide 5-field Unix cron scheduling. Fired jobs are posted to the same wake inbox and injected/executed by the queue thread when the Brain is idle. Registering a job requires HITL approval; jobs may optionally persist across sessions in `~/.sebastian/.scheduled_tasks.json`.
 
 ### Session Management
 
@@ -489,6 +490,7 @@ Sebastian/
 │   │   ├── compaction_pipeline.py  # 3-layer context compaction pipeline
 │   │   ├── interaction.py          # Terminal approval/question (input + prompt redraw)
 │   │   ├── ui_redraw.py            # Async output redraw: erase/print/restore prompt
+│   │   ├── wake_queue.py           # Unified wake inbox: cron/background events → Brain
 │   │   ├── exceptions.py           # Custom exceptions
 │   │   ├── tokens_caculator.py     # Cumulative token counter
 │   │   ├── session_id_container.py # Session ID container

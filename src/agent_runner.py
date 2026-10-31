@@ -21,7 +21,7 @@ from src.utils import ui_redraw
 from src.utils.memory_system import MEMORY_SYSTEM
 from src.utils.agent_mode import AGENT_MODE
 from src.utils.exceptions import CompactException, SubAgentRuntimeException
-from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
+from src.utils.wake_queue import BRAIN_OWNER, WAKE_QUEUE, WakeEvent
 
 #以下为response.choice[0].message对象结构
 #LLM的没有工具调用的回应格式：
@@ -62,6 +62,18 @@ from src.tools.toolkits.cron_schedule import CRON_SCHEDULE
 
 logger = get_log()
 
+#轮次上限的收尾提示：最后一轮不再给工具，强制模型输出阶段性总结
+FINAL_TURN_PROMPT = (
+    "<SYSTEM_REMINDER>已达到本次任务的最大执行轮次。"
+    "现在不要再调用任何工具，立即用简洁的文字收尾："
+    "1. 已完成的工作与产物（列出改动或创建的文件路径）；"
+    "2. 未完成的工作及原因；"
+    "3. 给主 Agent 或用户的下一步建议。"
+    "如果任务已经完成，直接给出最终结果。</SYSTEM_REMINDER>"
+)
+
+TURN_LIMIT_FALLBACK = "已达到最大对话轮次，任务可能未全部完成；模型未返回收尾总结。"
+
 class AgentRunner:
     def __init__(
         self,
@@ -82,8 +94,10 @@ class AgentRunner:
         self.context = []
         self._bg_counter = 0
         self.background_tasks: dict[str, dict] = {}
-        self.background_results: dict[str, str] = {}
         self.background_lock = threading.Lock()
+        #统一收件箱地址：Brain 固定，子 Agent 每实例唯一，避免并发同名子 Agent 互相取走事件
+        self.inbox_id = BRAIN_OWNER if name == BRAIN_OWNER else f"{name}#{id(self)}"
+        self._closed = False
         #hitl审批需要加锁
         self.pre_tool_use_lock = threading.Lock()
         #统计本轮tokens消耗需要加锁
@@ -91,6 +105,8 @@ class AgentRunner:
 
         #子 Agent 最后一轮回复，用于回传给 Brain
         self.last_reply = ""
+        #本次运行是否因轮次上限被强制收尾
+        self.hit_turn_limit = False
 
     def _resolve_instructions(self) -> str:
         if callable(self.instructions):
@@ -194,9 +210,32 @@ class AgentRunner:
                     "success": False,
                     "error": f"后台任务：{bg_id}出现异常: {str(e)}"
                 }, ensure_ascii=False)
+
+            try:
+                notification = self._format_background_notification(bg_id, cmd, result)
+            except Exception as e:
+                logger.error(f"后台任务 {bg_id} 结果格式化失败：{str(e)}")
+                notification = (
+                    f"<task_notification>\n"
+                    f"  <task_id>{bg_id}</task_id>\n"
+                    f"  <status>completed</status>\n"
+                    f"  <command>{cmd}</command>\n"
+                    f"  <output>结果格式化失败：{str(e)}</output>\n"
+                    f"</task_notification>"
+                )
+
+            if self.name == BRAIN_OWNER:
+                typer.echo(typer.style(f"\n> [background done] {bg_id}: {cmd} ...", fg=typer.colors.GREEN))
             with self.background_lock:
-                self.background_tasks[bg_id]["status"] = "completed"
-                self.background_results[bg_id] = result
+                self.background_tasks.pop(bg_id, None)
+                #子 Agent 结束后没有人消费它的事件，直接丢弃；Brain 永不关闭
+                if self._closed:
+                    return
+                WAKE_QUEUE.enqueue(WakeEvent(
+                    owner=self.inbox_id,
+                    kind="background",
+                    content=notification,
+                ))
 
         with self.background_lock:
             self.background_tasks[bg_id] = {
@@ -205,34 +244,32 @@ class AgentRunner:
                 "status": "running",
             }
 
+        if self.name == BRAIN_OWNER:
+            typer.echo(typer.style(f"\n> [background] 后台任务启动：{bg_id}: {cmd[:40]} ... ", fg=typer.colors.WHITE, bold=True))
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
-        typer.echo(typer.style(f"\n> [background] 后台任务启动：{bg_id}: {cmd[:40]} ... ", fg=typer.colors.WHITE, bold=True))
         return bg_id
 
-    def collect_background_results(self) -> list:
-        with self.background_lock:
-            ready_ids = [bid for bid, task in self.background_tasks.items() if task["status"] == "completed"]
+    def _format_background_notification(self, bg_id: str, command: str, output: str) -> str:
+        #后台输出超限时落盘，仅注入占位符（带防重读指引）
+        if len(output) > NOTIFICATION_CAP:
+            file_path, digest, hits = persist_content(output, source="background")
+            output = build_persisted_placeholder(output, file_path, digest, hits)
+        return (
+            f"<task_notification>\n"
+            f"  <task_id>{bg_id}</task_id>\n"
+            f"  <status>completed</status>\n"
+            f"  <command>{command}</command>\n"
+            f"  <output>{output}</output>\n"
+            f"</task_notification>"
+        )
 
-        notifications = []
-        for bg_id in ready_ids:
-            with self.background_lock:
-                task = self.background_tasks.pop(bg_id)
-                output = self.background_results.pop(bg_id, "")
-            #后台输出超限时落盘，仅注入占位符（带防重读指引）
-            if len(output) > NOTIFICATION_CAP:
-                file_path, digest, hits = persist_content(output, source="background")
-                output = build_persisted_placeholder(output, file_path, digest, hits)
-            notifications.append(
-                f"<task_notification>\n"
-                f"  <task_id>{bg_id}</task_id>\n"
-                f"  <status>completed</status>\n"
-                f"  <command>{task['command']}</command>\n"
-                f"  <output>{output}</output>\n"
-                f"</task_notification>"
-            )
-            typer.echo(typer.style(f"\n> [background done] {bg_id}: {task['command']} ...", fg=typer.colors.GREEN))
-        return notifications
+    def _inject_wake_events(self) -> int:
+        """把收件箱中属于本 Agent 的事件注入上下文，返回注入条数"""
+        events = WAKE_QUEUE.drain(self.inbox_id)
+        for event in events:
+            self.context.append({"role": "user", "content": event.content})
+        return len(events)
 
     #执行工具函数
     def _process_tool_calls(self, tool_calls: list, tool_map: dict | None = None) -> bool:
@@ -278,10 +315,12 @@ class AgentRunner:
                 args = json.loads(tc["function"]["arguments"])
                 tool_args = {k: v for k, v in args.items()}
                 func = active_map[name]["func"]
-                typer.echo(typer.style(
-                    f"\n> [TOOL] {self.name} 调用 {name}({_brief_args(tool_args)})",
-                    fg=typer.colors.WHITE,
-                ))
+                #子 Agent 的工具调用不打印到终端，只在日志里留痕
+                if self.name == "Brain_Agent":
+                    typer.echo(typer.style(
+                        f"\n> [TOOL] {self.name} 调用 {name}({_brief_args(tool_args)})",
+                        fg=typer.colors.WHITE,
+                    ))
 
                 #执行工具
                 if self.should_run_background(name, args):
@@ -329,18 +368,26 @@ class AgentRunner:
                 logger.error(f"工具 '{tool_name}' 异常: {str(e)}")
                 aborted = True
 
-        # 注入后台任务运行结果
-        bg_notifications = self.collect_background_results()
-        if bg_notifications:
-            new_messages.append({"role": "user", "content": ".\n".join(bg_notifications)})
-
         self.context.extend(new_messages)
         return used_todo
 
     #给子Agent用的（退出AgentLoop即清空上下文）
     def run(self, task: str, max_turns: int = 50) -> str:
+        self._closed = False
+        try:
+            return self._run(task, max_turns)
+        finally:
+            #子 Agent 结束后清掉无人消费的事件；后台 worker 也会检查 _closed 不再投递
+            if self.name != BRAIN_OWNER:
+                with self.background_lock:
+                    self._closed = True
+                    WAKE_QUEUE.drop_owner(self.inbox_id)
+
+    def _run(self, task: str, max_turns: int = 50) -> str:
         self.last_reply = ""
+        self.hit_turn_limit = False
         self._ensure_system_prompt()
+        self._inject_wake_events()
         self.context.append({"role": "user", "content": task})
 
         tool_schemas = (
@@ -353,9 +400,10 @@ class AgentRunner:
         #AgentLoop
         while True:
             turn += 1
-            if turn > max_turns:
-                self.context = []
-                raise SubAgentRuntimeException("<SYSTEM_REMINDER>已达到最大对话轮次，请精简问题后重试</SYSTEM_REMINDER>")
+            #运行中到达的 cron/后台事件在每轮开头注入
+            self._inject_wake_events()
+            #最后一轮保留给收尾总结：不给工具，强制模型输出文字
+            final_turn = turn >= max_turns
 
             # 每轮评估压缩管线（按预算逐层触发）
             try:
@@ -367,8 +415,12 @@ class AgentRunner:
             if self.context and self.context[0].get("role") != "system":
                 self._ensure_system_prompt()
 
+            if final_turn:
+                self.hit_turn_limit = True
+                self.context.append({"role": "user", "content": FINAL_TURN_PROMPT})
+
             kwargs = dict(model=self.model, messages=self.context)
-            if tool_schemas:
+            if tool_schemas and not final_turn:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
 
@@ -417,9 +469,12 @@ class AgentRunner:
             assistant_msg = self._extract_assistant_msg(response)
             self.context.append(assistant_msg)
 
-            tool_calls = assistant_msg.get("tool_calls") or []
+            #收尾轮即使模型仍请求工具也不再执行，直接采用本轮文字作为总结
+            tool_calls = [] if final_turn else (assistant_msg.get("tool_calls") or [])
             if not tool_calls:
                 self.last_reply = assistant_msg.get("content") or ""
+                if final_turn and not self.last_reply:
+                    self.last_reply = TURN_LIMIT_FALLBACK
                 self.context = []
                 #返回子Agent最后一轮总结
                 return self.last_reply
@@ -429,15 +484,15 @@ class AgentRunner:
     #流式输出，给brain_agent用的
     def run_stream(self, task: str | None, on_token=None, max_turns: int = 50) -> None:
         self.last_reply = ""
+        self.hit_turn_limit = False
         self._ensure_system_prompt()
+        injected = self._inject_wake_events()
         if task is not None:
             self.context.append({"role": "user", "content": task})
 
-        #将定时任务插入上下文
-        fired = CRON_SCHEDULE.consume_cron_queue()
-        for cron_job in fired:
-            self.context.append({"role": "user", "content": f"Finish scheduled job {cron_job.id}: {cron_job.prompt}"})
-            typer.echo(typer.style(f"\n> [inject cron] {cron_job.prompt}", fg=typer.colors.GREEN))
+        #无用户任务、无待处理事件：队列线程的空唤醒直接结束
+        if task is None and injected == 0:
+            return
 
         #Plan 模式对 Brain 施加工具白名单
         active_map = self._active_tool_map()
@@ -451,9 +506,10 @@ class AgentRunner:
         #AgentLoop
         while True:
             turn += 1
-            if turn > max_turns:
-                typer.echo("已达到最大对话轮次，请精简问题后重试")
-                return
+            #运行中到达的 cron/后台事件在每轮开头注入
+            self._inject_wake_events()
+            #最后一轮保留给收尾总结：不给工具，强制模型输出文字
+            final_turn = turn >= max_turns
 
             # 每轮评估压缩管线（按预算逐层触发）
             try:
@@ -465,8 +521,12 @@ class AgentRunner:
             if self.context and self.context[0].get("role") != "system":
                 self._ensure_system_prompt()
 
+            if final_turn:
+                self.hit_turn_limit = True
+                self.context.append({"role": "user", "content": FINAL_TURN_PROMPT})
+
             kwargs = dict(model=self.model, messages=self.context)
-            if tool_schemas:
+            if tool_schemas and not final_turn:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
 
@@ -575,6 +635,22 @@ class AgentRunner:
 
             if not tool_calls_list:
                 self.last_reply = collected_content or ""
+                if final_turn and not self.last_reply:
+                    self.last_reply = TURN_LIMIT_FALLBACK
+                    typer.echo(typer.style(self.last_reply, fg=typer.colors.YELLOW))
+                return
+
+            if final_turn:
+                #收尾轮不再执行工具，补回跳过结果保持 assistant/tool 消息契约
+                for tc in tool_calls_list:
+                    self.context.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": "已达到最大对话轮次，此工具调用被跳过。",
+                    })
+                self.last_reply = collected_content or TURN_LIMIT_FALLBACK
+                if not collected_content:
+                    typer.echo(typer.style(self.last_reply, fg=typer.colors.YELLOW))
                 return
 
             used_todo = self._process_tool_calls(tool_calls_list, active_map)

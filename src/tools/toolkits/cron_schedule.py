@@ -9,6 +9,7 @@ import random
 import typer
 from src.logs.app_log import get_log
 from src.tools.tools_registry import get_tools_registry
+from src.utils.wake_queue import BRAIN_OWNER, WAKE_QUEUE, WakeEvent
 
 logger = get_log()
 
@@ -33,7 +34,6 @@ class CronJob:
 class CronSchedule:
     def __init__(self):
         self.scheduled_jobs: dict[str, CronJob] = {}
-        self.cron_queue: list[CronJob] = []
         self.cron_lock = threading.Lock()
         self.agent_lock = threading.Lock()
         self._last_fired: dict[str, str] = {} #因为五段表达式无法精确到秒，该数据结构保证同一个cron job在同一分钟内不会触发多次
@@ -203,7 +203,11 @@ class CronSchedule:
                     try:
                         if self.cron_matches(job.cron, now):
                             if self._last_fired.get(job.id) != minute_marker:
-                                self.cron_queue.append(job)
+                                WAKE_QUEUE.enqueue(WakeEvent(
+                                    owner=BRAIN_OWNER,
+                                    kind="cron",
+                                    content=f"Finish scheduled job {job.id}: {job.prompt}",
+                                ))
                                 self._last_fired[job.id] = minute_marker
                                 typer.echo(typer.style(f"\n> [cron fire] {job.id} -> {job.prompt}", fg=typer.colors.GREEN))
                                 logger.info(f"Cron fire: {job.id} -> {job.prompt}")
@@ -215,18 +219,6 @@ class CronSchedule:
                         typer.echo(typer.style(f"\n> [cron error] {job.id}: {str(e)}", fg=typer.colors.RED))
                         logger.error(f"Cron error: {job.id}: {str(e)}")
 
-    def consume_cron_queue(self) -> list[CronJob]:
-        """Consume fired jobs from cron_queue"""
-        with self.cron_lock:
-            fired = list(self.cron_queue)
-            self.cron_queue.clear()
-        return fired
-
-    def has_cron_queue(self) -> bool:
-        """Return whether fired cron jobs are waiting to be delivered."""
-        with self.cron_lock:
-            #cron_queue非空为True,空为False
-            return bool(self.cron_queue)
 
     # -------------Cron Tools：Schedule,List,Cancel ---------------
     def run_schedule_cron(self, cron: str, prompt: str, recurring: bool = True, durable: bool = True) -> str:

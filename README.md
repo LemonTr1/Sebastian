@@ -247,6 +247,7 @@ HITL 使用终端确认（`src/utils/interaction.py`）：
 - 默认 `[y/N]`；空输入、EOF、非交互终端一律拒绝；调用方传入 timeout 时超时拒绝。
 - 所有工具参数打印前会清洗 ANSI 转义，防止终端注入。
 - 输入串行化由 `TERMINAL_IO_LOCK` 保证：同一时刻只有一个提示符等待输入。
+- **子 Agent 内部工具不再逐个审批**：主 Agent 的 `agent` 调度仍需审批，批准即授权该子 Agent 在其工具集内执行；审批时请看清 `agent_name` 和 `task`。
 - 后台任务、子 Agent、cron 的输出通过 `ui_redraw` 重绘：审批/提问整块与输入行作为一个整体，日志只插在整块上方。
 - 不依赖 Tkinter / `DISPLAY` / `python3-tk`，SSH、WSL、无桌面环境可用。
 
@@ -300,11 +301,11 @@ HITL 使用终端确认（`src/utils/interaction.py`）：
 
 ### 后台任务
 
-`bash` 与 `agent` 工具支持 `run_in_background=true` 异步执行：任务在守护线程中运行，完成后通过 `<task_notification>` 主动通知 Brain Agent。Brain 的系统提示词内置后台调度规则：可并行执行的任务不串行等待，可异步完成的任务不阻塞主流程。
+`bash` 与 `agent` 工具支持 `run_in_background=true` 异步执行：任务在守护线程中运行，完成后把 `<task_notification>` 投递到统一唤醒收件箱（`src/utils/wake_queue.py`）；与 cron 共用同一条队列线程，Brain 空闲时自动唤醒处理。Brain 的系统提示词内置后台调度规则：可并行执行的任务不串行等待，可异步完成的任务不阻塞主流程。
 
 ### 定时任务
 
-`schedule_cron` / `list_crons` / `cancel_cron` 提供 Unix 五段 cron 调度。到期任务在用户空闲时注入 Brain Agent。注册定时任务需要 HITL 确认；任务可选择是否跨会话持久化到 `~/.sebastian/.scheduled_tasks.json`。
+`schedule_cron` / `list_crons` / `cancel_cron` 提供 Unix 五段 cron 调度。到期任务投递到同一个唤醒收件箱，由队列线程在 Brain 空闲时注入并执行。注册定时任务需要 HITL 确认；任务可选择是否跨会话持久化到 `~/.sebastian/.scheduled_tasks.json`。
 
 ### 会话管理
 
@@ -491,6 +492,7 @@ Sebastian/
 │   │   ├── model_windows.py        # 模型名→上下文窗口解析（.env 动态映射）
 │   │   ├── interaction.py          # 终端审批/提问（input + 提示符重绘）
 │   │   ├── ui_redraw.py            # 后台输出重绘：擦行/打印/恢复提示符
+│   │   ├── wake_queue.py           # 统一唤醒收件箱：cron/后台事件 → Brain
 │   │   ├── exceptions.py           # 自定义异常
 │   │   ├── tokens_caculator.py     # 累计Token计数
 │   │   ├── session_id_container.py # 会话ID容器
