@@ -147,6 +147,17 @@ iso.run_stream("hi", on_token=lambda t: None)
 check("owner event injected", "<task_id>bg_iso</task_id>" in user_text(iso.client.calls[0]))
 check("other owner event untouched", WAKE_QUEUE.has_pending("Other_Agent"), str(WAKE_QUEUE.pending_kinds("Other_Agent")))
 
+# ---- 5.5 用户 turn 也会消费 cron 事件；Plan 模式下按当前工具白名单受限 ----
+WAKE_QUEUE.clear()
+cron_runner = AgentRunner.create_runner("Cron_Agent", "instructions", get_tools_registry())
+cron_runner.client = FakeStreamClient([
+    [make_chunk(content="用户回答"), usage_only_chunk(USAGE)],
+])
+WAKE_QUEUE.enqueue(WakeEvent(owner=cron_runner.inbox_id, kind="cron", content="cron-event-content"))
+cron_runner.run_stream("hi", on_token=lambda t: None)
+check("user turn drains cron", not WAKE_QUEUE.has_pending(cron_runner.inbox_id, "cron"))
+check("user turn injects cron", "cron-event-content" in user_text(cron_runner.client.calls[0]))
+
 # ---- 6. 并发 drain：每条事件只被一个线程取走 ----
 WAKE_QUEUE.clear()
 for i in range(30):

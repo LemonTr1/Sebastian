@@ -45,15 +45,32 @@ SUMMARY_PREFIXES = (
     f"{PERSISTED_PREFIX}\n[Reactive compacted]",
 )
 
+# 运行期注入的 user 消息：不属于“当前用户轮”的边界
+INJECTED_USER_PREFIXES = (
+    "<TODO>",
+    "<SYSTEM_REMINDER>",
+    "<task_notification>",
+    "Finish scheduled job ",
+)
+
 
 def _is_summary_message(msg: dict) -> bool:
     content = msg.get("content", "")
     return isinstance(content, str) and content.startswith(SUMMARY_PREFIXES)
 
 
+def _is_injected_user(msg: dict) -> bool:
+    content = msg.get("content", "")
+    return isinstance(content, str) and content.startswith(INJECTED_USER_PREFIXES)
+
+
 def _is_plain_user(msg: dict) -> bool:
-    """普通用户消息（排除摘要消息）"""
-    return msg.get("role") == "user" and not _is_summary_message(msg)
+    """真实用户消息（排除摘要消息与运行期注入块）"""
+    return (
+        msg.get("role") == "user"
+        and not _is_summary_message(msg)
+        and not _is_injected_user(msg)
+    )
 
 
 # ---- Token 估算（启发式，无外部依赖）----
@@ -461,20 +478,31 @@ def summerize_history(messages: list) -> str:
 def _tail_start_at_user_boundary(messages: list) -> int:
     """定位最近一轮对话的起点（保留尾部从该处开始，其余交给摘要）。
 
-    连续多个 user 消息属于同一轮（用户任务后紧接着注入的 cron 任务等），
-    必须整体保留，否则只保留最后一条会把用户任务压缩掉；
-    摘要消息本身也是 user，遇到时必须停止吞并，避免旧摘要被原样保留。
+    只用真实用户消息做边界：TODO/cron/后台通知/SYSTEM_REMINDER 都是运行期注入，
+    若把它们当成“最后一条 user”，当前用户任务会被摘要掉，只留下注入块。
+    没有真实用户时（例如 /clear 后只有唤醒事件），回退到末尾连续的注入块，
+    保证唤醒内容不会被整段摘要掉；摘要消息本身也排除，避免旧摘要被原样保留。
     """
+    real_user_found = False
     last_user = -1
     for i in range(len(messages) - 1, -1, -1):
         if _is_plain_user(messages[i]):
             last_user = i
+            real_user_found = True
             break
+
+    if last_user == -1:
+        for i in range(len(messages) - 1, -1, -1):
+            if _is_injected_user(messages[i]):
+                last_user = i
+                break
+
     if last_user == -1:
         return len(messages)
 
     start = last_user
-    while start > 0 and _is_plain_user(messages[start - 1]):
+    predicate = _is_plain_user if real_user_found else _is_injected_user
+    while start > 0 and predicate(messages[start - 1]):
         start -= 1
     # 尾部起点不得为 0：否则 compact_history 会产出 [摘要, *全部历史] 造成重复
     return max(1, start)

@@ -38,6 +38,7 @@ Sebastian is an LLM-powered multi-agent terminal assistant: a central Brain Agen
     - [Context Compaction](#context-compaction)
     - [Background Tasks](#background-tasks)
     - [Scheduled Tasks](#scheduled-tasks)
+    - [Slash Command Completion](#slash-command-completion)
     - [Session Management](#session-management)
     - [Plan / Build / Auto Modes](#plan--build--auto-modes)
     - [Skill System](#skill-system)
@@ -306,6 +307,10 @@ The `bash` and `agent` tools support `run_in_background=true` for async executio
 
 `schedule_cron` / `list_crons` / `cancel_cron` provide 5-field Unix cron scheduling. Fired jobs are posted to the same wake inbox and injected/executed by the queue thread when the Brain is idle. Registering a job requires HITL approval; jobs may optionally persist across sessions in `~/.sebastian/.scheduled_tasks.json`.
 
+### Slash Command Completion
+
+Typing `/` opens a live command menu filtered as you type (prompt_toolkit, grid layout). If exactly one command matches, Enter completes and executes it (e.g. `/pl` → `/plan`); with multiple matches the menu stays open for more input. Enter submits; Ctrl-J / Alt+Enter inserts a newline. Background logs are ANSI-sanitized before being drawn above the prompt. Falls back to the original `input()` path on non-TTY or dumb terminals, or when prompt_toolkit is unavailable.
+
 ### Session Management
 
 - Sessions are saved as JSONL files: `~/.sebastian/session/{session_id}.jsonl`
@@ -319,7 +324,7 @@ Sebastian provides three working modes — **Plan (read-only planning)**, **Buil
 - `/plan` enters Plan: the Brain can only use `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`; execution tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`) are removed from the tool schemas and rejected at runtime; the system prompt is dynamically injected with research-and-planning-focused guidance, requiring the model to ask the user whether to execute immediately or revise the plan once it is ready
 - `/build` restores Build: all tools are available, and HITL tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / all MCP tools) require manual approval in the terminal before execution
 - `/auto` enters Auto: all tools are available and **every tool call skips manual approval** (the terminal prints `[AUTO] auto-approved` and the log records it) — use with caution; `/build` restores approval
-- The mode is runtime-only (not persisted); scheduled (cron) tasks are **forced to run in Build mode** when triggered from Plan, and the previous mode is restored afterwards (Auto already has full tools with no approval, so no switch happens)
+- The mode is runtime-only (not persisted); cron tasks woken independently by the queue thread are **temporarily switched to Build** when triggered from Plan, and the previous mode is restored afterwards; if a cron event is consumed by the current user turn first, it stays restricted by the Plan tool whitelist (Auto already has full tools with no approval, so no switch happens)
 - The terminal prompt shows the current mode (`[user|PLAN]:` / `[user|AUTO]:`)
 
 ### Skill System
@@ -489,6 +494,8 @@ Sebastian/
 │   │   ├── memory_system.py        # .memory/ index + entries, toggle and prompt
 │   │   ├── compaction_pipeline.py  # 3-layer context compaction pipeline
 │   │   ├── interaction.py          # Terminal approval/question (input + prompt redraw)
+│   │   ├── completion_input.py     # REPL input: prompt_toolkit slash completion/fallback
+│   │   ├── slash_commands.py       # Slash command list and Enter completion rule
 │   │   ├── ui_redraw.py            # Async output redraw: erase/print/restore prompt
 │   │   ├── wake_queue.py           # Unified wake inbox: cron/background events → Brain
 │   │   ├── exceptions.py           # Custom exceptions
@@ -524,6 +531,7 @@ User data directory (`~/.sebastian/`):
 |----------|------------|
 | **Language** | Python >= 3.10 |
 | **CLI Framework** | Typer |
+| **REPL Completion** | prompt_toolkit (live slash filtering, unique-prefix Enter execution; readline fallback) |
 | **LLM SDK** | OpenAI (compatible with DeepSeek / OpenAI / Ollama / vLLM) |
 | **Sandbox Isolation** | bubblewrap (Linux namespaces) |
 | **Terminal Approval** | `input()` + prompt redraw (`ui_redraw`, no GUI dependency) |
@@ -533,7 +541,7 @@ User data directory (`~/.sebastian/`):
 | **Config Management** | python-dotenv |
 | **Build System** | setuptools |
 
-Dependency discipline: core dependencies stay lean — only the pip packages the code actually uses are kept: CLI/LLM/config (typer, openai, python-dotenv), web search & extraction with degradation (ddgs, baidusearch, requests, beautifulsoup4, lxml), and the MCP client (fastmcp), 9 in total, installed on demand.
+Dependency discipline: core dependencies stay lean — only the pip packages the code actually uses are kept: CLI/LLM/config (typer, prompt_toolkit, openai, python-dotenv), web search & extraction with degradation (ddgs, baidusearch, requests, beautifulsoup4, lxml), and the MCP client (fastmcp), 10 in total, installed on demand.
 
 ---
 

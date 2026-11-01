@@ -56,22 +56,23 @@ def _stdin_pending() -> bool:
 def read_user_message(prompt: str) -> str:
     """Read one user turn: drain pasted extra lines, honor trailing '\\' continuation.
 
-    `input()` stops at the first newline, so a paste would otherwise be sliced into
-    separate Agent turns. Prompt must not contain a leading newline — readline
-    mis-counts width and wraps/slices the edit buffer.
+    输入优先走 prompt_toolkit（斜杠命令实时补全）；非 TTY/未安装时回退 readline。
+    粘贴的额外行与行尾 '\\' 续行逻辑保持不变。
 
     持全局终端锁：避免 cron/后台线程的终端降级提示与主 REPL 同时抢 stdin。
     """
+    from src.utils.completion_input import completing_input
+
     with TERMINAL_IO_LOCK:
-        lines = [ui_redraw.gated_input(prompt)]
+        lines = [completing_input(prompt)]
         while _stdin_pending():
             try:
-                lines.append(ui_redraw.gated_input())
+                lines.append(completing_input())
             except EOFError:
                 break
         while lines and lines[-1].endswith("\\"):
             lines[-1] = lines[-1][:-1]
-            lines.append(ui_redraw.gated_input("... "))
+            lines.append(completing_input("... "))
         return "\n".join(lines)
 
 
@@ -292,38 +293,44 @@ def _run_chat(session_id: str):
             typer.echo(typer.style("\nBye", fg=typer.colors.BLUE, bold=True))
             raise typer.Exit(code=0)
 
-        if question.lower() in ("/quit", "/exit"):
+        cmd = question.strip().lower()
+
+        if cmd in ("/quit", "/exit"):
             typer.echo(typer.style("Bye", fg=typer.colors.BLUE, bold=True))
-            #保存对话历史
-            session = brain_agent.get_context()
-            save_session(session, session_id)
+            #保存对话历史；与队列线程的 Brain 运行互斥
+            with CRON_SCHEDULE.agent_lock:
+                session = brain_agent.get_context()
+                save_session(session, session_id)
             logger.info(f"{uname} 已成功保存会话并登出系统")
             raise typer.Exit(code=0)
 
-        if question.lower() == "/clear":
-            brain_agent.set_context([])
+        if cmd == "/clear":
+            with CRON_SCHEDULE.agent_lock:
+                brain_agent.set_context([])
             logger.info(f"{uname} 手动清空所有历史对话")
             typer.echo(typer.style("已清空所有历史对话", fg=typer.colors.GREEN, bold=True))
             continue
 
-        if question.lower() == "/compact":
-            brain_agent.set_context(compact_history(brain_agent.get_context()))
+        if cmd == "/compact":
+            with CRON_SCHEDULE.agent_lock:
+                brain_agent.set_context(compact_history(brain_agent.get_context()))
             logger.info(f"{uname} 手动压缩历史对话")
             typer.echo(typer.style("已压缩历史对话", fg=typer.colors.GREEN, bold=True))
             continue
 
-        if question.lower() == "/plan":
-            AGENT_MODE.set(AGENT_MODE.PLAN)
+        if cmd == "/plan":
+            with CRON_SCHEDULE.agent_lock:
+                AGENT_MODE.set(AGENT_MODE.PLAN)
             logger.info(f"{uname} 进入 Plan 模式")
             typer.echo(typer.style(
-                "已进入 Plan 模式（只读规划）：仅可用 read/glob/grep/ls/todo/web_search/web_fetch/load_skill/list_crons，"
-                "输入 /build 退出并执行",
+                "已进入 Plan 模式（只读规划），输入 /build 退出并执行",
                 fg=typer.colors.CYAN, bold=True,
             ))
             continue
 
-        if question.lower() == "/build":
-            AGENT_MODE.set(AGENT_MODE.BUILD)
+        if cmd == "/build":
+            with CRON_SCHEDULE.agent_lock:
+                AGENT_MODE.set(AGENT_MODE.BUILD)
             logger.info(f"{uname} 进入 Build 模式")
             typer.echo(typer.style(
                 "已进入 Build 模式（全部工具可用，危险操作需人工审批），输入 /plan 进入规划，/auto 免审批",
@@ -331,18 +338,20 @@ def _run_chat(session_id: str):
             ))
             continue
 
-        if question.lower() == "/auto":
-            AGENT_MODE.set(AGENT_MODE.AUTO)
+        if cmd == "/auto":
+            with CRON_SCHEDULE.agent_lock:
+                AGENT_MODE.set(AGENT_MODE.AUTO)
             logger.info(f"{uname} 进入 Auto 模式")
             typer.echo(typer.style(
-                "已进入 Auto 模式（全部工具可用，所有工具调用不再人工审批，请谨慎使用），输入 /build 恢复审批",
+                "已进入 Auto 模式（所有工具调用不再人工审批，请谨慎使用），输入 /build 恢复审批",
                 fg=typer.colors.CYAN, bold=True,
             ))
             continue
 
-        if question.lower() in ("/memory on", "/memory off"):
-            enabled = question.lower().endswith("on")
-            MEMORY_SYSTEM.set_enabled(enabled)
+        if cmd in ("/memory on", "/memory off"):
+            enabled = cmd.endswith("on")
+            with CRON_SCHEDULE.agent_lock:
+                MEMORY_SYSTEM.set_enabled(enabled)
             typer.echo(typer.style(
                 f"记忆已{'开启' if enabled else '关闭'}",
                 fg=typer.colors.CYAN, bold=True,

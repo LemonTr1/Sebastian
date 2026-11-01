@@ -19,12 +19,15 @@ class FakeReadline:
 class TestUiRedraw(unittest.TestCase):
     def setUp(self):
         self._old_prompt = ui_redraw._active_prompt
+        self._old_pt_active = ui_redraw._pt_active
         self._old_tokens = dict(ui_redraw._token_streams)
         ui_redraw._active_prompt = None
+        ui_redraw._pt_active = False
         ui_redraw._token_streams.clear()
 
     def tearDown(self):
         ui_redraw._active_prompt = self._old_prompt
+        ui_redraw._pt_active = self._old_pt_active
         ui_redraw._token_streams.clear()
         ui_redraw._token_streams.update(self._old_tokens)
 
@@ -48,6 +51,27 @@ class TestUiRedraw(unittest.TestCase):
         with patch.object(ui_redraw, "_redraw") as redraw:
             ui_redraw.emit("LOG")
         redraw.assert_called_once_with("LOG", nl=True)
+
+    def test_pt_mode_emit_sanitizes_and_writes_stdout(self):
+        out = io.StringIO()
+        with ui_redraw.pt_prompt_active(), patch("sys.stdout", out):
+            ui_redraw.emit("\x1b[31mred\x1b[0m")
+        self.assertNotIn("\x1b", out.getvalue())
+        self.assertIn("red", out.getvalue())
+
+    def test_pt_mode_allows_trusted_ansi(self):
+        out = io.StringIO()
+        with ui_redraw.pt_prompt_active(), patch("sys.stdout", out):
+            ui_redraw.emit("\x1b[32mgreen\x1b[0m", allow_ansi=True)
+        self.assertIn("\x1b[32m", out.getvalue())
+        self.assertIn("green", out.getvalue())
+
+    def test_pt_mode_echo_proxy_sanitizes(self):
+        out = io.StringIO()
+        with ui_redraw.pt_prompt_active(), patch("sys.stdout", out):
+            ui_redraw._echo_proxy("\x1b[31mred\x1b[0m")
+        self.assertNotIn("\x1b", out.getvalue())
+        self.assertIn("red", out.getvalue())
 
     def test_gated_input_sets_and_clears_prompt_state(self):
         seen = {}

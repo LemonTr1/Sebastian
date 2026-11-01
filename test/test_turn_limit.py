@@ -69,7 +69,11 @@ class FakeClient:
         return self
 
     def create(self, **kwargs):
-        self.calls.append(kwargs)
+        # 收尾后可能会从持久 context 删除 reminder，这里保留请求时的消息快照
+        snapshot = dict(kwargs)
+        if "messages" in snapshot:
+            snapshot["messages"] = list(snapshot["messages"])
+        self.calls.append(snapshot)
         return self.script.pop(0)
 
 
@@ -158,6 +162,8 @@ check("run_stream streams final summary", "".join(tokens) == "阶段总结：已
 check("run_stream records last_reply", stream_runner.last_reply == "阶段总结：已完成检索，未完成修改。", stream_runner.last_reply)
 check("run_stream flags hit_turn_limit", stream_runner.hit_turn_limit is True)
 check("run_stream executed tool once", len(FAKE_EXECUTIONS) == 1, str(len(FAKE_EXECUTIONS)))
+check("final prompt not persisted",
+      all(FINAL_TURN_PROMPT not in (m.get("content") or "") for m in stream_runner.context))
 
 # 收尾轮流式返回 tool_calls：不执行，补回 tool 消息保持消息契约
 stream_runner2 = AgentRunner.create_runner("Stream_Test_Agent", "test instructions", get_tools_registry())
@@ -182,6 +188,35 @@ check("run_stream does not execute final-turn tools", len(FAKE_EXECUTIONS) == 1,
 skipped = [m for m in stream_runner2.context if m.get("role") == "tool" and "此工具调用被跳过" in (m.get("content") or "")]
 check("run_stream appends skipped tool result", len(skipped) == 1, str(len(skipped)))
 check("run_stream fallback last_reply", stream_runner2.last_reply == TURN_LIMIT_FALLBACK, stream_runner2.last_reply)
+check("stream final prompt not persisted",
+      all(FINAL_TURN_PROMPT not in (m.get("content") or "") for m in stream_runner2.context))
+
+# 收尾轮同时返回文字 + tool_calls，且 provider 没给 id：文字要显示，id 要自动补
+stream_runner3 = AgentRunner.create_runner("Stream_Test_Agent", "test instructions", get_tools_registry())
+stream_script3 = [
+    [
+        make_chunk(tool_calls=[tc_chunk(0, None, name="fake_tool", arguments="")]),
+        make_chunk(tool_calls=[tc_chunk(0, "call_a", arguments="{}")]),
+        make_chunk(usage=USAGE),
+    ],
+    [
+        make_chunk(tool_calls=[tc_chunk(0, None, name="fake_tool", arguments="")]),
+        make_chunk(tool_calls=[tc_chunk(0, None, arguments="{}")]),
+        make_chunk(content="收尾文字总结"),
+        make_chunk(usage=USAGE),
+    ],
+]
+stream_client3 = FakeClient(stream_script3)
+stream_runner3.client = stream_client3
+tokens3 = []
+FAKE_EXECUTIONS.clear()
+stream_runner3.run_stream("stream task", on_token=tokens3.append, max_turns=2)
+
+check("final text with tool calls is streamed", "收尾文字总结" in "".join(tokens3), "".join(tokens3))
+final_tool = [m for m in stream_runner3.context if m.get("role") == "tool"][-1]
+check("generated tool_call id non-empty", bool(final_tool.get("tool_call_id")), str(final_tool.get("tool_call_id")))
+check("third run final prompt removed",
+      all(FINAL_TURN_PROMPT not in (m.get("content") or "") for m in stream_runner3.context))
 
 CRON_SCHEDULE.agent_lock.release()
 

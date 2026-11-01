@@ -37,6 +37,7 @@ Sebastian 是一个基于 LLM 的多 Agent 协作终端助手：主控 Agent 负
     - [上下文压缩](#上下文压缩)
     - [后台任务](#后台任务)
     - [定时任务](#定时任务)
+    - [斜杠命令补全](#斜杠命令补全)
     - [会话管理](#会话管理)
     - [规划/执行双模式](#规划执行双模式)
     - [技能系统](#技能系统)
@@ -307,6 +308,10 @@ HITL 使用终端确认（`src/utils/interaction.py`）：
 
 `schedule_cron` / `list_crons` / `cancel_cron` 提供 Unix 五段 cron 调度。到期任务投递到同一个唤醒收件箱，由队列线程在 Brain 空闲时注入并执行。注册定时任务需要 HITL 确认；任务可选择是否跨会话持久化到 `~/.sebastian/.scheduled_tasks.json`。
 
+### 斜杠命令补全
+
+输入 `/` 会实时弹出命令菜单并随输入过滤（prompt_toolkit，网格排列）；按 Enter 时若只有一个匹配，直接补全并执行（如 `/pl` → `/plan`），多个匹配则保留菜单等待继续输入。Enter 提交，Ctrl-J / Alt+Enter 插入换行；REPL 期间后台日志仍先做 ANSI 清洗再绘制。非 TTY / dumb 终端 / 未安装 prompt_toolkit 时自动回退到原 `input()` 路径。
+
 ### 会话管理
 
 - 会话保存为 JSONL 文件：`~/.sebastian/session/{session_id}.jsonl`
@@ -320,7 +325,7 @@ Sebastian 提供 **Plan（只读规划）**、**Build（执行）** 与 **Auto�
 - `/plan` 进入 Plan：Brain 仅可用 `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`，执行类工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`）从工具 schema 中移除并被拒绝执行；system 提示词动态注入"以调研与规划为主"的行为引导，并要求模型在计划完成后主动询问用户：立即退出执行还是修改计划
 - `/build` 恢复 Build：全部工具可用，HITL 工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / 全部 MCP 工具）执行前在终端等待人工审批
 - `/auto` 进入 Auto：全部工具可用，且**所有工具调用跳过人工审批**（终端打印 `[AUTO] 自动批准` 并写日志），请谨慎使用；`/build` 恢复审批
-- 模式运行期有效不持久化；定时任务触发时若处于 Plan 则**强制以 Build 运行**，执行完恢复原模式（Auto 模式工具齐全且免审批，不切换）
+- 模式运行期有效不持久化；由队列线程独立唤醒的定时任务在 Plan 下**临时切 Build** 执行，执行完恢复原模式；若 cron 事件先被当前用户 turn 消费，则按 Plan 工具白名单受限（Auto 模式工具齐全且免审批，不切换）
 - 终端提示符显示当前模式（`[user|PLAN]：` / `[user|AUTO]：`）
 
 ### 技能系统
@@ -491,6 +496,8 @@ Sebastian/
 │   │   ├── compaction_pipeline.py  # 3层上下文压缩管线（预算驱动/无损降级/分段摘要）
 │   │   ├── model_windows.py        # 模型名→上下文窗口解析（.env 动态映射）
 │   │   ├── interaction.py          # 终端审批/提问（input + 提示符重绘）
+│   │   ├── completion_input.py     # REPL 输入：prompt_toolkit 斜杠补全/回退
+│   │   ├── slash_commands.py       # 斜杠命令清单与 Enter 补全判定
 │   │   ├── ui_redraw.py            # 后台输出重绘：擦行/打印/恢复提示符
 │   │   ├── wake_queue.py           # 统一唤醒收件箱：cron/后台事件 → Brain
 │   │   ├── exceptions.py           # 自定义异常
@@ -526,6 +533,7 @@ Sebastian/
 |------|------|
 | **语言** | Python >= 3.10 |
 | **CLI 框架** | Typer |
+| **REPL 补全** | prompt_toolkit（斜杠命令实时过滤、唯一前缀回车执行；非 TTY 回退 readline） |
 | **LLM SDK** | OpenAI（兼容 DeepSeek / OpenAI / Ollama / vLLM） |
 | **沙箱隔离** | bubblewrap（Linux 命名空间） |
 | **终端审批** | `input()` + 提示符重绘（`ui_redraw`，无图形依赖） |
@@ -535,7 +543,7 @@ Sebastian/
 | **配置管理** | python-dotenv |
 | **构建系统** | setuptools |
 
-依赖控制原则：核心依赖保持精简，仅保留代码实际使用的 pip 包——CLI/LLM/配置类（typer、openai、python-dotenv）、网页搜索与正文提取降级类（ddgs、baidusearch、requests、beautifulsoup4、lxml）、以及 MCP 客户端（fastmcp）合计 9 个，按需内置。
+依赖控制原则：核心依赖保持精简，仅保留代码实际使用的 pip 包——CLI/LLM/配置类（typer、prompt_toolkit、openai、python-dotenv）、网页搜索与正文提取降级类（ddgs、baidusearch、requests、beautifulsoup4、lxml）、以及 MCP 客户端（fastmcp）合计 10 个，按需内置。
 
 ---
 

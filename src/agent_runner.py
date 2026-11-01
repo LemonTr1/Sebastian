@@ -107,6 +107,8 @@ class AgentRunner:
         self.last_reply = ""
         #本次运行是否因轮次上限被强制收尾
         self.hit_turn_limit = False
+        #供应商未返回 tool_call id 时补一个唯一 id，保证 assistant/tool 消息契约
+        self._tool_call_seq = 0
 
     def _resolve_instructions(self) -> str:
         if callable(self.instructions):
@@ -174,9 +176,16 @@ class AgentRunner:
                         "arguments": tc.function.arguments,
                     },
                 })
+            self._ensure_tool_call_ids(cleaned_calls)
             result["tool_calls"] = cleaned_calls
 
         return result
+
+    def _ensure_tool_call_ids(self, tool_calls: list) -> None:
+        for tc in tool_calls:
+            if not tc.get("id"):
+                self._tool_call_seq += 1
+                tc["id"] = f"call_{self._tool_call_seq}"
 
     def _active_tool_map(self) -> dict:
         """当前模式下 Brain 的可用工具表（Plan 模式施加白名单）"""
@@ -225,7 +234,10 @@ class AgentRunner:
                 )
 
             if self.name == BRAIN_OWNER:
-                typer.echo(typer.style(f"\n> [background done] {bg_id}: {cmd} ...", fg=typer.colors.GREEN))
+                try:
+                    typer.echo(typer.style(f"\n> [background done] {bg_id}: {cmd} ...", fg=typer.colors.GREEN))
+                except Exception:
+                    pass
             with self.background_lock:
                 self.background_tasks.pop(bg_id, None)
                 #子 Agent 结束后没有人消费它的事件，直接丢弃；Brain 永不关闭
@@ -245,7 +257,10 @@ class AgentRunner:
             }
 
         if self.name == BRAIN_OWNER:
-            typer.echo(typer.style(f"\n> [background] 后台任务启动：{bg_id}: {cmd[:40]} ... ", fg=typer.colors.WHITE, bold=True))
+            try:
+                typer.echo(typer.style(f"\n> [background] 后台任务启动：{bg_id}: {cmd[:40]} ... ", fg=typer.colors.WHITE, bold=True))
+            except Exception:
+                pass
         thread = threading.Thread(target=worker, daemon=True)
         thread.start()
         return bg_id
@@ -503,6 +518,7 @@ class AgentRunner:
         )
 
         turn = 0
+        final_prompt_index = None
         #AgentLoop
         while True:
             turn += 1
@@ -523,6 +539,7 @@ class AgentRunner:
 
             if final_turn:
                 self.hit_turn_limit = True
+                final_prompt_index = len(self.context)
                 self.context.append({"role": "user", "content": FINAL_TURN_PROMPT})
 
             kwargs = dict(model=self.model, messages=self.context)
@@ -574,9 +591,12 @@ class AgentRunner:
             if stream is None:
                 logger.error(f"{self.name}出错无法恢复，请稍后重试")
                 typer.echo(typer.style(f"\n {self.name}出错无法恢复，请稍后重试 \n", fg=typer.colors.RED, bold=True))
+                if final_prompt_index is not None:
+                    del self.context[final_prompt_index]
                 return f"[ERROR] {self.name} 调用模型失败，已达到最大重试次数，请稍后重试。"
 
             collected_content = ""
+            streamed_len = 0
             collected_tool_calls: dict[int, dict] = {}
             has_tool_calls = False
 
@@ -618,10 +638,12 @@ class AgentRunner:
                     collected_content += token
                     if not has_tool_calls and on_token:
                         on_token(token)
+                        streamed_len += len(token)
 
             tool_calls_list = [
                 collected_tool_calls[i] for i in sorted(collected_tool_calls.keys())
             ]
+            self._ensure_tool_call_ids(tool_calls_list)
 
             assistant_msg = {"role": "assistant", "content": collected_content or None}
             if tool_calls_list:
@@ -630,6 +652,15 @@ class AgentRunner:
             for tc in assistant_msg.get("tool_calls") or []:
                 tc.pop("index", None)
             self.context.append(assistant_msg)
+
+            #收尾轮若模型同时给了文字和 tool_calls，文字可能还没流式输出
+            if final_turn and tool_calls_list and collected_content:
+                remaining = collected_content[streamed_len:]
+                if remaining:
+                    if on_token:
+                        on_token(remaining)
+                    else:
+                        typer.echo(remaining)
             # 流式正文可能不以换行结尾；先 flush，保证它出现在工具日志/下一轮之前
             ui_redraw.flush_tokens()
 
@@ -638,6 +669,8 @@ class AgentRunner:
                 if final_turn and not self.last_reply:
                     self.last_reply = TURN_LIMIT_FALLBACK
                     typer.echo(typer.style(self.last_reply, fg=typer.colors.YELLOW))
+                if final_prompt_index is not None:
+                    del self.context[final_prompt_index]
                 return
 
             if final_turn:
@@ -651,6 +684,8 @@ class AgentRunner:
                 self.last_reply = collected_content or TURN_LIMIT_FALLBACK
                 if not collected_content:
                     typer.echo(typer.style(self.last_reply, fg=typer.colors.YELLOW))
+                if final_prompt_index is not None:
+                    del self.context[final_prompt_index]
                 return
 
             used_todo = self._process_tool_calls(tool_calls_list, active_map)

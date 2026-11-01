@@ -13,6 +13,7 @@ import shutil
 import sys
 import threading
 import unicodedata
+from contextlib import contextmanager
 
 try:
     import readline
@@ -27,6 +28,7 @@ _ORIG_ECHO = typer.echo
 _state_lock = threading.RLock()
 _write_lock = threading.RLock()
 _active_prompt: dict | None = None
+_pt_active = False
 _installed = False
 _token_streams: dict[tuple[str, int], "MarkdownStream"] = {}
 
@@ -266,7 +268,14 @@ def emit(text: object = "", agent: str | None = None, nl: bool = True, allow_ans
     with _write_lock:
         with _state_lock:
             state = _active_prompt
-        if state and state.get("owner") != threading.get_ident():
+            pt_active = _pt_active
+        if pt_active:
+            # prompt_toolkit 的 patch_stdout 负责把输出画到输入行上方
+            sys.stdout.write(text)
+            if nl and not text.endswith("\n"):
+                sys.stdout.write("\n")
+            sys.stdout.flush()
+        elif state and state.get("owner") != threading.get_ident():
             _redraw(text, nl=nl)
         else:
             _ORIG_ECHO(text, nl=nl)
@@ -365,6 +374,13 @@ def _echo_proxy(*args, **kwargs):
     """替换 typer.echo：有活跃提示符时改走重绘。"""
     with _state_lock:
         state = _active_prompt
+        pt_active = _pt_active
+    if pt_active:
+        message = kwargs.get("message")
+        if message is None:
+            message = args[0] if args else ""
+        emit(str(message), nl=kwargs.get("nl", True))
+        return
     if state and state.get("owner") != threading.get_ident():
         message = kwargs.get("message")
         if message is None:
@@ -397,3 +413,16 @@ def uninstall() -> None:
 def prompt_active() -> bool:
     with _state_lock:
         return _active_prompt is not None
+
+
+@contextmanager
+def pt_prompt_active():
+    """prompt_toolkit 接管终端期间，emit 走 patch_stdout 而不是 readline 重绘。"""
+    global _pt_active
+    with _state_lock:
+        _pt_active = True
+    try:
+        yield
+    finally:
+        with _state_lock:
+            _pt_active = False

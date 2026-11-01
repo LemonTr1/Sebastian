@@ -489,6 +489,61 @@ class TestCompactionPipeline(unittest.TestCase):
         self.assertTrue(any(m.get("content") == "TASK2" for m in res_guard))
         self.assertTrue(any(m.get("content") == "CRON2" for m in res_guard))
 
+    # ---------- 14. 压缩尾部边界跳过运行期注入块 ----------
+    def test_tail_boundary_skips_injected_blocks(self):
+        from src.utils.compaction_pipeline import _tail_start_at_user_boundary
+
+        messages = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "真正的任务"},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "c1"}]},
+            {"role": "tool", "tool_call_id": "c1", "content": "result"},
+            {"role": "user", "content": "<TODO>\n1. 修改\n</TODO>"},
+            {"role": "user", "content": "Finish scheduled job cron_1: do x"},
+            {"role": "user", "content": "<task_notification>\n<task_id>bg1</task_id>\n</task_notification>"},
+        ]
+        start = _tail_start_at_user_boundary(messages)
+        self.assertEqual(start, 1)
+        self.assertEqual(messages[start]["content"], "真正的任务")
+        self.assertIn("<TODO>", messages[4]["content"])
+
+    def test_tail_boundary_keeps_injected_blocks_without_real_user(self):
+        from src.utils.compaction_pipeline import _tail_start_at_user_boundary
+
+        messages = [
+            {"role": "system", "content": "sys"},
+            {"role": "assistant", "content": "old"},
+            {"role": "tool", "tool_call_id": "c1", "content": "old result"},
+            {"role": "user", "content": "Finish scheduled job cron_1: do x"},
+            {"role": "user", "content": "<task_notification>\n<task_id>bg1</task_id>\n</task_notification>"},
+        ]
+        self.assertEqual(_tail_start_at_user_boundary(messages), 3)
+
+    def test_tail_boundary_merges_consecutive_real_users(self):
+        from src.utils.compaction_pipeline import _tail_start_at_user_boundary
+
+        messages = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "TASK1"},
+            {"role": "user", "content": "TASK2"},
+            {"role": "assistant", "content": "ok"},
+            {"role": "tool", "tool_call_id": "c", "content": "r"},
+            {"role": "user", "content": "<TODO>\n1. x\n</TODO>"},
+        ]
+        self.assertEqual(_tail_start_at_user_boundary(messages), 1)
+
+    def test_tail_boundary_ignores_summary_at_end(self):
+        from src.utils.compaction_pipeline import PERSISTED_PREFIX, _tail_start_at_user_boundary
+
+        messages = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "TASK"},
+            {"role": "assistant", "content": "a"},
+            {"role": "tool", "tool_call_id": "c", "content": "r"},
+            {"role": "user", "content": f"{PERSISTED_PREFIX}\n[Compacted]:\n old\n</persisted-output>"},
+        ]
+        self.assertEqual(_tail_start_at_user_boundary(messages), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

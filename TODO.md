@@ -184,7 +184,52 @@
 
 ### 验证
 
-- `test/test_background_delivery.py`：24 项通过（注入、owner 隔离、并发 drain、worker 生产、关闭后丢弃）。
+- `test/test_background_delivery.py`：26 项通过（注入、owner 隔离、并发 drain、worker 生产、关闭后丢弃、用户 turn 消费 cron）。
 - `test/test_queue_processor.py`：18 项通过（cron/后台唤醒、模式、二次检查、锁占用、空收件箱）。
 - `test/test_subagent_output.py`：7 项通过（子 Agent 静默、Brain 日志、事件入箱）。
-- 全量 46 个测试文件与 ruff 见提交前检查。
+- 全量 48 个测试文件与 ruff 见提交前检查。
+
+## 11. 斜杠命令补全（2026-10-31）
+
+### 目标
+
+输入 `/` 实时显示命令菜单；唯一匹配时回车直接补全并执行，多个匹配保留菜单。
+
+### 实现
+
+- 新增 `src/utils/slash_commands.py`：命令清单、前缀匹配、Enter 动作判定。
+- 新增 `src/utils/completion_input.py`：prompt_toolkit `PromptSession` + `SlashCommandCompleter` + 自定义 Enter。
+- 多行模式：Enter（c-m）提交，Ctrl-J / Alt+Enter 插入换行；粘贴中的裸换行也保留。
+- `cli.read_user_message()` 改用 `completing_input()`；非 TTY/dumb/未安装 prompt_toolkit 自动回退 `gated_input()`。
+- `patch_stdout(raw=True)` 接管 REPL 期间的异步输出；`ui_redraw.pt_prompt_active()` 保证后台日志仍过 `_safe` 清洗，流式 Markdown 保留 ANSI。
+- 依赖新增 `prompt_toolkit>=3.0`。
+
+### 验证
+
+- `test/test_slash_commands.py`：17 项通过（含尾随换行/空格）。
+- `test/test_completion_input.py`：12 项通过（含真实 PromptSession 管道输入、多行与 bracketed paste）。
+- `test_ui_redraw.py`：18 项通过（含 PT 模式 ANSI 清洗）。
+- PTY 实测：`/pl` + Enter 返回 `/plan`；后台带 ANSI 的 `typer.echo` 被清洗并显示在提示符上方；裸多行输入保留。
+- 全量测试与 ruff 见提交前检查。
+
+## 12. 子代理审计修复（2026-10-31）
+
+3 个只读审查代理分别检查斜杠补全、统一收件箱、轮次收尾；复核后确认并修复：
+
+- **PT 模式绕过 ANSI 清洗**：`ui_redraw.pt_prompt_active()` + `emit`/`_echo_proxy` 在 PT 期间仍走 `_safe`；流式 Markdown 继续 `allow_ansi=True`。
+- **粘贴命令带尾随换行/空格**：`match_commands`/`resolve_enter` 先 `rstrip`；CLI 命令比较改用 `cmd = question.strip().lower()`。
+- **CLI 命令与队列线程竞态**：`/clear`、`/compact`、`/plan`、`/build`、`/auto`、`/memory`、退出保存均持 `CRON_SCHEDULE.agent_lock`。
+- **收尾提示跨轮残留**：`run_stream` 收尾后从持久 context 删除 `FINAL_TURN_PROMPT`，保留 assistant/tool 契约消息。
+- **收尾轮文字+tool_calls 不显示**：补发未流式输出的剩余文字。
+- **provider 缺 tool_call id**：`_ensure_tool_call_ids()` 自动补 `call_N`，覆盖流式与非流式。
+- **worker 日志异常漏投递**：`[background]`/`[background done]` 的 echo 包 try/except，状态清理与事件投递不受影响。
+- 顺带修复 Plan 模式提示缺分隔符。
+
+未采纳/未修：
+
+- 子 Agent 工具免审批：用户明确设计，安全边界在主 Agent 的 `agent` 调度。
+- `max_turns` 最后一轮保留为收尾：有意设计。
+- cron 事件被用户 turn 消费时按当前 Plan 模式限制工具：按用户决定保留原行为——Plan 是安全保险，执行不了由 Agent 向用户说明；队列线程自己唤醒 cron 时仍临时切 Build（原逻辑不变）。
+- 模型调用彻底失败后的 WakeEvent 重投递：需要 peek/ack 语义，暂列为已知限制。
+
+验证：全量 48 个测试文件通过；`ruff check src` 与改动测试通过；PTY 复测 `/pl` → `/plan`、后台 ANSI 清洗、裸多行输入保留。
