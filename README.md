@@ -350,13 +350,15 @@ Sebastian 提供 **Plan（只读规划）**、**Build（执行）** 与 **Auto�
 git clone <your-repo-url> Sebastian
 cd Sebastian
 
-# 2. 安装（推荐，自动注册 sebastian 命令）
+# 2. 一键安装（推荐）：检测/安装 uv 与 bubblewrap，创建 .venv 并安装项目
+chmod +x install.sh
+./install.sh
+```
+
+`install.sh` 支持 `--python 3.12`、`--skip-bwrap`、`--dry-run`。也可以手动安装：
+
+```bash
 pip install -e .
-
-# 或使用 requirements.txt
-pip install -r requirements.txt
-
-# 3. 安装系统依赖 (Ubuntu/Debian)
 sudo apt install bubblewrap
 ```
 
@@ -438,6 +440,7 @@ Sebastian/
 ├── cli.py                          # CLI入口（交互循环、会话保存/恢复、setup密钥掩码输入）
 ├── pyproject.toml                  # 项目元数据与依赖（setuptools）
 ├── requirements.txt                # 依赖清单（版本下限与注释）
+├── install.sh                      # 一键安装（uv/bubblewrap/.venv）
 ├── .env                            # API密钥配置（gitignore保护）
 │
 ├── src/

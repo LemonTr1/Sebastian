@@ -349,13 +349,16 @@ Skill documents live in `~/.sebastian/skills/<name>/SKILL.md` (YAML frontmatter 
 git clone <your-repo-url> Sebastian
 cd Sebastian
 
-# 2. Install (recommended — registers the sebastian command)
+# 2. One-shot install (recommended): detect/install uv and bubblewrap,
+#    create .venv, and install the project
+chmod +x install.sh
+./install.sh
+```
+
+`install.sh` supports `--python 3.12`, `--skip-bwrap`, and `--dry-run`. Manual install:
+
+```bash
 pip install -e .
-
-# or install from requirements.txt
-pip install -r requirements.txt
-
-# 3. Install system dependencies (Ubuntu/Debian)
 sudo apt install bubblewrap
 ```
 
@@ -437,6 +440,7 @@ Sebastian/
 ├── cli.py                          # CLI entry (chat loop, session save/restore, masked key setup)
 ├── pyproject.toml                  # Project metadata & dependencies (setuptools)
 ├── requirements.txt                # Dependency list (version floors with comments)
+├── install.sh                      # One-shot installer (uv/bubblewrap/.venv)
 ├── .env                            # API key config (gitignored)
 │
 ├── src/
