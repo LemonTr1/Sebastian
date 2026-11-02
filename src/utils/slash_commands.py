@@ -8,8 +8,6 @@ SLASH_COMMANDS = {
     "/plan": "进入只读规划模式",
     "/build": "进入执行模式",
     "/auto": "进入免审批模式",
-    "/memory on": "开启记忆",
-    "/memory off": "关闭记忆",
 }
 
 

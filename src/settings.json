@@ -71,9 +71,6 @@
     "unshare_net": false,
     "timeout": 180
   },
-  "memory": {
-    "enabled": false
-  },
   "context": {
     "window_tokens": null,
     "model_overrides": {}

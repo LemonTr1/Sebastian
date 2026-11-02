@@ -226,7 +226,7 @@ Sebastian 通过 stdio 方式接入第三方 MCP server，把 server 暴露的�
 
 ### 记忆系统
 
-默认关闭。开启后记忆在 `~/.sebastian/.memory/`：`MEMORY.md` 只做索引，同目录其它 markdown 存条目。Agent **不会每轮读取**；用户说出稳定偏好时才写入，本任务确实需要旧偏好时才读索引。关闭时提示词完全不提该目录。`/memory on` 与 `/memory off` 立即切换。对该目录下文件的写/改不弹 HITL。
+记忆常开，存放在 `~/.sebastian/.memory/`：`MEMORY.md` 只做索引，同目录其它 markdown 存条目。Agent **不会每轮读取**；用户说出稳定偏好时才写入，本任务确实需要旧偏好时才读索引。索引缺失时自动创建。对该目录下文件的写/改不弹 HITL。
 
 ### 安全体系
 
@@ -425,7 +425,6 @@ sebastian setup                 # API 配置向导（密钥掩码输入）
 | `/plan` | 进入 Plan 只读规划模式（仅调研/规划工具可用） |
 | `/build` | 进入 Build 执行模式（全部工具可用，危险操作需审批） |
 | `/auto` | 进入 Auto 免审批模式（全部工具可用，不再人工审批） |
-| `/memory on` / `/memory off` | 开启或关闭 `~/.sebastian/.memory/` 记忆 |
 | `/clear` | 清空当前对话历史 |
 | `/compact` | 手动触发上下文 LLM 摘要压缩 |
 | `Ctrl+C` / `Ctrl+D` | 退出（不保存会话） |
@@ -517,7 +516,7 @@ Sebastian/
 ~/.sebastian/
 ├── skills/             # 技能文档（SKILL.md）
 ├── .agents/            # 用户自定义子Agent（优先于内置）
-├── .memory/            # MEMORY.md 索引 + 条目文件（需 /memory on）
+├── .memory/            # MEMORY.md 索引 + 条目文件
 ├── session/            # 会话存档（JSONL，保留最近10个）
 ├── logs/               # 应用日志
 ├── .scheduled_tasks.json

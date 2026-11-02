@@ -225,7 +225,7 @@ Sebastian connects to third-party MCP servers over stdio and dynamically registe
 
 ### Memory System
 
-Off by default. When enabled, memory lives in `~/.sebastian/.memory/`: `MEMORY.md` is the index; sibling markdown files hold entries. The agent does **not** read memory every turn — it writes when the user states a stable preference, and reads the index only if this task needs prior prefs. When disabled, the prompt never mentions the directory. Toggle with `/memory on` and `/memory off`. Writes/edits under that directory skip HITL.
+Memory is always enabled and lives in `~/.sebastian/.memory/`: `MEMORY.md` is the index; sibling markdown files hold entries. The agent does **not** read memory every turn — it writes when the user states a stable preference, and reads the index only if this task needs prior prefs. The index is created automatically if missing. Writes/edits under that directory skip HITL.
 
 ### Security System
 
@@ -424,7 +424,6 @@ sebastian setup                 # API configuration wizard (masked key input)
 | `/plan` | Enter Plan read-only planning mode (research/planning tools only) |
 | `/build` | Enter Build execution mode (all tools, dangerous ops need approval) |
 | `/auto` | Enter Auto approval-free mode (all tools, no manual approval) |
-| `/memory on` / `/memory off` | Enable or disable `~/.sebastian/.memory/` |
 | `/clear` | Clear the current conversation history |
 | `/compact` | Manually trigger LLM summarization compaction |
 | `Ctrl+C` / `Ctrl+D` | Exit without saving |
@@ -515,7 +514,7 @@ User data directory (`~/.sebastian/`):
 ~/.sebastian/
 ├── skills/             # Skill documents (SKILL.md)
 ├── .agents/            # User-defined sub-agents (override built-ins)
-├── .memory/            # MEMORY.md index + entry files (requires /memory on)
+├── .memory/            # MEMORY.md index + entry files
 ├── session/            # Session archives (JSONL, latest 10 kept)
 ├── logs/               # Application logs
 ├── .scheduled_tasks.json

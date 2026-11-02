@@ -50,3 +50,6 @@ ENV/
 # 测试临时目录
 .test-tmp/
 .sebastian-test-*
+
+# 个人面试资料（不跟踪）
+/面试必知.md

@@ -29,7 +29,6 @@ from datetime import datetime
 import json
 from src.utils.compaction_pipeline import compact_history, message_without_images
 from src.utils.agent_mode import AGENT_MODE
-from src.utils.memory_system import MEMORY_SYSTEM
 from src.utils import ui_redraw
 from src.utils.interaction import TERMINAL_IO_LOCK
 from src.utils.wake_queue import WAKE_QUEUE
@@ -344,16 +343,6 @@ def _run_chat(session_id: str):
             logger.info(f"{uname} 进入 Auto 模式")
             typer.echo(typer.style(
                 "已进入 Auto 模式（所有工具调用不再人工审批，请谨慎使用），输入 /build 恢复审批",
-                fg=typer.colors.CYAN, bold=True,
-            ))
-            continue
-
-        if cmd in ("/memory on", "/memory off"):
-            enabled = cmd.endswith("on")
-            with CRON_SCHEDULE.agent_lock:
-                MEMORY_SYSTEM.set_enabled(enabled)
-            typer.echo(typer.style(
-                f"记忆已{'开启' if enabled else '关闭'}",
                 fg=typer.colors.CYAN, bold=True,
             ))
             continue

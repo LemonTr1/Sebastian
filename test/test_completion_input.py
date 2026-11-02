@@ -73,8 +73,8 @@ if PT_AVAILABLE:
     result, hung = session_result("hello\r")
     check("normal text submits", result == "hello" and not hung, f"{result!r} hung={hung}")
 
-    result, hung = session_result("/memory on\r")
-    check("multi-word command submits", result == "/memory on" and not hung, f"{result!r} hung={hung}")
+    result, hung = session_result("/auto\r")
+    check("another exact command submits", result == "/auto" and not hung, f"{result!r} hung={hung}")
 
     result, hung = session_result("\x1b[200~line1\nline2\x1b[201~\r")
     check("bracketed multi-line paste preserved", result == "line1\nline2" and not hung, f"{result!r} hung={hung}")

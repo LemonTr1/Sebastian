@@ -218,7 +218,7 @@
 
 - **PT 模式绕过 ANSI 清洗**：`ui_redraw.pt_prompt_active()` + `emit`/`_echo_proxy` 在 PT 期间仍走 `_safe`；流式 Markdown 继续 `allow_ansi=True`。
 - **粘贴命令带尾随换行/空格**：`match_commands`/`resolve_enter` 先 `rstrip`；CLI 命令比较改用 `cmd = question.strip().lower()`。
-- **CLI 命令与队列线程竞态**：`/clear`、`/compact`、`/plan`、`/build`、`/auto`、`/memory`、退出保存均持 `CRON_SCHEDULE.agent_lock`。
+- **CLI 命令与队列线程竞态**：`/clear`、`/compact`、`/plan`、`/build`、`/auto`、退出保存均持 `CRON_SCHEDULE.agent_lock`。
 - **收尾提示跨轮残留**：`run_stream` 收尾后从持久 context 删除 `FINAL_TURN_PROMPT`，保留 assistant/tool 契约消息。
 - **收尾轮文字+tool_calls 不显示**：补发未流式输出的剩余文字。
 - **provider 缺 tool_call id**：`_ensure_tool_call_ids()` 自动补 `call_N`，覆盖流式与非流式。
