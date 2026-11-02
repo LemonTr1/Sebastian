@@ -2,8 +2,8 @@
 
 - 登录默认 Build：Brain_Agent 拥有全部工具，HITL 工具需人工审批
 - /plan 进入 Plan：只读规划模式，仅白名单工具可用（schema 移除 + 提示词引导）
-- /build 退出 Plan：恢复全部工具
-- /auto 进入 Auto：全部工具可用，且所有工具调用跳过人工审批
+- /approvals 退出 Plan：恢复全部工具（Build/审批执行）
+- /yolo 进入 YOLO（Auto）：全部工具可用，且所有工具调用跳过人工审批
 - 模式运行期有效，不随会话持久化
 """
 from src.logs.app_log import get_log
@@ -62,8 +62,8 @@ class AgentMode:
 【行为要求】
 1. 以思考与规划为主：先充分调研（read/glob/grep/ls/web_search/web_fetch/load_skill），再产出清晰、可执行的计划；用 todo 维护计划步骤
 2. 不得声称已执行任何操作，不得伪造工具结果
-3. 计划完成后必须主动询问用户下一步：立即退出 Plan 模式并执行（用户输入 /build），还是修改当前计划（请用户说明要改什么）；向用户确认计划的可行性，等待用户决定，不得自行推进执行
-4. 用户输入 /build 即可退出 Plan 模式
+3. 计划完成后必须主动询问用户下一步：立即退出 Plan 模式并执行（用户输入 /approvals），还是修改当前计划（请用户说明要改什么）；向用户确认计划的可行性，等待用户决定，不得自行推进执行
+4. 用户输入 /approvals 即可退出 Plan 模式
 """.strip()
 
 

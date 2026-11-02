@@ -240,7 +240,7 @@ def _run_chat(session_id: str):
     logger.info(f"{uname} 登陆系统")
     typer.echo(
         typer.style(
-            f"Welcome {uname}！I'm Sebastian. [输入 '/quit' 退出 | '/plan' 规划模式 | '/build' 执行模式 | '/auto' 免审批模式]",
+            f"Welcome {uname}！I'm Sebastian. [输入 '/quit' 退出 | '/plan' 规划模式 | '/approvals' 审批执行 | '/yolo' 免审批]",
             fg=typer.colors.BLUE,
             bold=True,
         )
@@ -281,7 +281,7 @@ def _run_chat(session_id: str):
             if AGENT_MODE.is_plan():
                 mode_suffix = "|PLAN"
             elif AGENT_MODE.is_auto():
-                mode_suffix = "|AUTO"
+                mode_suffix = "|YOLO"
             else:
                 mode_suffix = ""
             typer.echo()
@@ -322,27 +322,27 @@ def _run_chat(session_id: str):
                 AGENT_MODE.set(AGENT_MODE.PLAN)
             logger.info(f"{uname} 进入 Plan 模式")
             typer.echo(typer.style(
-                "已进入 Plan 模式（只读规划），输入 /build 退出并执行",
+                "已进入 Plan 模式（只读规划），输入 /approvals 退出并执行",
                 fg=typer.colors.CYAN, bold=True,
             ))
             continue
 
-        if cmd == "/build":
+        if cmd == "/approvals":
             with CRON_SCHEDULE.agent_lock:
                 AGENT_MODE.set(AGENT_MODE.BUILD)
-            logger.info(f"{uname} 进入 Build 模式")
+            logger.info(f"{uname} 进入审批执行模式（Build）")
             typer.echo(typer.style(
-                "已进入 Build 模式（全部工具可用，危险操作需人工审批），输入 /plan 进入规划，/auto 免审批",
+                "已进入审批执行模式（Build，全部工具可用，危险操作需人工审批），输入 /plan 进入规划，/yolo 免审批",
                 fg=typer.colors.CYAN, bold=True,
             ))
             continue
 
-        if cmd == "/auto":
+        if cmd == "/yolo":
             with CRON_SCHEDULE.agent_lock:
                 AGENT_MODE.set(AGENT_MODE.AUTO)
-            logger.info(f"{uname} 进入 Auto 模式")
+            logger.info(f"{uname} 进入 YOLO 免审批模式（Auto）")
             typer.echo(typer.style(
-                "已进入 Auto 模式（所有工具调用不再人工审批，请谨慎使用），输入 /build 恢复审批",
+                "已进入 YOLO 免审批模式（全部工具可用，所有工具调用不再人工审批，请谨慎使用），输入 /approvals 恢复审批",
                 fg=typer.colors.CYAN, bold=True,
             ))
             continue

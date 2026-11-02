@@ -219,7 +219,7 @@ Sebastian 通过 stdio 方式接入第三方 MCP server，把 server 暴露的�
 ```
 
 - **命名**：工具名以 `<server>__<tool>` 形式注册（如 `my-server__read_file`），避免与内置工具或多 server 重名冲突。
-- **审批**：MCP 工具一律按 HITL 工具注册，调用前必须经人工确认（`/auto` 模式除外），与内置破坏性工具保持一致。
+- **审批**：MCP 工具一律按 HITL 工具注册，调用前必须经人工确认（`/yolo` 模式除外），与内置破坏性工具保持一致。
 - **日志分流**：启动时只有 server 握手成功才同时打印终端与写入日志；server 自身的 stderr 一律导向 `get_log` 日志文件（前缀 `[mcp:<server>]`），不回显终端。
 - **优雅降级**：MCP 全局关闭、某个 server 启动/枚举失败，或 fastmcp 未安装时，只记日志并跳过，不影响 CLI 启动。
 - **配置位置**：用户 `~/.sebastian/settings.json` 优先，缺失/损坏时回退到项目内置 `src/settings.json`。
@@ -320,13 +320,13 @@ HITL 使用终端确认（`src/utils/interaction.py`）：
 
 ### 规划/执行/免审批三模式
 
-Sebastian 提供 **Plan（只读规划）**、**Build（执行）** 与 **Auto（免审批执行）** 三种模式，登录默认 Build：
+Sebastian 提供 **Plan（/plan，只读规划）**、**Build（/approvals，审批执行）** 与 **Auto（/yolo，免审批执行）** 三种模式，登录默认 Build：
 
 - `/plan` 进入 Plan：Brain 仅可用 `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`，执行类工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`）从工具 schema 中移除并被拒绝执行；system 提示词动态注入"以调研与规划为主"的行为引导，并要求模型在计划完成后主动询问用户：立即退出执行还是修改计划
-- `/build` 恢复 Build：全部工具可用，HITL 工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / 全部 MCP 工具）执行前在终端等待人工审批
-- `/auto` 进入 Auto：全部工具可用，且**所有工具调用跳过人工审批**（终端打印 `[AUTO] 自动批准` 并写日志），请谨慎使用；`/build` 恢复审批
-- 模式运行期有效不持久化；由队列线程独立唤醒的定时任务在 Plan 下**临时切 Build** 执行，执行完恢复原模式；若 cron 事件先被当前用户 turn 消费，则按 Plan 工具白名单受限（Auto 模式工具齐全且免审批，不切换）
-- 终端提示符显示当前模式（`[user|PLAN]：` / `[user|AUTO]：`）
+- `/approvals` 恢复 Build（审批执行）：全部工具可用，HITL 工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / 全部 MCP 工具）执行前在终端等待人工审批
+- `/yolo` 进入 YOLO（Auto）：全部工具可用，且**所有工具调用跳过人工审批**（终端打印 `[YOLO] 自动批准` 并写日志），请谨慎使用；`/approvals` 恢复审批
+- 模式运行期有效不持久化；由队列线程独立唤醒的定时任务在 Plan 下**临时切 Build** 执行，执行完恢复原模式；若 cron 事件先被当前用户 turn 消费，则按 Plan 工具白名单受限（YOLO 模式工具齐全且免审批，不切换）
+- 终端提示符显示当前模式（`[user|PLAN]：` / `[user|YOLO]：`）
 
 ### 技能系统
 
@@ -355,7 +355,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-`install.sh` 支持 `--python 3.12`、`--skip-bwrap`、`--dry-run`。也可以手动安装：
+`install.sh` 支持 `--python 3.12`、`--venv DIR`、`--skip-bwrap`、`--dry-run`。它会在 `~/.local/bin/sebastian` 创建启动器，之后直接运行 `sebastian` 即可，**不需要手动激活虚拟环境**；如果 `~/.local/bin` 不在 PATH，按脚本提示加入一次。也可以手动安装：
 
 ```bash
 pip install -e .
@@ -425,8 +425,8 @@ sebastian setup                 # API 配置向导（密钥掩码输入）
 |------|------|
 | `quit` / `/quit` / `/exit` | 保存会话并退出 |
 | `/plan` | 进入 Plan 只读规划模式（仅调研/规划工具可用） |
-| `/build` | 进入 Build 执行模式（全部工具可用，危险操作需审批） |
-| `/auto` | 进入 Auto 免审批模式（全部工具可用，不再人工审批） |
+| `/approvals` | 进入审批执行模式（Build，全部工具可用，危险操作需审批） |
+| `/yolo` | 进入 YOLO 免审批模式（全部工具可用，不再人工审批） |
 | `/clear` | 清空当前对话历史 |
 | `/compact` | 手动触发上下文 LLM 摘要压缩 |
 | `Ctrl+C` / `Ctrl+D` | 退出（不保存会话） |

@@ -310,7 +310,7 @@ class AgentRunner:
                     {
                         "error": f"工具 '{name}' 在当前 Plan 模式下不可用。"
                         f"可用工具：{sorted(active_map.keys())}。"
-                        f"请专注于规划，或引导用户输入 /build 退出 Plan 模式后再执行。"
+                        f"请专注于规划，或引导用户输入 /approvals 退出 Plan 模式后再执行。"
                     },
                     ensure_ascii=False,
                 )

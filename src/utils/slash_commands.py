@@ -6,8 +6,8 @@ SLASH_COMMANDS = {
     "/clear": "清空对话历史",
     "/compact": "手动压缩上下文",
     "/plan": "进入只读规划模式",
-    "/build": "进入执行模式",
-    "/auto": "进入免审批模式",
+    "/approvals": "进入审批执行模式",
+    "/yolo": "进入 YOLO 免审批模式",
 }
 
 

@@ -44,7 +44,7 @@ check("describe mode title", "当前模式：Plan" in desc)
 check("describe allowed list", "【可用工具】" in desc and "read" in desc)
 check("describe forbidden list", "【禁止工具】" in desc and "bash" in desc)
 check("describe planning focus", "以思考与规划为主" in desc)
-check("describe ask user", "询问用户" in desc and "/build" in desc)
+check("describe ask user", "询问用户" in desc and "/approvals" in desc)
 
 # ---- Auto 模式下 HITL 钩子免审批 ----
 import importlib

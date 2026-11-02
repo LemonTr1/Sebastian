@@ -218,7 +218,7 @@ Sebastian connects to third-party MCP servers over stdio and dynamically registe
 ```
 
 - **Naming**: tools are registered as `<server>__<tool>` (e.g. `my-server__read_file`) to avoid collisions with built-in tools or multiple servers.
-- **Approval**: every MCP tool is registered as a HITL tool and requires manual confirmation before execution (except in `/auto` mode), matching built-in destructive tools.
+- **Approval**: every MCP tool is registered as a HITL tool and requires manual confirmation before execution (except in `/yolo` mode), matching built-in destructive tools.
 - **Log routing**: only a successful handshake prints to both the terminal and the log; a server's own stderr always goes to the `get_log` log file (prefix `[mcp:<server>]`), never echoed to the terminal.
 - **Graceful degradation**: if MCP is disabled globally, a server fails to start/list, or fastmcp is not installed, the issue is only logged and skipped — CLI startup is unaffected.
 - **Config location**: user `~/.sebastian/settings.json` takes precedence, falling back to the bundled `src/settings.json` when missing or corrupt.
@@ -319,13 +319,13 @@ Typing `/` opens a live command menu filtered as you type (prompt_toolkit, grid 
 
 ### Plan / Build / Auto Modes
 
-Sebastian provides three working modes — **Plan (read-only planning)**, **Build (execution)** and **Auto (approval-free execution)**, defaulting to Build on login:
+Sebastian provides three working modes — **Plan (`/plan`, read-only planning)**, **Build (`/approvals`, approval mode)** and **Auto (`/yolo`, approval-free execution)**, defaulting to Build on login:
 
 - `/plan` enters Plan: the Brain can only use `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`; execution tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`) are removed from the tool schemas and rejected at runtime; the system prompt is dynamically injected with research-and-planning-focused guidance, requiring the model to ask the user whether to execute immediately or revise the plan once it is ready
-- `/build` restores Build: all tools are available, and HITL tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / all MCP tools) require manual approval in the terminal before execution
-- `/auto` enters Auto: all tools are available and **every tool call skips manual approval** (the terminal prints `[AUTO] auto-approved` and the log records it) — use with caution; `/build` restores approval
-- The mode is runtime-only (not persisted); cron tasks woken independently by the queue thread are **temporarily switched to Build** when triggered from Plan, and the previous mode is restored afterwards; if a cron event is consumed by the current user turn first, it stays restricted by the Plan tool whitelist (Auto already has full tools with no approval, so no switch happens)
-- The terminal prompt shows the current mode (`[user|PLAN]:` / `[user|AUTO]:`)
+- `/approvals` restores Build (approval mode): all tools are available, and HITL tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / all MCP tools) require manual approval in the terminal before execution
+- `/yolo` enters YOLO (Auto): all tools are available and **every tool call skips manual approval** (the terminal prints `[YOLO] auto-approved` and the log records it) — use with caution; `/approvals` restores approval
+- The mode is runtime-only (not persisted); cron tasks woken independently by the queue thread are **temporarily switched to Build** when triggered from Plan, and the previous mode is restored afterwards; if a cron event is consumed by the current user turn first, it stays restricted by the Plan tool whitelist (YOLO already has full tools with no approval, so no switch happens)
+- The terminal prompt shows the current mode (`[user|PLAN]:` / `[user|YOLO]:`)
 
 ### Skill System
 
@@ -355,7 +355,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-`install.sh` supports `--python 3.12`, `--skip-bwrap`, and `--dry-run`. Manual install:
+`install.sh` supports `--python 3.12`, `--venv DIR`, `--skip-bwrap`, and `--dry-run`. It creates a launcher at `~/.local/bin/sebastian`, so you can run `sebastian` directly — **no manual virtualenv activation is required**. If `~/.local/bin` is not on your PATH, add it once as prompted. Manual install:
 
 ```bash
 pip install -e .
@@ -425,8 +425,8 @@ sebastian setup                 # API configuration wizard (masked key input)
 |---------|-------------|
 | `quit` / `/quit` / `/exit` | Save session and exit |
 | `/plan` | Enter Plan read-only planning mode (research/planning tools only) |
-| `/build` | Enter Build execution mode (all tools, dangerous ops need approval) |
-| `/auto` | Enter Auto approval-free mode (all tools, no manual approval) |
+| `/approvals` | Enter Build approval mode (all tools, dangerous ops need approval) |
+| `/yolo` | Enter YOLO approval-free mode (all tools, no manual approval) |
 | `/clear` | Clear the current conversation history |
 | `/compact` | Manually trigger LLM summarization compaction |
 | `Ctrl+C` / `Ctrl+D` | Exit without saving |

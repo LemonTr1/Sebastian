@@ -31,11 +31,11 @@ def hitl_hook(agent_name: str, tool_call: dict):
         return json.dumps({"error": f"工具 '{tool_name}' 参数JSON格式解析发生错误，执行失败"}, ensure_ascii=False)
 
     if get_tools_registry().is_hitl_tool(tool_name):
-        #-------------Auto 模式：所有工具调用免人工审批---------------
+        #-------------YOLO（Auto）模式：所有工具调用免人工审批---------------
         if AGENT_MODE.is_auto():
-            get_log().info(f"[auto] skip HITL for {tool_name}")
+            get_log().info(f"[yolo] skip HITL for {tool_name}")
             typer.echo(typer.style(
-                f"\n> [AUTO] 自动批准: {tool_name}",
+                f"\n> [YOLO] 自动批准: {tool_name}",
                 fg=typer.colors.CYAN,
             ))
             return None

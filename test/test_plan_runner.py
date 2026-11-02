@@ -46,7 +46,7 @@ runner._ensure_system_prompt()
 sys_content = runner.context[0]["content"]
 check("plan section injected", "当前模式：Plan" in sys_content)
 check("plan lists forbidden", "【禁止工具】" in sys_content and "bash" in sys_content)
-check("plan guides /build", "/build" in sys_content)
+check("plan guides /approvals", "/approvals" in sys_content)
 
 # 禁用工具调用：必须在 PreToolUse 钩子之前被拒绝（不弹 HITL）
 runner.context = []
