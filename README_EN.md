@@ -268,7 +268,7 @@ Code execution is isolated with **bubblewrap** using Linux namespaces:
 - Namespaces: PID, IPC, UTS, cgroup isolation; `--cap-drop ALL` drops every capability
 - Host filesystem mounted read-only, `~` writable; **34 sensitive paths** (`.ssh`, `.aws`, browser profiles, credential stores, shell histories, etc.) are tmpfs-hidden
 - **29 config paths** (`.bashrc`, `.gitconfig`, language toolchains, etc.) mounted read-only
-- Environment whitelist: only basic variables (`PATH` / `LANG` / `TERM` / `TZ`, etc.) are passed through, so secrets such as `DEEPSEEK_API_KEY` never enter the sandbox; list extra variables explicitly under `sandbox.env_allow` in `settings.json`
+- Environment whitelist: only basic variables (`PATH` / `LANG` / `TERM` / `TZ`, etc.) are passed through, so secrets such as `LLM_API_KEY` never enter the sandbox; list extra variables explicitly under `sandbox.env_allow` in `settings.json`
 - Network is isolated by default (`unshare_net=true`); **setting it to `false` lets sandboxed commands reach the network**, so only disable it when strictly necessary
 - 180-second execution timeout; the sandbox lifecycle is bound to the parent process and terminates with it
 - User `settings.json` is **merged** with project defaults, so a partial config never drops the default `deny_read` / `read_only` security lists
@@ -378,9 +378,9 @@ sebastian setup
 Configuration is written to `.env` in the project root:
 
 ```bash
-DEEPSEEK_MODEL=deepseek-v4-flash
-DEEPSEEK_API_KEY=sk-your-key
-DEEPSEEK_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-v4-flash
+LLM_API_KEY=sk-your-key
+LLM_BASE_URL=https://api.deepseek.com
 ```
 
 Any OpenAI-API-compatible service is supported (OpenAI, DeepSeek, Ollama, vLLM, etc.).

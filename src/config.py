@@ -6,9 +6,9 @@ from openai import OpenAI
 
 load_dotenv(override=True)
 
-MODEL = str(os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"))
-API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+MODEL = str(os.getenv("LLM_MODEL", "deepseek-v4-flash"))
+API_KEY = os.getenv("LLM_API_KEY", "")
+BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 
 
 # 具备视觉能力（支持 image_url 多模态输入）的模型名片段白名单。
@@ -22,7 +22,7 @@ VISION_MODEL_KEYWORDS = (
 
 
 def is_vision_model(model: str | None = None) -> bool:
-    """判断指定模型是否支持视觉输入。默认以 .env 配置的 DEEPSEEK_MODEL 为准。
+    """判断指定模型是否支持视觉输入。默认以 .env 配置的 LLM_MODEL 为准。
 
     OpenAI 兼容 API 中，纯文本模型收到含 image_url 的 content part 会直接 400 报错，
     因此 read 读取图片等图片操作前必须据此做优雅降级。

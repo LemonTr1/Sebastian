@@ -269,7 +269,7 @@ HITL 使用终端确认（`src/utils/interaction.py`）：
 - 命名空间：PID、IPC、UTS、cgroup 隔离；`--cap-drop ALL` 丢弃全部能力
 - 宿主文件系统只读挂载，`~` 可写；**34 个敏感路径**（`.ssh`、`.aws`、浏览器配置、凭据存储、Shell 历史等）以 tmpfs 覆盖隐藏
 - **29 个配置路径**（`.bashrc`、`.gitconfig`、语言工具链等）只读挂载
-- 环境变量白名单：仅透传 `PATH` / `LANG` / `TERM` / `TZ` 等基础变量，`DEEPSEEK_API_KEY` 等密钥不会进入沙箱；需要额外变量时在 `settings.json` 的 `sandbox.env_allow` 显式列出
+- 环境变量白名单：仅透传 `PATH` / `LANG` / `TERM` / `TZ` 等基础变量，`LLM_API_KEY` 等密钥不会进入沙箱；需要额外变量时在 `settings.json` 的 `sandbox.env_allow` 显式列出
 - 网络默认隔离（`unshare_net=true`）；**如手动设为 `false`，沙箱内命令将可访问网络**，仅在确有必要时关闭
 - 执行超时 180 秒；沙箱生命周期与父进程绑定，父进程退出时沙箱随之终止
 - 用户 `settings.json` 与项目默认配置**合并**：只写部分字段不会丢失默认的 `deny_read` / `read_only` 安全清单
@@ -378,9 +378,9 @@ sebastian setup
 配置写入项目根目录 `.env`：
 
 ```bash
-DEEPSEEK_MODEL=deepseek-v4-flash
-DEEPSEEK_API_KEY=sk-your-key
-DEEPSEEK_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-v4-flash
+LLM_API_KEY=sk-your-key
+LLM_BASE_URL=https://api.deepseek.com
 ```
 
 支持任何兼容 OpenAI API 格式的服务（OpenAI、DeepSeek、Ollama、vLLM 等）。

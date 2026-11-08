@@ -448,9 +448,9 @@ def setup():
     api_key = _prompt_api_key_with_prefix("请输入模型的API_KEY")
     base_url = typer.prompt("请输入模型的BASE_URL")
 
-    set_key(env_path, "DEEPSEEK_MODEL", model)
-    set_key(env_path, "DEEPSEEK_API_KEY", api_key)
-    set_key(env_path, "DEEPSEEK_BASE_URL", base_url)
+    set_key(env_path, "LLM_MODEL", model)
+    set_key(env_path, "LLM_API_KEY", api_key)
+    set_key(env_path, "LLM_BASE_URL", base_url)
 
     typer.echo("\n配置保存成功")
 

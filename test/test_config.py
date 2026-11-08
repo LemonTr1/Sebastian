@@ -34,9 +34,9 @@ class TestModelDefaults(unittest.TestCase):
 
     def test_reads_model_from_env(self):
         cfg = _reload({
-            "DEEPSEEK_MODEL": "custom-model",
-            "DEEPSEEK_API_KEY": "secret-key",
-            "DEEPSEEK_BASE_URL": "http://gateway.local/v1",
+            "LLM_MODEL": "custom-model",
+            "LLM_API_KEY": "secret-key",
+            "LLM_BASE_URL": "http://gateway.local/v1",
         })
         self.assertEqual(cfg.MODEL, "custom-model")
         self.assertEqual(cfg.API_KEY, "secret-key")
@@ -58,14 +58,14 @@ class TestIsVisionModel(unittest.TestCase):
         self.assertFalse(cfg.is_vision_model("random-llm"))
 
     def test_none_falls_back_to_configured_model(self):
-        cfg = _reload({"DEEPSEEK_MODEL": "gpt-4o"})
+        cfg = _reload({"LLM_MODEL": "gpt-4o"})
         self.assertTrue(cfg.is_vision_model())
-        cfg = _reload({"DEEPSEEK_MODEL": "deepseek-v4-flash"})
+        cfg = _reload({"LLM_MODEL": "deepseek-v4-flash"})
         self.assertFalse(cfg.is_vision_model())
 
     def test_custom_keyword_keyword_from_env(self):
         cfg = _reload({
-            "DEEPSEEK_MODEL": "the-vision-model",
+            "LLM_MODEL": "the-vision-model",
             "DEEPSEEK_VISION_MODEL_KEYWORDS": "vision",
         })
         # 内置关键字都不含 "vision"，只能是自定义白名单命中
@@ -74,7 +74,7 @@ class TestIsVisionModel(unittest.TestCase):
         self.assertTrue(cfg.is_vision_model("gpt-4o"))
 
     def test_empty_or_none_model_does_not_crash(self):
-        cfg = _reload({"DEEPSEEK_MODEL": ""})
+        cfg = _reload({"LLM_MODEL": ""})
         self.assertFalse(cfg.is_vision_model())
         self.assertFalse(cfg.is_vision_model(None))
 
@@ -83,15 +83,15 @@ class TestContextWindow(unittest.TestCase):
     """CONTEXT_WINDOW 在导入期按 MODEL 解析，不抛异常。"""
 
     def test_known_model_resolves(self):
-        cfg = _reload({"DEEPSEEK_MODEL": "deepseek-v4-flash"})
+        cfg = _reload({"LLM_MODEL": "deepseek-v4-flash"})
         self.assertEqual(cfg.CONTEXT_WINDOW, 1_000_000)
-        cfg = _reload({"DEEPSEEK_MODEL": "deepseek-flash"})
+        cfg = _reload({"LLM_MODEL": "deepseek-flash"})
         self.assertEqual(cfg.CONTEXT_WINDOW, 1_000_000)
-        cfg = _reload({"DEEPSEEK_MODEL": "gpt-4o"})
+        cfg = _reload({"LLM_MODEL": "gpt-4o"})
         self.assertEqual(cfg.CONTEXT_WINDOW, 128_000)
 
     def test_unknown_model_falls_back_without_crash(self):
-        cfg = _reload({"DEEPSEEK_MODEL": "totally-unknown-model"})
+        cfg = _reload({"LLM_MODEL": "totally-unknown-model"})
         self.assertEqual(cfg.CONTEXT_WINDOW, 128_000)
 
 
@@ -100,9 +100,9 @@ class TestGetClient(unittest.TestCase):
 
     def test_constructs_client_with_key_and_base_url(self):
         cfg = _reload({
-            "DEEPSEEK_MODEL": "x",
-            "DEEPSEEK_API_KEY": "abc",
-            "DEEPSEEK_BASE_URL": "http://u",
+            "LLM_MODEL": "x",
+            "LLM_API_KEY": "abc",
+            "LLM_BASE_URL": "http://u",
         })
         with mock.patch.object(cfg, "OpenAI") as openai_mock:
             openai_mock.return_value = "the-client"
