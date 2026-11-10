@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from src.tools.toolkits.grep import grep
 
@@ -42,6 +43,17 @@ class TestGrep(unittest.TestCase):
         r = json.loads(grep("x", str(self.dir / "nope")))
         self.assertFalse(r["success"])
         self.assertEqual(r["matches"], [])
+
+    def test_grep_filters_denied_paths(self):
+        denied = self.dir / "secret"
+        denied.mkdir()
+        (denied / "hidden.txt").write_text("Hello World\n", encoding="utf-8")
+        with mock.patch(
+            "src.tools.toolkits.grep.denied_roots", return_value=[denied.resolve()]
+        ):
+            r = json.loads(grep("World", str(self.dir)))
+        self.assertTrue(r["success"])
+        self.assertFalse(any("hidden.txt" in m["file"] for m in r["matches"]))
 
 
 if __name__ == "__main__":

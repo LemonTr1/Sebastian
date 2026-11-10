@@ -49,6 +49,23 @@ class TestPromptLoader(unittest.TestCase):
             loader = PromptLoader()
             self.assertEqual(loader.prompt_file_list, [])
 
+    def test_tool_manual_loaded_from_tools_dir(self):
+        tmp, root = self._make_dir()
+        self.addCleanup(tmp.cleanup)
+        tools = root / "tools"
+        tools.mkdir()
+        (tools / "bash.md").write_text("BASH MANUAL", encoding="utf-8")
+        with patch("src.utils.load_prompt.PROMPTS_DIR", root):
+            loader = PromptLoader()
+            self.assertEqual(loader.load_tool_manual("bash"), "BASH MANUAL")
+
+    def test_missing_tool_manual_returns_empty(self):
+        tmp, root = self._make_dir()
+        self.addCleanup(tmp.cleanup)
+        with patch("src.utils.load_prompt.PROMPTS_DIR", root):
+            loader = PromptLoader()
+            self.assertEqual(loader.load_tool_manual("mcp_tool"), "")
+
     def test_prompt_loader_singleton(self):
         # 模块级单例可直接取用
         self.assertTrue(hasattr(PROMPT_LOADER, "prompt_file_list"))

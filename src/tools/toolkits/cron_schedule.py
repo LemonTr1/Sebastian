@@ -9,6 +9,7 @@ import random
 import typer
 from src.logs.app_log import get_log
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 from src.utils.wake_queue import BRAIN_OWNER, WAKE_QUEUE, WakeEvent
 
 logger = get_log()
@@ -266,7 +267,7 @@ SCHEDULE_CRON_SCHEMA = {
     "type": "function",
     "function": {
         "name": "schedule_cron",
-        "description": "Schedule a cron job. cron is 5-field(Unix format): minute hour day-of-month month day-of-week.",
+        "description": get_prompt_loader().load_tool_manual("schedule_cron"),
         "parameters": {
             "type": "object",
             "properties": {
@@ -284,7 +285,7 @@ LIST_CRONS_SCHEMA= {
     "type": "function",
     "function": {
         "name": "list_crons",
-        "description": "List all registered cron jobs.",
+        "description": get_prompt_loader().load_tool_manual("list_crons"),
         "parameters": {
             "type": "object",
             "properties": {},
@@ -297,7 +298,7 @@ CANCEL_CRON_SCHEMA = {
     "type": "function",
     "function": {
         "name": "cancel_cron",
-        "description": "Cancel a cron job by ID.",
+        "description": get_prompt_loader().load_tool_manual("cancel_cron"),
         "parameters": {
             "type": "object",
             "properties": {

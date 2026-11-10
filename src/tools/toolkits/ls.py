@@ -1,13 +1,14 @@
 import os
 import json
-from src.security.path_safety import resolve_safe_path
+from src.utils.path_policy import resolve_path
 from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 
 
 def ls(path: str) -> str:
     try:
-        path = resolve_safe_path(path)
+        path = resolve_path(path)
     except SecurityException as e:
         return json.dumps(
             {
@@ -60,7 +61,7 @@ LS_SCHEMA = {
     "type": "function",
     "function": {
         "name": "ls",
-        "description": "列出指定目录下的所有文件和子目录",
+        "description": get_prompt_loader().load_tool_manual("ls"),
         "parameters": {
             "type": "object",
             "properties": {

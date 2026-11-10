@@ -1,9 +1,10 @@
 import os
 import json
 import base64
-from src.security.path_safety import resolve_safe_path
+from src.utils.path_policy import resolve_path
 from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 
 # 支持的可视图片格式：文件大小上限（字节），防止超大图撑爆上下文
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
@@ -78,9 +79,8 @@ def read(file_path: str, offset: int = -1, limit: int = -1) -> str | dict:
             },
             ensure_ascii=False
         )
-    file_path = os.path.abspath(file_path)
     try:
-        file_path = resolve_safe_path(file_path)
+        file_path = resolve_path(file_path)
     except SecurityException as e:
         return json.dumps(
             {
@@ -198,11 +198,11 @@ READ_SCHEMA = {
     "type": "function",
     "function": {
         "name": "read",
-        "description": "读取文件内容。文本文件：不传offset和limit参数表示读取完整文件内容（单次上限10MB，超出请分片），如果要传则必须同时设置offset和limit。图片文件（png/jpg/jpeg/webp/gif/bmp，≤15MB，无扩展名或扩展名未知时按文件头识别）：以图片形式加载给视觉模型，用于识别、描述、解读图片内容，一轮任务需要看多张图时必须在同一批工具调用里并行读完所有待读图片，严禁一张一张分轮读",
+        "description": get_prompt_loader().load_tool_manual("read"),
         "parameters": {
             "type": "object",
             "properties": {
-                "file_path": {"type": "string", "description": "文件绝对路径，如 /home/user/file.txt 或 /home/user/a.png"},
+                "file_path": {"type": "string", "description": "文件绝对路径（支持 ~ 展开），如 ~/file.txt 或 ~/a.png"},
                 "offset": {"type": "integer", "description": "文件文本内容的起始行，如从第10行开始读取，必须大于0"},
                 "limit": {"type": "integer", "description": "读取的行数，如读取20行，若从第10行开始读则一共读取第10行到第29行的文本内容，必须大于0"}
             },

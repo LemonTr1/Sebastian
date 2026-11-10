@@ -16,6 +16,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
     "Environment :: Console",
     "Natural Language :: Chinese (Simplified)",
     "Intended Audience :: Developers",
@@ -45,7 +46,7 @@ include = ["src*"]
 
 # 运行时资源：缺少这些文件时，安装后的沙箱默认配置与子 Agent 提示词会失效
 [tool.setuptools.package-data]
-src = ["settings.json"]
+src = ["settings.json", "prompts/*.md", "prompts/tools/*.md"]
 # subagents 目录没有 __init__.py，不是独立包，因此挂在父包 src.agents 下声明
 "src.agents" = ["subagents/*.md"]
 

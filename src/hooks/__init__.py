@@ -5,7 +5,7 @@ from src.logs.app_log import get_log
 
 _logger = get_log()
 
-_HOOK_EVENTS = ["user_prompt_submit", "pre_tool_use", "post_completion", "stop"]
+_HOOK_EVENTS = ["pre_tool_use", "post_completion", "stop"]
 _HERE = Path(__file__).parent
 
 for _event in _HOOK_EVENTS:

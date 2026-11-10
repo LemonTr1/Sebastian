@@ -1,7 +1,8 @@
 import json
-from src.security.path_safety import resolve_safe_path
+from src.utils.path_policy import resolve_path
 from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 
 def edit(file_path: str, old_text: str, new_text: str, replace_all: bool = False) -> str:
     # 不支持二进制/文档格式
@@ -24,7 +25,7 @@ def edit(file_path: str, old_text: str, new_text: str, replace_all: bool = False
         )
 
     try:
-        safe_path = resolve_safe_path(file_path)
+        safe_path = resolve_path(file_path, write=True)
     except SecurityException as e:
         return json.dumps(
             {
@@ -121,11 +122,11 @@ EDIT_SCHEMA = {
     "type": "function",
     "function": {
         "name": "edit",
-        "description": "在指定文本文件中查找 old_text 并将其替换为 new_text。默认只替换一处；设置 replace_all=True 可替换所有出现的位置。此操作会直接修改文件内容。【此工具需要用户确认后方可执行】",
+        "description": get_prompt_loader().load_tool_manual("edit"),
         "parameters": {
             "type": "object",
             "properties": {
-                "file_path": {"type": "string", "description": "目标文件的绝对路径，如 /home/user/test.txt"},
+                "file_path": {"type": "string", "description": "文件绝对路径（支持 ~ 展开），如 ~/test.txt"},
                 "old_text": {"type": "string", "description": "要查找的旧文本，不能为空"},
                 "new_text": {"type": "string", "description": "替换后的新文本"},
                 "replace_all": {"type": "boolean", "description": "是否替换所有匹配项，true=全部替换，false=仅替换一处，默认false"},

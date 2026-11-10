@@ -81,13 +81,11 @@ Sebastian 的每一项设计决策都对应一条明确的设计原则。理解�
 
 **原则**：LLM 的输出属于不可信的生成内容，其中任何命令、路径或 URL 均可能被诱导为攻击载荷。
 
-**实现**：LLM 生成的每一条命令在执行前，均须经过四层纵深防御校验：
+**实现**：LLM 生成的每一条命令在执行前，均须经过路径策略校验与平台沙箱隔离：
 
 ```
-LLM 输出 → [命令安全] 启发式拦截 rm -rf /、rm -rf ~、fork bomb、curl|sh 等危险模式
-         → [路径安全] 解析符号链接后强制落在 $HOME 内，并套用敏感路径黑名单
-         → [网络安全] 解析 DNS 后拦截私网/回环/组播等，失败则拒绝（请求前 SSRF 检查）
-用户输入 → [输入安全] 启发式拦截提示注入/jailbreak
+LLM 输出 → [路径策略] 按 settings.json 的 deny_read / read_only 校验（不限制 $HOME）
+         → [沙箱] 平台沙箱按同一配置限制文件读写（Linux: bubblewrap；macOS: sandbox-exec）
 ```
 
 任何单一防护层被绕过均不会导致整体防线失效——纵深防御的意义在于消除单点故障。
@@ -100,7 +98,7 @@ LLM 输出 → [命令安全] 启发式拦截 rm -rf /、rm -rf ~、fork bomb、
 
 | 隔离层次 | 手段 | 隔离对象 |
 |----------|------|---------|
-| 进程级 | 代码在 bubblewrap 命名空间沙箱中执行 | 宿主文件系统（只读挂载）、34 个敏感目录（tmpfs 隐藏）、系统能力（`cap-drop ALL`） |
+| 进程级 | 代码在平台沙箱中执行（Linux: bubblewrap；macOS: sandbox-exec） | 宿主文件系统（只读挂载）、敏感目录（隐藏/拒绝访问）、系统能力（`cap-drop ALL`） |
 | 交互级 | 终端审批/提问共用 `TERMINAL_IO_LOCK` | 多个 Agent 同时抢 stdin |
 | 上下文级 | 子 Agent 独立上下文，任务完成即销毁 | 子 Agent 之间的对话污染与嵌套调度 |
 
@@ -127,7 +125,7 @@ LLM 输出 → [命令安全] 启发式拦截 rm -rf /、rm -rf ~、fork bomb、
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                        CLI (Typer)                                │
-│    UserPromptSubmit Hook → 输入安全检测 → Brain Agent             │
+│                        Brain Agent                                │
 └─────────────────────────────┬────────────────────────────────────┘
                               │ 流式输出 + 记忆注入
          ┌────────────────────▼─────────────────────┐
@@ -147,12 +145,10 @@ LLM 输出 → [命令安全] 启发式拦截 rm -rf /、rm -rf ~、fork bomb、
     所有工具调用经过 Hook 管道：
     PreToolUse → [日志记录] → [终端 HITL 确认]
     执行过程经过安全管道：
-    命令防护 → 路径防护 → URL 防护 → bubblewrap 沙箱
+    路径策略（settings.json） → 平台沙箱（bubblewrap / sandbox-exec）
 ```
 
-**Brain Agent（主控 Agent）** 是唯一与用户交互的顶层 Agent，其系统提示词包含：路径安全底线、Bash 使用规范、常见任务调度策略表、任务规划指令、可用技能与子 Agent 清单、后台执行规则，以及动态注入的记忆索引。
-
-> 相关设计文档：[Aider 的串行事务模型对 Sebastian 并发多 Agent 的启发](docs/aider-lessons.md)
+**Brain Agent（主控 Agent）** 是唯一与用户交互的顶层 Agent，其系统提示词包含：安全底线、任务规划指令、可用技能与子 Agent 清单、后台执行规则，以及动态注入的记忆索引；各工具的使用说明则随工具的 JSON Schema 一起下发。
 
 ---
 
@@ -179,7 +175,7 @@ Brain 与 cron 的流式 token 经过 `ui_redraw` 按行渲染：标题、粗体
 
 | 工具 | HITL | 说明 |
 |------|:----:|------|
-| `bash` | ✓ | 在 bubblewrap 沙箱中执行 Shell 命令（支持后台异步） |
+| `bash` | ✓ | 在平台沙箱中执行 Shell 命令（Linux: bubblewrap；macOS: sandbox-exec；支持后台异步） |
 | `read` | | 读取文件（文本单次上限 10MB，超出需用偏移量+行数分片；图片 png/jpg/jpeg/webp/gif/bmp ≤15MB 以多模态加载供视觉模型查看；无扩展名或未知扩展名时按文件头识别图片） |
 | `write` | ✓ | 覆盖写入文件（阻止 PDF/DOCX） |
 | `edit` | ✓ | 精确字符串查找替换（支持 replaceAll） |
@@ -187,7 +183,7 @@ Brain 与 cron 的流式 token 经过 `ui_redraw` 按行渲染：标题、粗体
 | `glob` | | 通配符匹配文件 |
 | `grep` | | 正则内容搜索 |
 | `web_search` | | DuckDuckGo 网页搜索（超时保护；DDGS 失败自动降级百度搜索） |
-| `web_fetch` | | 网页正文提取（请求前 SSRF 检查；DDGS 失败自动降级 requests+BeautifulSoup） |
+| `web_fetch` | | 网页正文提取（DDGS 失败自动降级 requests+BeautifulSoup） |
 | `todo` | | 任务规划与进度可视化 |
 | `load_skill` | | 加载技能文档 |
 | `agent` | ✓ | 调度子 Agent（支持后台异步） |
@@ -230,14 +226,11 @@ Sebastian 通过 stdio 方式接入第三方 MCP server，把 server 暴露的�
 
 ### 安全体系
 
-四层纵深防御 + 一层人机确认：
+路径策略 + 人机确认：
 
 | 层级 | 模块 | 职责 |
 |------|------|------|
-| 输入层 | `input_guard.py` | 提示注入/jailbreak 启发式检测（中英文模式） |
-| 命令层 | `command_guard.py` | 启发式拦截危险命令；不是完整 shell 策略，最终依赖沙箱与 HITL |
-| 路径层 | `path_safety.py` | 跟随符号链接后校验：必须落在 `$HOME` 内 + 敏感目录/文件/扩展名黑名单 |
-| 网络层 | `url_safety.py` | 请求前 SSRF 检查：解析 DNS，拦截私网/回环/链路本地/组播/ULA/CGNAT，解析失败则拒绝 |
+| 路径层 | `path_policy.py` | 仅按 settings.json 的 `deny_read` / `read_only` 校验（解析符号链接后判断，不限制 `$HOME`） |
 | 确认层 | 终端 HITL 确认 | 破坏性操作须经用户确认方可执行 |
 
 ### 人机协同审批
@@ -264,24 +257,22 @@ HITL 使用终端确认（`src/utils/interaction.py`）：
 
 ### 沙箱系统
 
-代码执行基于 **bubblewrap** 实现 Linux 命名空间隔离：
+代码执行按平台选择后端：**Linux 使用 bubblewrap 命名空间隔离，macOS 使用系统内置的 sandbox-exec（Seatbelt）**：
 
-- 命名空间：PID、IPC、UTS、cgroup 隔离；`--cap-drop ALL` 丢弃全部能力
-- 宿主文件系统只读挂载，`~` 可写；**34 个敏感路径**（`.ssh`、`.aws`、浏览器配置、凭据存储、Shell 历史等）以 tmpfs 覆盖隐藏
-- **29 个配置路径**（`.bashrc`、`.gitconfig`、语言工具链等）只读挂载
+- **Linux**：PID、IPC、UTS、cgroup 隔离；`--cap-drop ALL` 丢弃全部能力；宿主文件系统只读挂载，`~` 可写；敏感路径（`.ssh`、`.aws`、浏览器配置、凭据存储、Shell 历史等）以 tmpfs 覆盖隐藏；配置路径（`.bashrc`、`.gitconfig`、语言工具链等）只读挂载
+- **macOS**：通过动态生成的 SBPL 配置限制写入范围（仅 `~`、临时目录与标准流可写），对敏感路径同时拒绝读写；`deny_read` 是「拒绝访问」而非 tmpfs 隐藏。`sandbox-exec` 已被 Apple 标记为弃用，但当前 macOS 仍可用；如系统移除该命令，可设置 `sandbox.enabled=false` 显式降级
 - 环境变量白名单：仅透传 `PATH` / `LANG` / `TERM` / `TZ` 等基础变量，`LLM_API_KEY` 等密钥不会进入沙箱；需要额外变量时在 `settings.json` 的 `sandbox.env_allow` 显式列出
-- 网络默认隔离（`unshare_net=true`）；**如手动设为 `false`，沙箱内命令将可访问网络**，仅在确有必要时关闭
-- 执行超时 180 秒；沙箱生命周期与父进程绑定，父进程退出时沙箱随之终止
-- 用户 `settings.json` 与项目默认配置**合并**：只写部分字段不会丢失默认的 `deny_read` / `read_only` 安全清单
-- 若 `sandbox.enabled=false`，命令将直接在宿主机执行（日志会打印一次性告警），此时仅靠命令守卫与 HITL 兜底
+- 网络由 `unshare_net` 控制：默认 `false`（允许网络）；设为 `true` 时 Linux 使用 `--unshare-net`，macOS 使用 `(deny network*)`
+- 执行超时 180 秒；Linux 下沙箱生命周期与父进程绑定，父进程退出时沙箱随之终止
+- 用户 `settings.json` 存在时：`deny_read` / `read_only` 以用户声明为准（显式空列表也会覆盖默认名单），未声明时沿用默认配置；标量键缺失时回退默认配置。用户文件缺失或解析失败时整体使用默认配置
+- 若 `sandbox.enabled=false`，命令将直接在宿主机执行（日志会打印一次性告警），此时仅靠 HITL 兜底
 
 ### Hook 系统
 
-事件驱动的插件机制，在 Agent 生命周期的四个节点注入自定义逻辑：
+事件驱动的插件机制，在 Agent 生命周期的三个节点注入自定义逻辑：
 
 | 事件 | 触发阶段 | 已注册钩子 |
 |------|----------|-----------|
-| **UserPromptSubmit** | 用户输入后 | 输入安全检测 |
 | **PreToolUse** | 工具执行前 | 调用日志 + 终端 HITL 确认 |
 | **PostCompletion** | LLM 响应完成后 | Token 消耗累计 |
 | **Stop** | 一轮对话结束后 | 本轮 Token 消耗汇总 + 上下文占用统计（着色） |
@@ -338,9 +329,9 @@ Sebastian 提供 **Plan（/plan，只读规划）**、**Build（/approvals，审
 
 ### 环境要求
 
-- **操作系统**：Linux（bubblewrap 沙箱依赖 Linux 命名空间）
+- **操作系统**：Linux 或 macOS
 - **Python**：>= 3.10
-- **bubblewrap**：`sudo apt install bubblewrap`
+- **沙箱依赖**：Linux 需安装 `bubblewrap`（`sudo apt install bubblewrap`）；macOS 使用系统内置 `sandbox-exec`，无需额外安装
 - **网络**：可访问 DeepSeek API（或任何兼容 OpenAI API 格式的后端）
 
 ### 安装
@@ -350,16 +341,20 @@ Sebastian 提供 **Plan（/plan，只读规划）**、**Build（/approvals，审
 git clone <your-repo-url> Sebastian
 cd Sebastian
 
-# 2. 一键安装（推荐）：检测/安装 uv 与 bubblewrap，创建 .venv 并安装项目
+# 2. 一键安装（推荐）：检测/安装平台沙箱依赖，创建 .venv 并安装项目
 chmod +x install.sh
 ./install.sh
 ```
 
-`install.sh` 支持 `--python 3.12`、`--venv DIR`、`--skip-bwrap`、`--dry-run`。它会在 `~/.local/bin/sebastian` 创建启动器，之后直接运行 `sebastian` 即可，**不需要手动激活虚拟环境**；如果 `~/.local/bin` 不在 PATH，按脚本提示加入一次。也可以手动安装：
+`install.sh` 支持 `--python 3.12`、`--venv DIR`、`--skip-bwrap`、`--dry-run`。Linux 上会自动检测/安装 bubblewrap；macOS 上只检测系统内置的 `sandbox-exec`。它会在 `~/.local/bin/sebastian` 创建启动器，并把该目录永久写入当前 shell 的配置文件（zsh: `~/.zshrc`；bash: `~/.bashrc` 或 `~/.bash_profile`），之后直接运行 `sebastian` 即可，**不需要手动激活虚拟环境**；当前终端如需立即生效，执行 `source` 对应配置文件。
+
+也可以手动安装：
 
 ```bash
 pip install -e .
+# Linux
 sudo apt install bubblewrap
+# macOS 无需安装沙箱依赖（使用系统自带 sandbox-exec）
 ```
 
 运行安全相关单测：
@@ -440,7 +435,7 @@ Sebastian/
 ├── cli.py                          # CLI入口（交互循环、会话保存/恢复、setup密钥掩码输入）
 ├── pyproject.toml                  # 项目元数据与依赖（setuptools）
 ├── requirements.txt                # 依赖清单（版本下限与注释）
-├── install.sh                      # 一键安装（uv/bubblewrap/.venv）
+├── install.sh                      # 一键安装（uv/沙箱依赖/.venv/启动器/PATH）
 ├── .env                            # API密钥配置（gitignore保护）
 │
 ├── src/
@@ -468,30 +463,26 @@ Sebastian/
 │   │       ├── cron_schedule.py    # 定时任务
 │   │       └── subagent.py         # 子Agent生成/调度/动态工具注册
 │   │
-│   ├── security/                   # 4层安全防御
-│   │   ├── input_guard.py          # 提示注入检测
-│   │   ├── command_guard.py        # 高危命令启发式拦截
-│   │   ├── path_safety.py          # 路径安全校验
-│   │   └── url_safety.py           # SSRF防护
-│   │
 │   ├── sandbox/
-│   │   ├── bubblewrap.py           # bwrap沙箱管理器
-│   │   └── settings.json           # 沙箱配置（34隐藏路径/29只读路径）
+│   │   ├── base.py                 # 沙箱公共逻辑：配置合并/环境白名单
+│   │   ├── bubblewrap.py           # Linux bwrap 沙箱管理器
+│   │   ├── seatbelt.py             # macOS sandbox-exec（SBPL）后端
+│   │   ├── __init__.py             # 按平台选择后端的工厂
+│   │   └── settings.json           # 沙箱配置（隐藏路径/只读路径）
 │   │
 │   ├── mcp/                        # MCP客户端接口（仅stdio传输）
 │   │   ├── config.py               # 读settings.json的mcp段（用户→项目默认两级回退）
 │   │   └── stdio_client.py         # 同步Wrapper：连接/握手/列工具/调工具/关闭
 │   │
 │   ├── hooks/                      # Event-driven钩子系统
-│   │   ├── hooks_registry.py       # 钩子注册中心（4事件）
-│   │   ├── user_prompt_submit/     # 输入安全检测
+│   │   ├── hooks_registry.py       # 钩子注册中心（3事件）
 │   │   ├── pre_tool_use/           # 日志记录 + 终端 HITL 确认
 │   │   ├── post_completion/        # Token统计
 │   │   └── stop/                   # Token汇总 + 上下文占用统计
 │   │
 │   ├── prompts/                    # 可复用提示词片段
-│   │   ├── bash.md                 # Bash工具使用规范
-│   │   └── security_of_path.md     # 路径安全底线规则
+│   │   ├── security.md             # 安全底线（路径/命令/凭据/网络）
+│   │   └── tools/                  # 工具说明书（并入对应工具 JSON Schema 的 description）
 │   │
 │   ├── utils/                      # 工具函数
 │   │   ├── memory_system.py        # .memory/ 索引 + 条目，开关与提示词
@@ -503,6 +494,7 @@ Sebastian/
 │   │   ├── ui_redraw.py            # 后台输出重绘：擦行/打印/恢复提示符
 │   │   ├── wake_queue.py           # 统一唤醒收件箱：cron/后台事件 → Brain
 │   │   ├── exceptions.py           # 自定义异常
+│   │   ├── path_policy.py          # 按 settings.json 校验路径
 │   │   ├── tokens_caculator.py     # 累计Token计数
 │   │   ├── session_id_container.py # 会话ID容器
 │   │   ├── user_info.py            # 当前OS用户名
@@ -537,7 +529,7 @@ Sebastian/
 | **CLI 框架** | Typer |
 | **REPL 补全** | prompt_toolkit（斜杠命令实时过滤、唯一前缀回车执行；非 TTY 回退 readline） |
 | **LLM SDK** | OpenAI（兼容 DeepSeek / OpenAI / Ollama / vLLM） |
-| **沙箱隔离** | bubblewrap（Linux 命名空间） |
+| **沙箱隔离** | bubblewrap（Linux 命名空间）/ sandbox-exec（macOS Seatbelt） |
 | **终端审批** | `input()` + 提示符重绘（`ui_redraw`，无图形依赖） |
 | **网页搜索** | DuckDuckGo（ddgs）+ 百度搜索（baidusearch，降级） |
 | **网页正文提取** | ddgs + requests + beautifulsoup4 + lxml（降级） |

@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import typer
 import json
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 
 PLAN_REMINDER_INTERVAL = 2  # 每隔2轮提醒一次
 
@@ -120,7 +121,7 @@ TODO_SCHEMA = {
     "type": "function",
     "function": {
         "name": "todo",
-        "description": "Rewrite the current session plan for multi-step work.",
+        "description": get_prompt_loader().load_tool_manual("todo"),
         "parameters": {
             "type": "object",
             "properties": {

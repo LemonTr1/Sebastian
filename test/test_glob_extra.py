@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from src.tools.toolkits.glob import glob, MAX_RESULTS
 
@@ -38,10 +39,21 @@ class TestGlobExtra(unittest.TestCase):
         self.assertIn("sub/deep.txt", r["content"])
 
     def test_glob_unsafe_scope_rejected(self):
-        # 家目录外 / 不存在的 scope 应在 resolve_safe_path 处被拒绝
+        # 不存在的 scope 应在 resolve_path 处被拒绝
         r = json.loads(glob("*.txt", "/nonexistent_sebastian_outside_home"))
         self.assertFalse(r["success"])
         self.assertIsNone(r["content"])
+
+    def test_glob_filters_denied_paths(self):
+        denied = self.dir / "secret"
+        denied.mkdir()
+        (denied / "hidden.txt").write_text("x", encoding="utf-8")
+        with mock.patch(
+            "src.tools.toolkits.glob.denied_roots", return_value=[denied.resolve()]
+        ):
+            r = json.loads(glob("**/*.txt", str(self.dir)))
+        self.assertTrue(r["success"])
+        self.assertNotIn("secret/hidden.txt", r["content"])
 
 
 if __name__ == "__main__":

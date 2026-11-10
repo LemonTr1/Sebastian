@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 
 BASE_DIR = Path.home() / ".sebastian"
 
@@ -80,7 +81,7 @@ SKILL_REGISTRY_SCHEMA = {
     "type": "function",
     "function": {
         "name": "load_skill",
-        "description": "根据skill名称加载完整技能内容。",
+        "description": get_prompt_loader().load_tool_manual("load_skill"),
         "parameters": {
             "type": "object",
             "properties": {

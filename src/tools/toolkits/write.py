@@ -1,7 +1,8 @@
 import json
 import os
 from src.tools.tools_registry import get_tools_registry
-from src.security.path_safety import resolve_safe_path
+from src.utils.load_prompt import get_prompt_loader
+from src.utils.path_policy import resolve_path
 from src.utils.exceptions import SecurityException
 
 def write(file_path: str, content: str) -> str:
@@ -14,7 +15,7 @@ def write(file_path: str, content: str) -> str:
             ensure_ascii=False
         )
     try:
-        file_path = resolve_safe_path(file_path, must_exist=False)
+        file_path = resolve_path(file_path, must_exist=False, write=True)
 
         # O_NOFOLLOW：校验与落盘之间即使被替换成符号链接也不会跟随，闭合 TOCTOU
         fd = os.open(file_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
@@ -53,11 +54,11 @@ WRITE_SCHEMA = {
     "type": "function",
     "function": {
         "name": "write",
-        "description": "将提供的内容写入文件。如果文件不存在，则创建它。如果已存在，则替换其先前的全部内容。【此工具需要用户确认后方可执行】",
+        "description": get_prompt_loader().load_tool_manual("write"),
         "parameters": {
             "type": "object",
             "properties": {
-                "file_path": {"type": "string", "description": "目标文件的绝对路径，如 /home/user/test.txt"},
+                "file_path": {"type": "string", "description": "文件绝对路径（支持 ~ 展开），如 ~/test.txt"},
                 "content": {"type": "string", "description": "要写入的内容（完全替换）"},
             },
             "required": ["file_path", "content"],

@@ -1,6 +1,6 @@
 class HooksRegistry:
     def __init__(self):
-        self.hooks = {"UserPromptSubmit": [], "PreToolUse": [], "PostCompletion": [], "Stop": []}
+        self.hooks = {"PreToolUse": [], "PostCompletion": [], "Stop": []}
 
     def register_hook(self, event: str, callback):
         self.hooks[event].append(callback)

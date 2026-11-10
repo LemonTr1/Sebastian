@@ -11,6 +11,7 @@ _TMP_HOME = tempfile.mkdtemp(prefix="seb-bwrap-test-")
 os.environ["HOME"] = _TMP_HOME
 
 from src.sandbox import bubblewrap
+from src.sandbox.base import DEFAULT_CONFIG
 from src.sandbox.bubblewrap import BubblewrapSandbox
 
 
@@ -22,15 +23,21 @@ def _make_sb(config: dict | None = None) -> BubblewrapSandbox:
 
 
 class TestLoadConfig(unittest.TestCase):
-    """_load_config 用户 settings → 项目默认 的两级回退，损坏配置不回退不抛异常。"""
+    """_load_config 用户 settings → 项目默认 的两级回退，缺失键用代码内默认值补齐。"""
+
+    @staticmethod
+    def _expected(**overrides):
+        config = {**DEFAULT_CONFIG, "deny_read": [], "read_only": []}
+        config.update(overrides)
+        return config
 
     def _make(self, user_path, user_payload, default_path, default_payload):
         # 写入内存配置到对应路径；payload 为 None 表示该文件应缺失
         if user_payload is not None:
             user_path.write_text(json.dumps(user_payload), encoding="utf-8")
         default_path.write_text(json.dumps(default_payload), encoding="utf-8")
-        with mock.patch.object(bubblewrap, "SETTINGS", user_path):
-            with mock.patch.object(bubblewrap, "DEFAULT_SETTINGS", default_path):
+        with mock.patch("src.sandbox.base.SETTINGS", user_path):
+            with mock.patch("src.sandbox.base.DEFAULT_SETTINGS", default_path):
                 with mock.patch.object(BubblewrapSandbox, "_check_bwrap", lambda self: None):
                     return BubblewrapSandbox()
 
@@ -39,35 +46,51 @@ class TestLoadConfig(unittest.TestCase):
             d = Path(d)
             sb = self._make(d / "user.json", {"sandbox": {"timeout": 5}},
                             d / "default.json", {"sandbox": {"timeout": 999}})
-        self.assertEqual(sb.config, {"timeout": 5})
+        self.assertEqual(sb.config, self._expected(timeout=5))
 
     def test_user_config_without_sandbox_uses_whole_doc(self):
         with tempfile.TemporaryDirectory() as d:
             d = Path(d)
             sb = self._make(d / "user.json", {"timeout": 7},
                             d / "default.json", {"sandbox": {"timeout": 999}})
-        self.assertEqual(sb.config, {"timeout": 7})
+        self.assertEqual(sb.config, self._expected(timeout=7))
 
-    def test_user_scalar_keeps_default_security_lists(self):
-        # 用户只覆盖标量时，默认的安全清单不能丢
+    def test_user_scalars_fall_back_to_default_file(self):
+        # 用户未声明的标量与名单沿用 src/settings.json，用户声明的 timeout 优先
         with tempfile.TemporaryDirectory() as d:
             d = Path(d)
             sb = self._make(d / "user.json", {"sandbox": {"timeout": 5}},
                             d / "default.json", {"sandbox": {
                                 "timeout": 999,
+                                "enabled": False,
+                                "unshare_net": False,
                                 "deny_read": ["/root/.ssh"],
                                 "read_only": ["/etc"],
                             }})
-        self.assertEqual(sb.config["timeout"], 5)
-        self.assertEqual(sb.config["deny_read"], ["/root/.ssh"])
-        self.assertEqual(sb.config["read_only"], ["/etc"])
+        expected = self._expected(
+            timeout=5, enabled=False, unshare_net=False,
+            deny_read=["/root/.ssh"], read_only=["/etc"],
+        )
+        self.assertEqual(sb.config, expected)
 
-    def test_security_lists_are_union_deduplicated(self):
+    def test_empty_user_lists_disable_default_lists(self):
+        # 用户显式声明空列表时，不使用默认名单
         with tempfile.TemporaryDirectory() as d:
             d = Path(d)
-            sb = self._make(d / "user.json", {"sandbox": {"deny_read": ["/b", "/a"]}},
+            sb = self._make(
+                d / "user.json", {"sandbox": {"deny_read": [], "read_only": []}},
+                d / "default.json", {"sandbox": {
+                    "deny_read": ["/root/.ssh"], "read_only": ["/etc"],
+                }})
+        self.assertEqual(sb.config["deny_read"], [])
+        self.assertEqual(sb.config["read_only"], [])
+
+    def test_user_lists_replace_defaults(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            sb = self._make(d / "user.json", {"sandbox": {"deny_read": ["/b", "/a", "/b"]}},
                             d / "default.json", {"sandbox": {"deny_read": ["/a", "/c"]}})
-        self.assertEqual(sb.config["deny_read"], ["/a", "/c", "/b"])
+        self.assertEqual(sb.config["deny_read"], ["/b", "/a"])
 
     def test_fallback_to_default_when_user_missing(self):
         with tempfile.TemporaryDirectory() as d:
@@ -75,6 +98,7 @@ class TestLoadConfig(unittest.TestCase):
             sb = self._make(d / "missing-user.json", None,
                             d / "default.json", {"sandbox": {"timeout": 42}})
         self.assertEqual(sb.config.get("timeout"), 42)
+        self.assertTrue(sb.config["enabled"])
 
     def test_fallback_to_default_when_user_json_corrupted(self):
         with tempfile.TemporaryDirectory() as d:

@@ -5,6 +5,7 @@ import re
 from typing import List, Optional, NamedTuple
 from src.logs.app_log import get_log
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 from src.utils.exceptions import SubAgentRuntimeException
 
 logger = get_log()
@@ -187,7 +188,7 @@ AGENT_SCHEMA = {
     "type": "function",
     "function": {
         "name": "agent",
-        "description": "运行指定的子Agent以完成用户任务。批准本调用即授权该子Agent在其工具集内执行；子Agent内部工具不会再次逐个审批。",
+        "description": get_prompt_loader().load_tool_manual("agent"),
         "parameters": {
             "type": "object",
             "properties": {

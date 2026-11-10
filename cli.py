@@ -350,13 +350,6 @@ def _run_chat(session_id: str):
         if not question.strip():
             continue
 
-        #进入AgentLoop前触发UserPromptSubmit钩子，检查输入安全性
-        result = hooks_registry.get_hooks_registry().trigger_hooks("UserPromptSubmit", question, uname)
-        if result is not None:
-            logger.error(f"UserPromptSubmit钩子触发错误：{result}")
-            typer.echo(typer.style(result, fg=typer.colors.RED, bold=True))
-            continue
-
         try:
             typer.echo(
                 typer.style("[Sebastian]: ", fg=typer.colors.BLUE, bold=True), nl=False

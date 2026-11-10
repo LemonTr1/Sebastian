@@ -1,16 +1,17 @@
 import json
 import glob as g
 from pathlib import Path
-from src.security.path_safety import resolve_safe_path
+from src.utils.path_policy import denied_roots, is_denied, resolve_path
 from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 
 MAX_RESULTS = 60
 
 def glob(pattern: str, scope: str) -> str:
     try:
-        # 安全检查
-        safe_scope = resolve_safe_path(scope)
+        # 按 settings.json 的 deny_read 校验
+        safe_scope = resolve_path(scope)
     except SecurityException as e:
         return json.dumps(
             {
@@ -26,10 +27,11 @@ def glob(pattern: str, scope: str) -> str:
         matched_files = g.glob(pattern, root_dir=str(scope_real), recursive=True)
 
         filtered_files = []
+        blocked = denied_roots()
         for f in matched_files:
             candidate = Path(f)
             full = candidate.resolve() if candidate.is_absolute() else (scope_real / f).resolve()
-            if full.is_relative_to(scope_real):
+            if full.is_relative_to(scope_real) and not is_denied(full, blocked):
                 filtered_files.append(str(full.relative_to(scope_real)))
 
         if len(filtered_files) > MAX_RESULTS:
@@ -65,7 +67,7 @@ GLOB_SCHEMA = {
     "type": "function",
     "function": {
         "name": "glob",
-        "description": "根据模式在指定目录下匹配文件，返回匹配到的文件相对路径列表",
+        "description": get_prompt_loader().load_tool_manual("glob"),
         "parameters": {
             "type": "object",
             "properties": {

@@ -3,59 +3,15 @@ import subprocess
 import shutil
 from typing import Literal
 from pathlib import Path
-import json
 from src.logs.app_log import get_log
+from src.sandbox.base import BaseSandbox, HOME
 
 logger = get_log()
 
-HOME = Path.home()
 
-DEFAULT_SETTINGS = Path(__file__).parent.parent / "settings.json"
-
-SETTINGS = Path.home() / ".sebastian" / "settings.json"
-
-# 允许传入沙箱的环境变量白名单：只放行与命令执行相关的基础变量，避免 API Key 等密钥泄漏
-ENV_PASSTHROUGH = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "TZ", "USER", "SHELL", "TMPDIR")
-
-class BubblewrapSandbox:
-    _disabled_warned = False
-
-    def __init__(self):
+class BubblewrapSandbox(BaseSandbox):
+    def _check_available(self):
         self._check_bwrap()
-        self.config = self._load_config()
-
-    def _load_config(self):
-        """默认配置与用户配置合并：标量以用户为准，目录清单取并集，避免局部配置丢失安全默认值。"""
-        try:
-            defaults = self._read_sandbox_section(DEFAULT_SETTINGS)
-        except Exception as e:
-            logger.error(f"默认配置 {DEFAULT_SETTINGS} 读取失败：{str(e)}")
-            defaults = {}
-
-        try:
-            user = self._read_sandbox_section(SETTINGS)
-        except FileNotFoundError:
-            logger.warning(f"未找到用户配置文件 {SETTINGS}，将使用默认配置。")
-            user = {}
-        except json.JSONDecodeError as e:
-            logger.error(f"用户配置文件 {SETTINGS} 解析失败：{str(e)}，将使用默认配置。")
-            user = {}
-        except Exception as e:
-            logger.warning(f"用户配置文件 {SETTINGS} 出现错误: {str(e)}，将使用默认配置。")
-            user = {}
-
-        merged = {**defaults, **user}
-        for key in ("deny_read", "read_only"):
-            # 只有任一侧声明了清单才生成该键，避免空列表污染配置语义
-            if key in defaults or key in user:
-                merged[key] = list(dict.fromkeys(defaults.get(key, []) + user.get(key, [])))
-        return merged
-
-    @staticmethod
-    def _read_sandbox_section(path: Path) -> dict:
-        with open(str(path), "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("sandbox", data)
 
     def _check_bwrap(self):
         if not shutil.which("bwrap"):
@@ -79,16 +35,6 @@ class BubblewrapSandbox:
                 bwrap_args.extend(["--tmpfs", path])
             else:
                 bwrap_args.extend(["--ro-bind", "/dev/null", path])
-
-
-    def _sandbox_env(self) -> dict:
-        env = {k: os.environ[k] for k in ENV_PASSTHROUGH if k in os.environ}
-        env["HOME"] = str(HOME)
-        env.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
-        for k in self.config.get("env_allow", []):
-            if k in os.environ:
-                env[k] = os.environ[k]
-        return env
 
     def run(self, command: str, timeout: int = 180) -> dict:
         #基础默认配置
@@ -120,7 +66,7 @@ class BubblewrapSandbox:
 
         for path in self.config.get("deny_read", []):
             self._mount(bwrap_args, path, "deny_read")
-            
+
         bwrap_args.extend(["--dev-bind", "/dev/null", "/dev/null"])
 
         shell_args = ["/bin/bash", "-c", command]

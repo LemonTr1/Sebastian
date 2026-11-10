@@ -3,6 +3,7 @@ import json
 
 from src.logs.app_log import get_log
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 from src.utils.interaction import terminal_question
 
 MAX_OPTIONS = 20
@@ -149,16 +150,7 @@ QUESTION_SCHEMA = {
     "type": "function",
     "function": {
         "name": "question",
-        "description": (
-            "向用户提问并阻塞等待作答（用户可输入选项编号，也可自由输入文本）。"
-            "当你缺少无法从上下文推断、且不同取值会显著改变结果的关键信息时使用，例如："
-            "目标技术栈/命名方案的选择、删除或覆盖的范围确认、需求歧义澄清、用户偏好（语言/风格/格式）。"
-            "能自行合理假设并继续的琐碎问题不要使用本工具。"
-            "若答案可枚举，务必传 options（2-6 个互斥短选项，用户始终可以直接输入，无需额外添加'其他'选项）；"
-            "开放式问题不要传 options。一次只问一个问题，不要在同一轮里连续提问；同一任务内最多提问 2 次。"
-            "返回 status 为 timeout/cancelled/unavailable 时表示用户未作答，禁止立即重复调用，"
-            "应改为基于合理默认值继续，或在回复正文中向用户提问并结束本轮。"
-        ),
+        "description": get_prompt_loader().load_tool_manual("question"),
         "parameters": {
             "type": "object",
             "properties": {

@@ -48,7 +48,9 @@ class TestPackaging(unittest.TestCase):
 
     def test_runtime_resources_declared(self):
         package_data = _pyproject()["tool"]["setuptools"]["package-data"]
-        self.assertEqual(package_data["src"], ["settings.json"])
+        self.assertIn("settings.json", package_data["src"])
+        self.assertIn("prompts/*.md", package_data["src"])
+        self.assertIn("prompts/tools/*.md", package_data["src"])
         self.assertEqual(package_data["src.agents"], ["subagents/*.md"])
 
 

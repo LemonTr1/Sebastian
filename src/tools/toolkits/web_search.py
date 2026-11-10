@@ -3,6 +3,7 @@ from baidusearch.baidusearch import search
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import json
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 from src.logs.app_log import get_log
 
 logger = get_log()
@@ -59,7 +60,7 @@ WEB_SEARCH_SCHEMA = {
     "type": "function",
     "function": {
         "name": "web_search",
-        "description": "根据关键词进行网络搜索，返回包含url的相关结果列表",
+        "description": get_prompt_loader().load_tool_manual("web_search"),
         "parameters": {
             "type": "object",
             "properties": {

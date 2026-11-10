@@ -1,8 +1,6 @@
 """测试共享支撑：把临时工作目录统一放在仓库内 `.test-tmp/`。
 
-放在仓库内有两个原因：
-1. 受限环境通常只允许写项目目录，建在 $HOME 根目录会 PermissionError；
-2. 仓库位于 $HOME 之下，仍满足 path_safety 的「家目录内」约束。
+放仓库内主要因为受限环境通常只允许写项目目录，建在 $HOME 根目录会 PermissionError。
 """
 import atexit
 import shutil

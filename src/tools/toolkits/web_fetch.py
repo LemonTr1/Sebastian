@@ -4,8 +4,8 @@ from ddgs import DDGS
 import requests
 import urllib3
 from bs4 import BeautifulSoup
-from src.security.url_safety import is_public_url
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 from src.logs.app_log import get_log
 
 # 这里的 verify=False 是为了兼容部分站点/代理的证书问题；不要让它把
@@ -45,15 +45,6 @@ def _requests_extract(url: str) -> dict:
 
 
 def web_fetch(url: str, timeout: int = 20) -> str:
-    if not is_public_url(url):
-        return json.dumps(
-            {
-                "success": False,
-                "content": "拒绝：非法/内网URL"
-            },
-            ensure_ascii=False
-        )
-
     result = {"success": False, "content": ""}
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -89,7 +80,7 @@ WEB_FETCH_SCHEMA = {
     "type": "function",
     "function": {
         "name": "web_fetch",
-        "description": "提取指定URL的网页正文内容（纯文本/markdown）",
+        "description": get_prompt_loader().load_tool_manual("web_fetch"),
         "parameters": {
             "type": "object",
             "properties": {

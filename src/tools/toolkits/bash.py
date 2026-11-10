@@ -1,9 +1,8 @@
 import json
 from src.logs.app_log import get_log
-from src.security.command_guard import security_guard
-from src.utils.exceptions import SecurityException
-from src.sandbox.bubblewrap import BubblewrapSandbox
+from src.sandbox import create_sandbox
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 
 TIMEOUT = 180
 
@@ -11,20 +10,7 @@ logger = get_log()
 
 def bash(command: str, description: str, run_in_background: bool = False) -> str:
     try:
-        security_guard(command)
-    except SecurityException as e:
-        return json.dumps(
-            {
-                "success": False,
-                "stdout": "",
-                "stderr": str(e),
-                "error": str(e)
-            },
-            ensure_ascii=False
-        )
-
-    try:
-        sandbox = BubblewrapSandbox()
+        sandbox = create_sandbox()
         result = sandbox.run(command)
         return json.dumps(
             {
@@ -36,10 +22,10 @@ def bash(command: str, description: str, run_in_background: bool = False) -> str
             ensure_ascii=False
         )
     except RuntimeError as e:
-        logger.error(f"bubblewrap无法使用：{str(e)}")
+        logger.error(f"沙箱无法使用：{str(e)}")
         return json.dumps({
             "success": False,
-            "error": f"bubblewrap无法使用：{str(e)}",
+            "error": f"沙箱无法使用：{str(e)}",
         }, ensure_ascii=False)
     except FileNotFoundError as e:
         logger.error(f"沙箱配置文件加载失败：{str(e)}")
@@ -65,7 +51,7 @@ BASH_SCHEMA = {
     "type": "function",
     "function": {
         "name": "bash",
-        "description": "Execute arbitrary shell commands in a sandboxed environment. This is the most powerful and flexible tool — use it for operations that have no dedicated structured tool equivalent. 【此工具需要用户确认后方可执行】",
+        "description": get_prompt_loader().load_tool_manual("bash"),
         "parameters": {
             "type": "object",
             "properties": {

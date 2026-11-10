@@ -1,8 +1,9 @@
 import json
 import re
-from src.security.path_safety import resolve_safe_path
+from src.utils.path_policy import denied_roots, is_denied, resolve_path
 from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
+from src.utils.load_prompt import get_prompt_loader
 import subprocess
 from pathlib import Path
 
@@ -13,7 +14,7 @@ TIMEOUT = 30           # 搜索超时（秒）
 
 def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
     try:
-        search_path = resolve_safe_path(path)
+        search_path = resolve_path(path)
     except SecurityException as e:
         return json.dumps({
             "success": False,
@@ -74,6 +75,7 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
 
     # 解析grep结果: "[file_path] : [line_number:matched_text]"
     matches = []
+    blocked = denied_roots()
     truncated = False        # 命中行数被截断（有更多结果未返回）
     lines_truncated = False  # 仅单行内容过长被截断（结果条数是完整的）
     for line in result.stdout.strip().splitlines():
@@ -85,6 +87,11 @@ def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
         if not m:
             continue
         file_path, line_num, text = m.group(1), m.group(2), m.group(3)
+        candidate = Path(file_path)
+        if not candidate.is_absolute():
+            candidate = WORKDIR / candidate
+        if is_denied(candidate, blocked):
+            continue
         # Strip workspace prefix for cleaner output
         rel_path = file_path
         if rel_path.startswith(str(WORKDIR)):
@@ -129,7 +136,7 @@ GREP_SCHEMA = {
     "type": "function",
     "function": {
         "name": "grep",
-        "description": "Search file contents for a regex pattern. Returns file paths, line numbers, and matched text.",
+        "description": get_prompt_loader().load_tool_manual("grep"),
         "parameters": {
             "type": "object",
             "properties": {
