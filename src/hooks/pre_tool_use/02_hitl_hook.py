@@ -3,7 +3,6 @@ from src.utils.agent_mode import AGENT_MODE
 from src.utils.interaction import terminal_confirm
 from src.utils.memory_system import MEMORY_SYSTEM
 from src.logs.app_log import get_log
-import typer
 import json
 
 def hitl_hook(agent_name: str, tool_call: dict):
@@ -34,10 +33,6 @@ def hitl_hook(agent_name: str, tool_call: dict):
         #-------------YOLO（Auto）模式：所有工具调用免人工审批---------------
         if AGENT_MODE.is_auto():
             get_log().info(f"[yolo] skip HITL for {tool_name}")
-            typer.echo(typer.style(
-                f"\n> [YOLO] 自动批准: {tool_name}",
-                fg=typer.colors.CYAN,
-            ))
             return None
 
         if tool_name in ("write", "edit") and MEMORY_SYSTEM.is_memory_path(args.get("file_path")):

@@ -21,7 +21,7 @@ class TodoManager:
         self.state = PlanningState()
 
     #让类的可以像函数一样被调用
-    def __call__(self, items: list):
+    def __call__(self, items: list, description: str = ""):
         return self.update(items)
 
     #被LLM调用的工具，通过__call__调用
@@ -140,9 +140,10 @@ TODO_SCHEMA = {
                         },
                         "required": ["content", "status"]
                     }
-                }
+                },
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"}
             },
-            "required": ["items"]
+            "required": ["items", "description"]
         }
     }
 }

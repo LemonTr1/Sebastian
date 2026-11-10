@@ -60,7 +60,7 @@ class SkillRegistry:
         return "\n".join(lines)
 
     # 供Agent调用的加载整个Skill的工具
-    def load_full_text(self, name: str) -> str:
+    def load_full_text(self, name: str, description: str = "") -> str:
         document = self.documents.get(name)
         if not document:
             known = ", ".join(sorted(self.documents)) or "(none)"
@@ -89,8 +89,9 @@ SKILL_REGISTRY_SCHEMA = {
                     "type": "string",
                     "description": "技能名称，必须精确匹配已注册的技能名称",
                 },
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"},
             },
-            "required": ["name"],
+            "required": ["name", "description"],
         },
     },
 }

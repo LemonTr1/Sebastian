@@ -31,7 +31,7 @@ SCHEMA = {
 
 BG_EVENT = threading.Event()
 
-def silent_tool():
+def silent_tool(description: str = ""):
     return json.dumps({"success": True})
 
 def silent_bg_tool():
@@ -42,6 +42,11 @@ get_tools_registry().register_tool("silent_tool", silent_tool, SCHEMA, hitl=Fals
 get_tools_registry().register_tool("silent_tool", silent_tool, SCHEMA, hitl=False, for_agent="Brain_Agent")
 
 TC = {"id": "call_silent", "type": "function", "function": {"name": "silent_tool", "arguments": "{}"}}
+TC_DESC = {
+    "id": "call_silent_desc",
+    "type": "function",
+    "function": {"name": "silent_tool", "arguments": json.dumps({"description": "检查项目配置"})},
+}
 
 
 def wait_completed(runner, bg_id, timeout=2.0):
@@ -64,9 +69,9 @@ check("subagent tool call silent", "[TOOL]" not in out, repr(out[:120]))
 brain = AgentRunner.create_runner("Brain_Agent", "test", get_tools_registry())
 buf2 = io.StringIO()
 with redirect_stdout(buf2):
-    brain._process_tool_calls([TC], brain.tool_map)
+    brain._process_tool_calls([TC_DESC], brain.tool_map)
 out2 = buf2.getvalue()
-check("brain tool call printed", "[TOOL] Brain_Agent 调用 silent_tool" in out2, repr(out2[:120]))
+check("brain tool call printed", "[TOOL] Brain_Agent 检查项目配置" in out2, repr(out2[:120]))
 
 # 后台任务日志：子 Agent 静默，Brain 可见
 bg_map = {"silent_tool": {"func": silent_bg_tool}}

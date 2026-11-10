@@ -316,7 +316,7 @@ Sebastian provides three working modes — **Plan (`/plan`, read-only planning)*
 
 - `/plan` enters Plan: the Brain can only use `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`; execution tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`) are removed from the tool schemas and rejected at runtime; the system prompt is dynamically injected with research-and-planning-focused guidance, requiring the model to ask the user whether to execute immediately or revise the plan once it is ready
 - `/approvals` restores Build (approval mode): all tools are available, and HITL tools (`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / all MCP tools) require manual approval in the terminal before execution
-- `/yolo` enters YOLO (Auto): all tools are available and **every tool call skips manual approval** (the terminal prints `[YOLO] auto-approved` and the log records it) — use with caution; `/approvals` restores approval
+- `/yolo` enters YOLO (Auto): all tools are available and **every tool call skips manual approval** (logged only, not printed to the terminal) — use with caution; `/approvals` restores approval
 - The mode is runtime-only (not persisted); cron tasks woken independently by the queue thread are **temporarily switched to Build** when triggered from Plan, and the previous mode is restored afterwards; if a cron event is consumed by the current user turn first, it stays restricted by the Plan tool whitelist (YOLO already has full tools with no approval, so no switch happens)
 - The terminal prompt shows the current mode (`[user|PLAN]:` / `[user|YOLO]:`)
 

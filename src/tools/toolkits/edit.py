@@ -4,7 +4,7 @@ from src.utils.exceptions import SecurityException
 from src.tools.tools_registry import get_tools_registry
 from src.utils.load_prompt import get_prompt_loader
 
-def edit(file_path: str, old_text: str, new_text: str, replace_all: bool = False) -> str:
+def edit(file_path: str, old_text: str, new_text: str, replace_all: bool = False, description: str = "") -> str:
     # 不支持二进制/文档格式
     if file_path.endswith(".pdf") or file_path.endswith(".docx") or file_path.endswith(".pptx"):
         return json.dumps(
@@ -130,8 +130,9 @@ EDIT_SCHEMA = {
                 "old_text": {"type": "string", "description": "要查找的旧文本，不能为空"},
                 "new_text": {"type": "string", "description": "替换后的新文本"},
                 "replace_all": {"type": "boolean", "description": "是否替换所有匹配项，true=全部替换，false=仅替换一处，默认false"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"},
             },
-            "required": ["file_path", "old_text", "new_text"],
+            "required": ["file_path", "old_text", "new_text", "description"],
         },
     },
 }

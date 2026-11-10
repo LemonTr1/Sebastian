@@ -25,12 +25,14 @@ class CronJob:
         prompt: 触发时注入给Agent的消息
         recurring: True=周期性, False=一次性
         durable: True=跨会话
+        description: 触发时打印到终端的说明
     """
     id: str
     cron: str
     prompt: str
     recurring: bool
     durable: bool
+    description: str = ""
 
 class CronSchedule:
     def __init__(self):
@@ -160,7 +162,7 @@ class CronSchedule:
         except Exception as e:
             logger.error(f"加载持久化定时任务时出现异常：{str(e)}")
 
-    def schedule_job(self, cron: str, prompt: str, recurring: bool = True, durable: bool = True) -> CronJob | str:
+    def schedule_job(self, cron: str, prompt: str, recurring: bool = True, durable: bool = True, description: str = "") -> CronJob | str:
         """Register a new cron job. Returns CronJob or error string"""
         err = self.validate_cron(cron)
         if err:
@@ -170,13 +172,15 @@ class CronSchedule:
             cron = cron,
             prompt = prompt,
             recurring = recurring,
-            durable = durable
+            durable = durable,
+            description = description
         )
         with self.cron_lock:
             self.scheduled_jobs[job.id] = job
         if durable:
             self.save_durable_jobs()
-        typer.echo(typer.style(f"\n> [cron register] {job.id} '{cron}' -> {prompt}", fg=typer.colors.GREEN))
+        label = description or prompt
+        typer.echo(typer.style(f"\n> [cron register] {job.id} '{cron}' -> {label}", fg=typer.colors.GREEN))
         logger.info(f"{job.id} '{cron}' -> {prompt}")
         return job
 
@@ -210,7 +214,8 @@ class CronSchedule:
                                     content=f"Finish scheduled job {job.id}: {job.prompt}",
                                 ))
                                 self._last_fired[job.id] = minute_marker
-                                typer.echo(typer.style(f"\n> [cron fire] {job.id} -> {job.prompt}", fg=typer.colors.GREEN))
+                                label = job.description or job.prompt
+                                typer.echo(typer.style(f"\n> [cron fire] {job.id} -> {label}", fg=typer.colors.WHITE))
                                 logger.info(f"Cron fire: {job.id} -> {job.prompt}")
                             if not job.recurring:
                                 self.scheduled_jobs.pop(job.id, None)
@@ -222,8 +227,8 @@ class CronSchedule:
 
 
     # -------------Cron Tools：Schedule,List,Cancel ---------------
-    def run_schedule_cron(self, cron: str, prompt: str, recurring: bool = True, durable: bool = True) -> str:
-        result = self.schedule_job(cron, prompt, recurring, durable)
+    def run_schedule_cron(self, cron: str, prompt: str, recurring: bool = True, durable: bool = True, description: str = "") -> str:
+        result = self.schedule_job(cron, prompt, recurring, durable, description)
         if isinstance(result, str):
             return json.dumps({
                 "success": False,
@@ -234,7 +239,7 @@ class CronSchedule:
             "summary": f"Scheduled {result.id}: '{cron}' -> {prompt}"
         }, ensure_ascii=False)
 
-    def run_list_crons(self) -> str:
+    def run_list_crons(self, description: str = "") -> str:
         with self.cron_lock:
             jobs = list(self.scheduled_jobs.values())
         if not jobs:
@@ -249,7 +254,7 @@ class CronSchedule:
             lines.append(f" {j.id}: '{j.cron}' -> {j.prompt[:40]} [{tag}, {dur}]")
         return "\n".join(lines)
 
-    def run_cancel_cron(self, job_id: str) -> str:
+    def run_cancel_cron(self, job_id: str, description: str = "") -> str:
         result = self.cancel_job(job_id)
         if result is None:
             return json.dumps({
@@ -274,9 +279,10 @@ SCHEDULE_CRON_SCHEMA = {
                 "cron": {"type": "string", "description": "5-field cron expression"},
                 "prompt": {"type": "string", "description": "Message to inject when fired"},
                 "recurring": {"type": "boolean", "description": "True=recurring, False=one-shot"},
-                "durable": {"type": "boolean", "description": "True=persist to disk"}
+                "durable": {"type": "boolean", "description": "True=persist to disk"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"}
             },
-            "required": ["cron", "prompt"]
+            "required": ["cron", "prompt", "description"]
         }
     }
 }
@@ -288,8 +294,10 @@ LIST_CRONS_SCHEMA= {
         "description": get_prompt_loader().load_tool_manual("list_crons"),
         "parameters": {
             "type": "object",
-            "properties": {},
-            "required": []
+            "properties": {
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"}
+            },
+            "required": ["description"]
         }
     }
 }
@@ -302,9 +310,10 @@ CANCEL_CRON_SCHEMA = {
         "parameters": {
             "type": "object",
             "properties": {
-                "job_id": {"type": "string", "description": "Job's ID"}
+                "job_id": {"type": "string", "description": "Job's ID"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"}
             },
-            "required": ["job_id"]
+            "required": ["job_id", "description"]
         }
     }
 }

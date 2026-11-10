@@ -5,7 +5,7 @@ from src.utils.load_prompt import get_prompt_loader
 from src.utils.path_policy import resolve_path
 from src.utils.exceptions import SecurityException
 
-def write(file_path: str, content: str) -> str:
+def write(file_path: str, content: str, description: str = "") -> str:
     if file_path.lower().endswith((".pdf", ".docx")):
         return json.dumps(
             {
@@ -60,8 +60,9 @@ WRITE_SCHEMA = {
             "properties": {
                 "file_path": {"type": "string", "description": "文件绝对路径（支持 ~ 展开），如 ~/test.txt"},
                 "content": {"type": "string", "description": "要写入的内容（完全替换）"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"},
             },
-            "required": ["file_path", "content"],
+            "required": ["file_path", "content", "description"],
         },
     },
 }

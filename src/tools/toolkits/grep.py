@@ -12,7 +12,7 @@ MAX_RESULTS = 200      # 最大匹配行数
 MAX_LINE_LEN = 300     # 单行截断长度
 TIMEOUT = 30           # 搜索超时（秒）
 
-def grep(pattern: str, path: str, case_sensitive: bool = True) -> str:
+def grep(pattern: str, path: str, case_sensitive: bool = True, description: str = "") -> str:
     try:
         search_path = resolve_path(path)
     except SecurityException as e:
@@ -142,9 +142,10 @@ GREP_SCHEMA = {
             "properties": {
                 "pattern": {"type": "string", "description": "模式匹配串"},
                 "path": {"type": "string", "description": "查找路径，可以为文件或目录，必须以绝对路径表示"},
-                "case_sensitive": {"type": "boolean", "description": "是否开启大小写敏感，true表示开启，false表示不敏感，默认true", "default": True}
+                "case_sensitive": {"type": "boolean", "description": "是否开启大小写敏感，true表示开启，false表示不敏感，默认true", "default": True},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"}
             },
-            "required": ["pattern", "path"]
+            "required": ["pattern", "path", "description"]
         }
     }
 }

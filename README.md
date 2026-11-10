@@ -315,7 +315,7 @@ Sebastian 提供 **Plan（/plan，只读规划）**、**Build（/approvals，审
 
 - `/plan` 进入 Plan：Brain 仅可用 `read` / `glob` / `grep` / `ls` / `todo` / `web_search` / `web_fetch` / `load_skill` / `list_crons` / `question`，执行类工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron`）从工具 schema 中移除并被拒绝执行；system 提示词动态注入"以调研与规划为主"的行为引导，并要求模型在计划完成后主动询问用户：立即退出执行还是修改计划
 - `/approvals` 恢复 Build（审批执行）：全部工具可用，HITL 工具（`bash` / `write` / `edit` / `agent` / `schedule_cron` / `cancel_cron` / 全部 MCP 工具）执行前在终端等待人工审批
-- `/yolo` 进入 YOLO（Auto）：全部工具可用，且**所有工具调用跳过人工审批**（终端打印 `[YOLO] 自动批准` 并写日志），请谨慎使用；`/approvals` 恢复审批
+- `/yolo` 进入 YOLO（Auto）：全部工具可用，且**所有工具调用跳过人工审批**（仅写日志，不在终端打印），请谨慎使用；`/approvals` 恢复审批
 - 模式运行期有效不持久化；由队列线程独立唤醒的定时任务在 Plan 下**临时切 Build** 执行，执行完恢复原模式；若 cron 事件先被当前用户 turn 消费，则按 Plan 工具白名单受限（YOLO 模式工具齐全且免审批，不切换）
 - 终端提示符显示当前模式（`[user|PLAN]：` / `[user|YOLO]：`）
 

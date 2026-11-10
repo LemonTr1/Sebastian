@@ -6,7 +6,7 @@ from src.tools.tools_registry import get_tools_registry
 from src.utils.load_prompt import get_prompt_loader
 
 
-def ls(path: str) -> str:
+def ls(path: str, description: str = "") -> str:
     try:
         path = resolve_path(path)
     except SecurityException as e:
@@ -66,8 +66,9 @@ LS_SCHEMA = {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "要列出的目录绝对路径"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"},
             },
-            "required": ["path"],
+            "required": ["path", "description"],
         },
     },
 }

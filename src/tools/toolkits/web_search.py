@@ -16,7 +16,7 @@ def _baidu_search(query: str, max_results: int) -> list:
     results = search(query, num_results=max_results)
     return list(results)
 
-def web_search(query: str, max_results: int = 10, timeout: int = 20) -> str:
+def web_search(query: str, max_results: int = 10, timeout: int = 20, description: str = "") -> str:
     result = {"success": False, "result_list": [], "error_message": ""}
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -67,8 +67,9 @@ WEB_SEARCH_SCHEMA = {
                 "query": {"type": "string", "description": "搜索关键词"},
                 "max_results": {"type": "integer", "description": "最大返回结果数，默认10"},
                 "timeout": {"type": "integer", "description": "超时时间(秒)，默认20"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"},
             },
-            "required": ["query"],
+            "required": ["query", "description"],
         },
     },
 }

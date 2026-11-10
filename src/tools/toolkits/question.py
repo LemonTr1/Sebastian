@@ -88,7 +88,7 @@ def _normalize_timeout(timeout) -> int:
     return max(MIN_TIMEOUT, min(value, MAX_TIMEOUT))
 
 
-def question(question: str, options: list | None = None, timeout: int = DEFAULT_TIMEOUT) -> str:
+def question(question: str, options: list | None = None, timeout: int = DEFAULT_TIMEOUT, description: str = "") -> str:
     """向用户提问并阻塞等待作答，返回 JSON 字符串。"""
     text = "" if question is None else str(question).strip()
     if not text:
@@ -167,8 +167,9 @@ QUESTION_SCHEMA = {
                     "type": "integer",
                     "description": "可选。等待用户回答的秒数，默认 300，范围 5-3600",
                 },
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"},
             },
-            "required": ["question"],
+            "required": ["question", "description"],
         },
     },
 }

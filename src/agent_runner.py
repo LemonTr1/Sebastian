@@ -208,6 +208,7 @@ class AgentRunner:
         self._bg_counter += 1
         bg_id = f"bg_task_{self._bg_counter}"
         cmd = f"{tool_name}: {json.dumps(tool_args, ensure_ascii=False)}"
+        desc = str(tool_args.get("description") or "").strip()
 
         def worker():
             try:
@@ -235,7 +236,10 @@ class AgentRunner:
 
             if self.name == BRAIN_OWNER:
                 try:
-                    typer.echo(typer.style(f"\n> [background done] {bg_id}: {cmd} ...", fg=typer.colors.GREEN))
+                    ui_redraw.emit(
+                        typer.style(f"\n> [background done] {desc or cmd} ...", fg=typer.colors.GREEN),
+                        allow_ansi=True,
+                    )
                 except Exception:
                     pass
             with self.background_lock:
@@ -258,7 +262,10 @@ class AgentRunner:
 
         if self.name == BRAIN_OWNER:
             try:
-                typer.echo(typer.style(f"\n> [background] 后台任务启动：{bg_id}: {cmd[:40]} ... ", fg=typer.colors.WHITE, bold=True))
+                ui_redraw.emit(
+                    typer.style(f"\n> [background] 后台任务启动：{desc or cmd[:40]} ... ", fg=typer.colors.GREEN),
+                    allow_ansi=True,
+                )
             except Exception:
                 pass
         thread = threading.Thread(target=worker, daemon=True)
@@ -332,9 +339,11 @@ class AgentRunner:
                 func = active_map[name]["func"]
                 #子 Agent 的工具调用不打印到终端，只在日志里留痕
                 if self.name == "Brain_Agent":
+                    desc = str(tool_args.get("description") or "").strip()
+                    label = desc or f"{name}({_brief_args(tool_args)})"
                     typer.echo(typer.style(
-                        f"\n> [TOOL] {self.name} 调用 {name}({_brief_args(tool_args)})",
-                        fg=typer.colors.WHITE,
+                        f"\n> [TOOL] {self.name} {label}",
+                        fg=typer.colors.CYAN,
                     ))
 
                 #执行工具

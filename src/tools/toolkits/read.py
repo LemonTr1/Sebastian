@@ -50,7 +50,7 @@ def _sniff_image_mime(file_path: str) -> str | None:
     return None
 
 
-def read(file_path: str, offset: int = -1, limit: int = -1) -> str | dict:
+def read(file_path: str, offset: int = -1, limit: int = -1, description: str = "") -> str | dict:
     """读取文件。
 
     文本文件：返回 JSON 字符串（content 为文本内容，offset/limit 控制分片）。
@@ -204,9 +204,10 @@ READ_SCHEMA = {
             "properties": {
                 "file_path": {"type": "string", "description": "文件绝对路径（支持 ~ 展开），如 ~/file.txt 或 ~/a.png"},
                 "offset": {"type": "integer", "description": "文件文本内容的起始行，如从第10行开始读取，必须大于0"},
-                "limit": {"type": "integer", "description": "读取的行数，如读取20行，若从第10行开始读则一共读取第10行到第29行的文本内容，必须大于0"}
+                "limit": {"type": "integer", "description": "读取的行数，如读取20行，若从第10行开始读则一共读取第10行到第29行的文本内容，必须大于0"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"}
             },
-            "required": ["file_path"],
+            "required": ["file_path", "description"],
         },
     },
 }

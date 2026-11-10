@@ -44,7 +44,7 @@ def _requests_extract(url: str) -> dict:
     return {"success": True, "content": content}
 
 
-def web_fetch(url: str, timeout: int = 20) -> str:
+def web_fetch(url: str, timeout: int = 20, description: str = "") -> str:
     result = {"success": False, "content": ""}
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -86,8 +86,9 @@ WEB_FETCH_SCHEMA = {
             "properties": {
                 "url": {"type": "string", "description": "目标网页完整URL"},
                 "timeout": {"type": "integer", "description": "超时(秒)，默认20"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"},
             },
-            "required": ["url"],
+            "required": ["url", "description"],
         },
     },
 }

@@ -8,7 +8,7 @@ from src.utils.load_prompt import get_prompt_loader
 
 MAX_RESULTS = 60
 
-def glob(pattern: str, scope: str) -> str:
+def glob(pattern: str, scope: str, description: str = "") -> str:
     try:
         # 按 settings.json 的 deny_read 校验
         safe_scope = resolve_path(scope)
@@ -72,9 +72,10 @@ GLOB_SCHEMA = {
             "type": "object",
             "properties": {
                 "pattern": {"type": "string", "description": "模式匹配串，如'src/**/*.py'"},
-                "scope": {"type": "string", "description": "查找范围，必须为目录且以绝对路径表示"}
+                "scope": {"type": "string", "description": "查找范围，必须为目录且以绝对路径表示"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"}
             },
-            "required": ["pattern", "scope"]
+            "required": ["pattern", "scope", "description"]
         }
     }
 }

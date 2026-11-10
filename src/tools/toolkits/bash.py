@@ -56,7 +56,7 @@ BASH_SCHEMA = {
             "type": "object",
             "properties": {
                 "command": {"type": "string", "description": "执行的命令或代码"},
-                "description": {"type": "string", "description": "用自然语言描述命令的功能和目的"},
+                "description": {"type": "string", "description": "用自然语言描述本次调用要做什么，会显示在终端"},
                 "run_in_background": {"type": "boolean", "description": "可选，是否在后台以异步方式运行，true表示以异步方式运行，默认为false"},
             },
             "required": ["command", "description"],
