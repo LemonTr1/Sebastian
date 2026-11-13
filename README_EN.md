@@ -50,6 +50,7 @@ Sebastian is an LLM-powered multi-agent terminal assistant: a central Brain Agen
   - [CLI Commands](#cli-commands)
     - [Startup](#startup)
     - [In-Chat Commands](#in-chat-commands)
+    - [Thinking Effort](#thinking-effort)
   - [Project Structure](#project-structure)
   - [Tech Stack](#tech-stack)
   - [License](#license)
@@ -302,13 +303,13 @@ The `bash` and `agent` tools support `run_in_background=true` for async executio
 
 ### Slash Command Completion
 
-Typing `/` opens a live command menu filtered as you type (prompt_toolkit, grid layout). If exactly one command matches, Enter completes and executes it (e.g. `/pl` → `/plan`); with multiple matches the menu stays open for more input. Enter submits; Ctrl-J / Alt+Enter inserts a newline. Background logs are ANSI-sanitized before being drawn above the prompt. Falls back to the original `input()` path on non-TTY or dumb terminals, or when prompt_toolkit is unavailable.
+Typing `/` opens a live command menu filtered as you type (prompt_toolkit, grid layout). If exactly one command matches, Enter completes and executes it (e.g. `/pl` → `/plan`); with multiple matches the menu stays open for more input. `/model` also completes from `/mo`. Enter submits; Ctrl-J / Alt+Enter inserts a newline. Background logs are ANSI-sanitized before being drawn above the prompt. Falls back to the original `input()` path on non-TTY or dumb terminals, or when prompt_toolkit is unavailable.
 
 ### Session Management
 
 - Sessions are saved as JSONL files: `~/.sebastian/session/{session_id}.jsonl`
 - Auto-saved on exit; restored via `sebastian -s <SESSION_ID>`; the 10 most recent sessions are retained
-- In-chat: `/clear` wipes history, `/compact` compacts manually
+- In-chat: `/compact` compacts manually
 
 ### Plan / Build / Auto Modes
 
@@ -380,6 +381,8 @@ LLM_BASE_URL=https://api.deepseek.com
 
 Any OpenAI-API-compatible service is supported (OpenAI, DeepSeek, Ollama, vLLM, etc.).
 
+`setup` only configures the model, API key, and base URL — it **cannot set thinking effort**. Thinking is enabled at medium effort by default; only the in-chat `/model` command can change it.
+
 ### Run
 
 ```bash
@@ -422,9 +425,15 @@ sebastian setup                 # API configuration wizard (masked key input)
 | `/plan` | Enter Plan read-only planning mode (research/planning tools only) |
 | `/approvals` | Enter Build approval mode (all tools, dangerous ops need approval) |
 | `/yolo` | Enter YOLO approval-free mode (all tools, no manual approval) |
-| `/clear` | Clear the current conversation history |
+| `/model` | Set thinking effort: off / medium (default) / max; session-only |
 | `/compact` | Manually trigger LLM summarization compaction |
 | `Ctrl+C` / `Ctrl+D` | Exit without saving |
+
+### Thinking Effort
+
+`setup` only writes the model, API key, and base URL — it **cannot set thinking effort**. On startup, thinking is enabled at medium effort; only the in-chat `/model` command can change it (off / medium / max). The setting is session-only, and the model still comes from `LLM_MODEL` in `.env`.
+
+Some models always think and cannot be turned off (e.g. Grok 4.x, GLM-5.3, Kimi K3, Gemini 4); `/model` greys out that option and explains why. The provider is detected from `LLM_BASE_URL`.
 
 ---
 
@@ -487,6 +496,8 @@ Sebastian/
 │   ├── utils/                      # Utilities
 │   │   ├── memory_system.py        # .memory/ index + entries, toggle and prompt
 │   │   ├── compaction_pipeline.py  # 3-layer context compaction pipeline
+│   │   ├── thinking.py             # Provider detection + thinking-effort mapping
+│   │   ├── thinking_state.py       # Session-level thinking effort (/model)
 │   │   ├── interaction.py          # Terminal approval/question (input + prompt redraw)
 │   │   ├── completion_input.py     # REPL input: prompt_toolkit slash completion/fallback
 │   │   ├── slash_commands.py       # Slash command list and Enter completion rule

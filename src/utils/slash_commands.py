@@ -3,8 +3,8 @@
 SLASH_COMMANDS = {
     "/quit": "退出",
     "/exit": "退出",
-    "/clear": "清空对话历史",
     "/compact": "手动压缩上下文",
+    "/model": "设置思考强度（关闭/中等/最高）",
     "/plan": "进入只读规划模式",
     "/approvals": "进入审批执行模式",
     "/yolo": "进入 YOLO 免审批模式",

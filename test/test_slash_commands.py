@@ -15,6 +15,9 @@ from src.utils.slash_commands import SLASH_COMMANDS, match_commands, resolve_ent
 
 check("slash lists all commands", match_commands("/") == list(SLASH_COMMANDS), str(match_commands("/")))
 check("/pl unique", match_commands("/pl") == ["/plan"], str(match_commands("/pl")))
+check("/model registered", "/model" in SLASH_COMMANDS, str(list(SLASH_COMMANDS)))
+check("/mo unique", match_commands("/mo") == ["/model"], str(match_commands("/mo")))
+check("/clear removed", "/clear" not in SLASH_COMMANDS, str(list(SLASH_COMMANDS)))
 check("memory commands removed", not any(c.startswith("/memory") for c in SLASH_COMMANDS), str(list(SLASH_COMMANDS)))
 check("non slash none", match_commands("plan") == [], str(match_commands("plan")))
 check("case insensitive", match_commands("/PL") == ["/plan"], str(match_commands("/PL")))
@@ -22,6 +25,8 @@ check("trailing newline ignored", match_commands("/plan\n") == ["/plan"], str(ma
 check("trailing spaces ignored", match_commands("/plan   ") == ["/plan"], str(match_commands("/plan   ")))
 
 check("enter unique submits full command", resolve_enter("/pl") == ("submit", "/plan"), str(resolve_enter("/pl")))
+check("enter /mo submits /model", resolve_enter("/mo") == ("submit", "/model"), str(resolve_enter("/mo")))
+check("enter /clear submits unknown", resolve_enter("/clear") == ("submit", "/clear"), str(resolve_enter("/clear")))
 check("enter exact submits", resolve_enter("/plan") == ("submit", "/plan"), str(resolve_enter("/plan")))
 check("enter ambiguous slash ignored", resolve_enter("/") == ("ignore", None), str(resolve_enter("/")))
 check("enter normal text submits", resolve_enter("hello") == ("submit", "hello"), str(resolve_enter("hello")))

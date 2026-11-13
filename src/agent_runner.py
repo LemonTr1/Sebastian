@@ -4,7 +4,7 @@ import time
 import threading
 from collections.abc import Callable
 import typer
-from src.config import get_client, MODEL, is_vision_model
+from src.config import get_client, MODEL, is_vision_model, BASE_URL
 from src.hooks.hooks_registry import get_hooks_registry
 from src.tools.toolkits.todo_manager import todo
 from src.tools.tools_registry import ToolsRegistry
@@ -22,6 +22,8 @@ from src.utils.memory_system import MEMORY_SYSTEM
 from src.utils.agent_mode import AGENT_MODE
 from src.utils.exceptions import CompactException, SubAgentRuntimeException
 from src.utils.wake_queue import BRAIN_OWNER, WAKE_QUEUE, WakeEvent
+from src.utils.thinking import build_thinking_kwargs, detect_provider
+from src.utils.thinking_state import THINKING_STATE
 
 #以下为response.choice[0].message对象结构
 #LLM的没有工具调用的回应格式：
@@ -61,6 +63,9 @@ from src.utils.wake_queue import BRAIN_OWNER, WAKE_QUEUE, WakeEvent
 '''
 
 logger = get_log()
+
+# 厂商在进程启动时由 BASE_URL 决定；/model 只切换思考强度，不切换模型
+PROVIDER = detect_provider(BASE_URL)
 
 #轮次上限的收尾提示：最后一轮不再给工具，强制模型输出阶段性总结
 FINAL_TURN_PROMPT = (
@@ -162,6 +167,11 @@ class AgentRunner:
 
         if msg.content:
             result["content"] = msg.content
+
+        #DeepSeek 带 tools 时要求回传历史 reasoning_content，否则 400
+        reasoning_content = getattr(msg, "reasoning_content", None)
+        if reasoning_content:
+            result["reasoning_content"] = reasoning_content
 
         tool_calls = msg.tool_calls
         #如果存在工具调用
@@ -410,6 +420,8 @@ class AgentRunner:
     def _run(self, task: str, max_turns: int = 50) -> str:
         self.last_reply = ""
         self.hit_turn_limit = False
+        #整个 AgentLoop 复用一次快照，避免运行中途切档
+        thinking_level = THINKING_STATE.snapshot()
         self._ensure_system_prompt()
         self._inject_wake_events()
         self.context.append({"role": "user", "content": task})
@@ -444,6 +456,7 @@ class AgentRunner:
                 self.context.append({"role": "user", "content": FINAL_TURN_PROMPT})
 
             kwargs = dict(model=self.model, messages=self.context)
+            kwargs.update(build_thinking_kwargs(PROVIDER, self.model, thinking_level))
             if tool_schemas and not final_turn:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
@@ -451,6 +464,7 @@ class AgentRunner:
             # 必须先初始化：重试全部失败时下面依赖 response is None 抛出可读错误，否则会 UnboundLocalError
             response = None
             retries = 0
+            thinking_stripped = False
             while True:
                 if retries >= 5:
                     break
@@ -458,8 +472,21 @@ class AgentRunner:
                     response = self.client.chat.completions.create(**kwargs)
                     break
                 except Exception as e:
+                    err = str(e).lower()
+                    # 模型/网关不支持思考参数：剥离参数与历史 reasoning_content，重试一次
+                    if not thinking_stripped and any(
+                        k in err for k in ("reasoning_content", "thinking", "reasoning_effort", "extra_body")
+                    ):
+                        thinking_stripped = True
+                        kwargs.pop("reasoning_effort", None)
+                        kwargs.pop("extra_body", None)
+                        for msg in self.context:
+                            if msg.get("role") == "assistant":
+                                msg.pop("reasoning_content", None)
+                        logger.warning(f"{self.name} 当前模型不支持思考参数，剥离后重试")
+                        continue
                     #如果是上下文溢出导致的异常
-                    if "prompt_too_long" in str(e).lower() or "too many tokens" in str(e).lower() or "context_length_exceeded" in str(e).lower():
+                    if "prompt_too_long" in err or "too many tokens" in err or "context_length_exceeded" in err:
                         reactive_retries = 0
                         while True:
                             if reactive_retries >= 3:
@@ -509,6 +536,8 @@ class AgentRunner:
     def run_stream(self, task: str | None, on_token=None, max_turns: int = 50) -> None:
         self.last_reply = ""
         self.hit_turn_limit = False
+        #整个 AgentLoop 复用一次快照，避免运行中途切档
+        thinking_level = THINKING_STATE.snapshot()
         self._ensure_system_prompt()
         injected = self._inject_wake_events()
         if task is not None:
@@ -552,6 +581,7 @@ class AgentRunner:
                 self.context.append({"role": "user", "content": FINAL_TURN_PROMPT})
 
             kwargs = dict(model=self.model, messages=self.context)
+            kwargs.update(build_thinking_kwargs(PROVIDER, self.model, thinking_level))
             if tool_schemas and not final_turn:
                 kwargs["tools"] = tool_schemas
                 kwargs["tool_choice"] = "auto"
@@ -559,6 +589,7 @@ class AgentRunner:
             stream = None
             retries = 0
             use_stream_options = True
+            thinking_stripped = False
             while True:
                 if retries >= 5:
                     break
@@ -574,6 +605,18 @@ class AgentRunner:
                     if use_stream_options and ("stream_options" in err or "include_usage" in err):
                         logger.warning(f"{self.name} 供应商不支持 stream_options/include_usage，回退为普通流式调用")
                         use_stream_options = False
+                        continue
+                    # 模型/网关不支持思考参数：剥离参数与历史 reasoning_content，重试一次
+                    if not thinking_stripped and any(
+                        k in err for k in ("reasoning_content", "thinking", "reasoning_effort", "extra_body")
+                    ):
+                        thinking_stripped = True
+                        kwargs.pop("reasoning_effort", None)
+                        kwargs.pop("extra_body", None)
+                        for msg in self.context:
+                            if msg.get("role") == "assistant":
+                                msg.pop("reasoning_content", None)
+                        logger.warning(f"{self.name} 当前模型不支持思考参数，剥离后重试")
                         continue
                     # 如果是上下文溢出导致的异常
                     if "prompt_too_long" in err or "too many tokens" in err or "context_length_exceeded" in err:
@@ -605,6 +648,7 @@ class AgentRunner:
                 return f"[ERROR] {self.name} 调用模型失败，已达到最大重试次数，请稍后重试。"
 
             collected_content = ""
+            collected_reasoning = ""
             streamed_len = 0
             collected_tool_calls: dict[int, dict] = {}
             has_tool_calls = False
@@ -624,6 +668,10 @@ class AgentRunner:
                 delta = choices[0].delta
                 if delta is None:
                     continue
+                #只保存思维链用于回传，不打印到终端
+                reasoning = getattr(delta, "reasoning_content", None)
+                if reasoning:
+                    collected_reasoning += reasoning
                 if delta.tool_calls:
                     has_tool_calls = True
                     for tc in delta.tool_calls:
@@ -655,6 +703,8 @@ class AgentRunner:
             self._ensure_tool_call_ids(tool_calls_list)
 
             assistant_msg = {"role": "assistant", "content": collected_content or None}
+            if collected_reasoning:
+                assistant_msg["reasoning_content"] = collected_reasoning
             if tool_calls_list:
                 assistant_msg["tool_calls"] = tool_calls_list
             assistant_msg = {k: v for k, v in assistant_msg.items() if v is not None}

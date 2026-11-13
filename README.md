@@ -49,6 +49,7 @@ Sebastian 是一个基于 LLM 的多 Agent 协作终端助手：主控 Agent 负
   - [CLI 命令](#cli-命令)
     - [启动命令](#启动命令)
     - [对话内命令](#对话内命令)
+    - [思考强度](#思考强度)
   - [项目结构](#项目结构)
   - [技术栈](#技术栈)
   - [许可证](#许可证)
@@ -301,13 +302,13 @@ HITL 使用终端确认（`src/utils/interaction.py`）：
 
 ### 斜杠命令补全
 
-输入 `/` 会实时弹出命令菜单并随输入过滤（prompt_toolkit，网格排列）；按 Enter 时若只有一个匹配，直接补全并执行（如 `/pl` → `/plan`），多个匹配则保留菜单等待继续输入。Enter 提交，Ctrl-J / Alt+Enter 插入换行；REPL 期间后台日志仍先做 ANSI 清洗再绘制。非 TTY / dumb 终端 / 未安装 prompt_toolkit 时自动回退到原 `input()` 路径。
+输入 `/` 会实时弹出命令菜单并随输入过滤（prompt_toolkit，网格排列）；按 Enter 时若只有一个匹配，直接补全并执行（如 `/pl` → `/plan`），多个匹配则保留菜单等待继续输入。`/model` 同样支持 `/mo` 前缀补全。Enter 提交，Ctrl-J / Alt+Enter 插入换行；REPL 期间后台日志仍先做 ANSI 清洗再绘制。非 TTY / dumb 终端 / 未安装 prompt_toolkit 时自动回退到原 `input()` 路径。
 
 ### 会话管理
 
 - 会话保存为 JSONL 文件：`~/.sebastian/session/{session_id}.jsonl`
 - 退出时自动保存，`sebastian -s <SESSION_ID>` 恢复会话；自动保留最近 10 个会话
-- 对话内支持 `/clear` 清空历史、`/compact` 手动压缩
+- 对话内支持 `/compact` 手动压缩
 
 ### 规划/执行/免审批三模式
 
@@ -380,6 +381,8 @@ LLM_BASE_URL=https://api.deepseek.com
 
 支持任何兼容 OpenAI API 格式的服务（OpenAI、DeepSeek、Ollama、vLLM 等）。
 
+`setup` 只配置模型、API Key 与 Base URL，**不能设置思考强度**。启动后默认开启思考且为中等强度；只有对话内 `/model` 可以调整思考强度。
+
 ### 启动
 
 ```bash
@@ -422,9 +425,15 @@ sebastian setup                 # API 配置向导（密钥掩码输入）
 | `/plan` | 进入 Plan 只读规划模式（仅调研/规划工具可用） |
 | `/approvals` | 进入审批执行模式（Build，全部工具可用，危险操作需审批） |
 | `/yolo` | 进入 YOLO 免审批模式（全部工具可用，不再人工审批） |
-| `/clear` | 清空当前对话历史 |
+| `/model` | 设置思考强度：关闭 / 中等（默认）/ 最高，仅当前会话生效 |
 | `/compact` | 手动触发上下文 LLM 摘要压缩 |
 | `Ctrl+C` / `Ctrl+D` | 退出（不保存会话） |
+
+### 思考强度
+
+`setup` 只写入模型、API Key 与 Base URL，**不能设置思考强度**。启动后默认开启思考且为中等强度；只有对话内 `/model` 可以调整思考强度，三档为关闭 / 中等 / 最高。设置仅当前会话生效，模型仍由 `.env` 的 `LLM_MODEL` 决定。
+
+部分模型强制思考、无法关闭（如 Grok 4.x、GLM-5.3、Kimi K3、Gemini 4），`/model` 菜单会置灰并说明原因；厂商由 `LLM_BASE_URL` 自动识别。
 
 ---
 
@@ -488,6 +497,8 @@ Sebastian/
 │   │   ├── memory_system.py        # .memory/ 索引 + 条目，开关与提示词
 │   │   ├── compaction_pipeline.py  # 3层上下文压缩管线（预算驱动/无损降级/分段摘要）
 │   │   ├── model_windows.py        # 模型名→上下文窗口解析（.env 动态映射）
+│   │   ├── thinking.py             # 厂商识别与思考强度参数映射
+│   │   ├── thinking_state.py       # 会话级思考强度状态（/model）
 │   │   ├── interaction.py          # 终端审批/提问（input + 提示符重绘）
 │   │   ├── completion_input.py     # REPL 输入：prompt_toolkit 斜杠补全/回退
 │   │   ├── slash_commands.py       # 斜杠命令清单与 Enter 补全判定

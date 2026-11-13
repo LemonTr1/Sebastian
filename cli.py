@@ -303,18 +303,60 @@ def _run_chat(session_id: str):
             logger.info(f"{uname} 已成功保存会话并登出系统")
             raise typer.Exit(code=0)
 
-        if cmd == "/clear":
-            with CRON_SCHEDULE.agent_lock:
-                brain_agent.set_context([])
-            logger.info(f"{uname} 手动清空所有历史对话")
-            typer.echo(typer.style("已清空所有历史对话", fg=typer.colors.GREEN, bold=True))
-            continue
-
         if cmd == "/compact":
             with CRON_SCHEDULE.agent_lock:
                 brain_agent.set_context(compact_history(brain_agent.get_context()))
             logger.info(f"{uname} 手动压缩历史对话")
             typer.echo(typer.style("已压缩历史对话", fg=typer.colors.GREEN, bold=True))
+            continue
+
+        if cmd == "/model":
+            from src.config import BASE_URL, MODEL
+            from src.utils.thinking import detect_provider, thinking_options
+            from src.utils.thinking_state import THINKING_STATE
+
+            provider = detect_provider(BASE_URL)
+            if provider is None:
+                typer.echo(typer.style(
+                    "当前 BASE_URL 未识别厂商，无法设置思考强度",
+                    fg=typer.colors.YELLOW, bold=True,
+                ))
+                continue
+
+            options = thinking_options(provider, MODEL)
+            current = THINKING_STATE.snapshot()
+            typer.echo(typer.style(f"\n当前模型：{MODEL}", fg=typer.colors.CYAN, bold=True))
+            for index, option in enumerate(options, 1):
+                marker = "*" if option["level"] == current else " "
+                text = f"{marker} {index}. {option['label']}"
+                if option["available"]:
+                    typer.echo(text)
+                else:
+                    typer.echo(typer.style(f"{text}（{option['note']}）", dim=True))
+
+            while True:
+                try:
+                    choice = ui_redraw.gated_input("选择思考强度（回车取消）：").strip()
+                except (EOFError, KeyboardInterrupt):
+                    choice = ""
+                if not choice:
+                    typer.echo(typer.style("已取消", fg=typer.colors.YELLOW))
+                    break
+                if not choice.isdigit() or not (1 <= int(choice) <= len(options)):
+                    typer.echo(typer.style("无效编号，请重新输入", fg=typer.colors.RED))
+                    continue
+                option = options[int(choice) - 1]
+                if not option["available"]:
+                    typer.echo(typer.style(f"无法选择：{option['note']}", fg=typer.colors.RED))
+                    continue
+                with CRON_SCHEDULE.agent_lock:
+                    THINKING_STATE.set(option["level"])
+                logger.info(f"{uname} 设置思考强度为 {option['level']}")
+                typer.echo(typer.style(
+                    f"思考强度已设置为：{option['label']}",
+                    fg=typer.colors.GREEN, bold=True,
+                ))
+                break
             continue
 
         if cmd == "/plan":
@@ -446,6 +488,7 @@ def setup():
     set_key(env_path, "LLM_BASE_URL", base_url)
 
     typer.echo("\n配置保存成功")
+    typer.echo("思考强度默认中等；进入会话后用 /model 调整，setup 不设置思考强度。")
 
 
 if __name__ == "__main__":

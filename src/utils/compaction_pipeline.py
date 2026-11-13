@@ -480,7 +480,7 @@ def _tail_start_at_user_boundary(messages: list) -> int:
 
     只用真实用户消息做边界：TODO/cron/后台通知/SYSTEM_REMINDER 都是运行期注入，
     若把它们当成“最后一条 user”，当前用户任务会被摘要掉，只留下注入块。
-    没有真实用户时（例如 /clear 后只有唤醒事件），回退到末尾连续的注入块，
+    没有真实用户时（例如上下文为空、只有唤醒事件），回退到末尾连续的注入块，
     保证唤醒内容不会被整段摘要掉；摘要消息本身也排除，避免旧摘要被原样保留。
     """
     real_user_found = False
